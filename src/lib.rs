@@ -3,15 +3,15 @@ extern crate alloc;
 
 use ::{
     alloc::boxed::Box,
-    core::{
-        marker::PhantomData,
-        mem::{ManuallyDrop, drop, transmute},
-    },
+    core::{marker::PhantomData, mem::transmute},
 };
 
 pub struct BowlMut<'a, T, F: for<'b> Derive<&'b mut T>> {
-    base: *mut T,
-    derived: ManuallyDrop<<F as Derive<&'a mut T>>::Output>,
+    // `base` will be dropped after `derived`.
+    // Rust guarantees that fields are dropped in the order of declaration.
+    // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
+    derived: <F as Derive<&'a mut T>>::Output,
+    base: Box<T>,
 }
 
 #[cfg(feature = "gat")]
@@ -47,39 +47,32 @@ where
         base: T,
         derive: impl for<'b> Derive<&'b mut T, Output = <F as Derive<&'b mut T>>::Output>,
     ) -> Self {
-        let base = Box::into_raw(Box::new(base));
+        let mut base = Box::new(base);
         // SAFETY: The lifetime `'a` passed to `derive()` might differ from the actual borrow,
         // but the HRTB requires `derive()` to work uniformly for any lifetime,
         // so `derive()` cannot exploit the length of `'a`.
         // Thus we can assume that `derive()` had received the real lifetime of `*base`.
         // Now `derived` is annotated with a fake lifetime `'a`
         // and the safety of reading `derived` is handed off to getters.
-        let derived = derive.call(unsafe { &mut *base });
-        BowlMut {
-            base,
-            derived: ManuallyDrop::new(derived),
-        }
+        let derived = derive.call(unsafe { transmute(&mut *base) });
+        BowlMut { base, derived }
     }
 
     pub fn new(base: T, derive: F) -> Self {
         Self::new_into(base, derive)
     }
 
-    pub fn map_into<'b, G, H>(mut self, f: H) -> BowlMut<'b, T, G>
+    pub fn map_into<'b, G, H>(self, f: H) -> BowlMut<'b, T, G>
     where
         for<'c> H: Derive<<F as Derive<&'c mut T>>::Output>,
         for<'c> G:
             Derive<&'c mut T, Output = <H as Derive<<F as Derive<&'c mut T>>::Output>>::Output>,
     {
-        let base = self.base;
-        let derived = &mut self.derived;
-        // SAFETY: The memory of `derived` is freed by `forget(self)`,
-        // and its resources are transferred to the new copy.
-        let derived = unsafe { ManuallyDrop::take(derived) };
-        core::mem::forget(self);
+        let Self { base, derived } = self;
+        // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
         BowlMut::<'_, T, G> {
             base,
-            derived: ManuallyDrop::new(f.call(derived)),
+            derived: f.call(derived),
         }
         .cast()
     }
@@ -129,21 +122,17 @@ where
         // because that's the actual lifetime of `*base`,
         // but we don't know about that yet,
         // so using `'b` is the best we can do.
-        &*self.cast_ref::<F>().derived
+        &self.cast_ref::<F>().derived
     }
     pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ mut T>>::Output {
         // SAFETY: Same as `get()`, but for mutable references.
-        &mut *self.cast_mut::<F>().derived
+        &mut self.cast_mut::<F>().derived
     }
 
-    pub fn into_inner(mut self) -> T {
-        let base = self.base;
-        // SAFETY: This runs the deconstructor of `derived`,
-        // and the memory is freed in `forget(self)`.
-        unsafe { ManuallyDrop::drop(&mut self.derived) }
-        core::mem::forget(self);
+    pub fn into_inner(self) -> T {
+        let Self { base, derived: _ } = self;
         // SAFETY: `*base` is not used elsewhere after `derived` is dropped.
-        *unsafe { Box::from_raw(base) }
+        *base
     }
 }
 
@@ -161,18 +150,6 @@ where
     }
     fn get_mut(&mut self) -> &mut Self::Value<'_> {
         BowlMut::get_mut(self)
-    }
-}
-
-impl<'a, T, F> Drop for BowlMut<'a, T, F>
-where
-    F: for<'b> Derive<&'b mut T>,
-{
-    fn drop(&mut self) {
-        // SAFETY: `derived` may hold references to `*base`, so it must be dropped first.
-        unsafe { ManuallyDrop::drop(&mut self.derived) }
-        // SAFETY: `*base` is heap-allocated and should be deallocated exactly once.
-        drop(unsafe { Box::from_raw(self.base) });
     }
 }
 
