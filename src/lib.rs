@@ -14,6 +14,7 @@ pub struct Oyakodon<'a, T, F: for<'b> Derive<&'b mut T>> {
     derived: ManuallyDrop<<F as Derive<&'a mut T>>::Output>,
 }
 
+#[cfg(feature = "gat")]
 pub trait Don {
     type Value<'a>
     where
@@ -121,12 +122,18 @@ where
         unsafe { (&raw const self).cast::<Oyakodon<'_, _, _>>().read() }
     }
 
-    // Convenience delegation so callers don't need to import the trait.
     pub fn get(&self) -> &<F as Derive<&'_ mut T>>::Output {
-        Don::get(self)
+        // SAFETY: Reading `derived` is safe only if
+        // the lifetime passed to `derive()` is shorter than that of `*base`.
+        // Ideally we would like to use the lifetime of the `self` instance
+        // because that's the actual lifetime of `*base`,
+        // but we don't know about that yet,
+        // so using `'b` is the best we can do.
+        &*self.cast_ref::<F>().derived
     }
-    pub fn get_mut(&mut self) -> &<F as Derive<&'_ mut T>>::Output {
-        Don::get_mut(self)
+    pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ mut T>>::Output {
+        // SAFETY: Same as `get()`, but for mutable references.
+        &mut *self.cast_mut::<F>().derived
     }
 
     pub fn into_inner(mut self) -> T {
@@ -140,6 +147,7 @@ where
     }
 }
 
+#[cfg(feature = "gat")]
 impl<'a, T, F> Don for Oyakodon<'a, T, F>
 where
     F: for<'b> Derive<&'b mut T>,
@@ -149,17 +157,10 @@ where
     where
         Self: 'b;
     fn get(&self) -> &Self::Value<'_> {
-        // SAFETY: Reading `derived` is safe only if
-        // the lifetime passed to `derive()` is shorter than that of `*base`.
-        // Ideally we would like to use the lifetime of the `self` instance
-        // because that's the actual lifetime of `*base`,
-        // but we don't know about that yet,
-        // so using `'b` is the best we can do.
-        &*self.cast_ref::<F>().derived
+        Oyakodon::get(self)
     }
     fn get_mut(&mut self) -> &mut Self::Value<'_> {
-        // SAFETY: Same as `get()`, but for mutable references.
-        &mut *self.cast_mut::<F>().derived
+        Oyakodon::get_mut(self)
     }
 }
 
