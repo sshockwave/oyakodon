@@ -1,17 +1,24 @@
 #![no_std]
 extern crate alloc;
 
+mod stable_deref;
+
 use ::{
     alloc::boxed::Box,
-    core::{marker::PhantomData, mem::transmute},
+    core::{
+        marker::PhantomData,
+        mem::transmute,
+        ops::{Deref, DerefMut},
+    },
 };
+pub use stable_deref::StableDeref;
 
-pub struct BowlMut<'a, T, F: for<'b> Derive<&'b mut T>> {
+pub struct BowlMut<'a, T: Deref, F: for<'b> Derive<&'b mut T::Target>> {
     // `base` will be dropped after `derived`.
     // Rust guarantees that fields are dropped in the order of declaration.
     // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
-    derived: <F as Derive<&'a mut T>>::Output,
-    base: Box<T>,
+    derived: <F as Derive<&'a mut T::Target>>::Output,
+    base: T,
 }
 
 #[cfg(feature = "gat")]
@@ -38,16 +45,37 @@ where
     }
 }
 
-impl<'a, T, F> BowlMut<'a, T, F>
+impl<'a, T, F> BowlMut<'a, Box<T>, F>
 where
     F: for<'b> Derive<&'b mut T>,
 {
-    /// The primary constructor. All other `from_*` functions are convenience wrappers around this.
+    pub fn new(base: T, derive: F) -> Self {
+        Self::from_ptr(Box::new(base), derive)
+    }
     pub fn new_into(
         base: T,
         derive: impl for<'b> Derive<&'b mut T, Output = <F as Derive<&'b mut T>>::Output>,
     ) -> Self {
-        let mut base = Box::new(base);
+        Self::from_ptr_into(Box::new(base), derive)
+    }
+    pub fn into_inner(self) -> T {
+        *self.into_ptr()
+    }
+}
+
+impl<'a, T, F> BowlMut<'a, T, F>
+where
+    T: StableDeref + DerefMut,
+    F: for<'b> Derive<&'b mut T::Target>,
+{
+    /// The primary constructor. All other constructors are convenience wrappers around this.
+    pub fn from_ptr_into(
+        mut base: T,
+        derive: impl for<'b> Derive<
+            &'b mut T::Target,
+            Output = <F as Derive<&'b mut T::Target>>::Output,
+        >,
+    ) -> Self {
         // SAFETY: The lifetime `'a` passed to `derive()` might differ from the actual borrow,
         // but the HRTB requires `derive()` to work uniformly for any lifetime,
         // so `derive()` cannot exploit the length of `'a`.
@@ -58,15 +86,17 @@ where
         BowlMut { base, derived }
     }
 
-    pub fn new(base: T, derive: F) -> Self {
-        Self::new_into(base, derive)
+    pub fn from_ptr(base: T, derive: F) -> Self {
+        Self::from_ptr_into(base, derive)
     }
 
     pub fn map_into<'b, G, H>(self, f: H) -> BowlMut<'b, T, G>
     where
-        for<'c> H: Derive<<F as Derive<&'c mut T>>::Output>,
-        for<'c> G:
-            Derive<&'c mut T, Output = <H as Derive<<F as Derive<&'c mut T>>::Output>>::Output>,
+        for<'c> H: Derive<<F as Derive<&'c mut T::Target>>::Output>,
+        for<'c> G: Derive<
+                &'c mut T::Target,
+                Output = <H as Derive<<F as Derive<&'c mut T::Target>>::Output>>::Output,
+            >,
     {
         let Self { base, derived } = self;
         // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
@@ -77,16 +107,22 @@ where
         .cast()
     }
 
-    pub fn map<G>(self, f: G) -> BowlMut<'a, T, Map<T, F, G>>
+    pub fn map<G>(self, f: G) -> BowlMut<'a, T, Map<T::Target, F, G>>
     where
-        G: for<'b> Derive<<F as Derive<&'b mut T>>::Output>,
+        G: for<'b> Derive<<F as Derive<&'b mut T::Target>>::Output>,
     {
         self.map_into(f)
     }
+}
 
+impl<'a, T, F> BowlMut<'a, T, F>
+where
+    T: Deref,
+    F: for<'b> Derive<&'b mut T::Target>,
+{
     pub fn cast_ref<'b, G>(&self) -> &BowlMut<'b, T, G>
     where
-        for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
+        for<'c> G: Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>,
     {
         // SAFETY: We maintain an HRTB invariant on `derive()`
         // to make sure any `'c` that does not outlive `*base`
@@ -101,21 +137,21 @@ where
     }
     pub fn cast_mut<'b, G>(&mut self) -> &mut BowlMut<'b, T, G>
     where
-        for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
+        for<'c> G: Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>,
     {
         // SAFETY: Same as `cast_ref()`.
         unsafe { transmute(self) }
     }
     pub fn cast<'b, G>(self) -> BowlMut<'b, T, G>
     where
-        for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
+        for<'c> G: Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>,
     {
         // SAFETY: The object cast implementation follows `ManuallyDrop::into_inner`
         // because the compiler can't figure out that their sizes are the same.
         unsafe { (&raw const self).cast::<BowlMut<'_, _, _>>().read() }
     }
 
-    pub fn get(&self) -> &<F as Derive<&'_ mut T>>::Output {
+    pub fn get(&self) -> &<F as Derive<&'_ mut T::Target>>::Output {
         // SAFETY: Reading `derived` is safe only if
         // the lifetime passed to `derive()` is shorter than that of `*base`.
         // Ideally we would like to use the lifetime of the `self` instance
@@ -124,25 +160,26 @@ where
         // so using `'b` is the best we can do.
         &self.cast_ref::<F>().derived
     }
-    pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ mut T>>::Output {
+    pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ mut T::Target>>::Output {
         // SAFETY: Same as `get()`, but for mutable references.
         &mut self.cast_mut::<F>().derived
     }
 
-    pub fn into_inner(self) -> T {
+    pub fn into_ptr(self) -> T {
         let Self { base, derived: _ } = self;
         // SAFETY: `*base` is not used elsewhere after `derived` is dropped.
-        *base
+        base
     }
 }
 
 #[cfg(feature = "gat")]
 impl<'a, T, F> Bowl for BowlMut<'a, T, F>
 where
-    F: for<'b> Derive<&'b mut T>,
+    T: Deref,
+    F: for<'b> Derive<&'b mut T::Target>,
 {
     type Value<'b>
-        = <F as Derive<&'b mut T>>::Output
+        = <F as Derive<&'b mut T::Target>>::Output
     where
         Self: 'b;
     fn get(&self) -> &Self::Value<'_> {
@@ -153,8 +190,8 @@ where
     }
 }
 
-pub struct Map<T, F, G>(G, PhantomData<(T, F)>);
-impl<'a, T, F, G> Derive<&'a mut T> for Map<T, F, G>
+pub struct Map<T: ?Sized, F, G>(G, PhantomData<(F, T)>);
+impl<'a, T: ?Sized, F, G> Derive<&'a mut T> for Map<T, F, G>
 where
     F: for<'b> Derive<&'b mut T>,
     G: for<'b> Derive<<F as Derive<&'b mut T>>::Output>,
