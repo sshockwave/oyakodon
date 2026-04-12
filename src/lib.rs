@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(private_bounds, private_interfaces)]
 extern crate alloc;
 
 use ::{
@@ -7,24 +6,12 @@ use ::{
     core::{
         marker::PhantomData,
         mem::{ManuallyDrop, drop, transmute},
-        ops::Drop,
     },
 };
 
-pub trait Derive: Sized {
-    type Base;
-    type Derived<'a>
-    where
-        Self::Base: 'a;
-    fn derive(self, base: &mut Self::Base) -> Self::Derived<'_>;
-}
-
-pub struct Oyakodon<'a, F: Derive>
-where
-    F::Base: 'a,
-{
-    base: *mut F::Base,
-    derived: ManuallyDrop<F::Derived<'a>>,
+pub struct Oyakodon<'a, T, F: for<'b> Derive<&'b mut T>> {
+    base: *mut T,
+    derived: ManuallyDrop<<F as Derive<&'a mut T>>::Output>,
 }
 
 pub trait Don {
@@ -35,11 +22,29 @@ pub trait Don {
     fn get_mut(&mut self) -> &mut Self::Value<'_>;
 }
 
+pub trait Derive<T> {
+    type Output;
+    fn call(self, input: T) -> Self::Output;
+}
+
+impl<T, F, R> Derive<T> for F
+where
+    F: FnOnce(T) -> R,
+{
+    type Output = R;
+    fn call(self, input: T) -> Self::Output {
+        self(input)
+    }
+}
+
 /// The primary constructor. All other `from_*` functions are convenience wrappers around this.
-pub fn from_derive_into<'a, F: Derive>(
-    base: F::Base,
-    derive: impl Derive<Base = F::Base, Derived<'a> = F::Derived<'a>>,
-) -> Oyakodon<'a, F> {
+pub fn new_into<'a, T, F>(
+    base: T,
+    derive: impl for<'b> Derive<&'b mut T, Output = <F as Derive<&'b mut T>>::Output>,
+) -> Oyakodon<'a, T, F>
+where
+    F: for<'b> Derive<&'b mut T>,
+{
     let base = Box::into_raw(Box::new(base));
     // SAFETY: The lifetime `'a` passed to `derive()` might differ from the actual borrow,
     // but the HRTB requires `derive()` to work uniformly for any lifetime,
@@ -47,57 +52,29 @@ pub fn from_derive_into<'a, F: Derive>(
     // Thus we can assume that `derive()` had received the real lifetime of `*base`.
     // Now `derived` is annotated with a fake lifetime `'a`
     // and the safety of reading `derived` is handed off to getters.
-    let derived = derive.derive(unsafe { &mut *base });
+    let derived = derive.call(unsafe { &mut *base });
     Oyakodon {
         base,
         derived: ManuallyDrop::new(derived),
     }
 }
 
-pub fn from_derive<'a, F: Derive>(base: F::Base, derive: F) -> Oyakodon<'a, F> {
-    from_derive_into(base, derive)
-}
-
-pub fn from_fn<'a, T, F>(base: T, derive: F) -> Oyakodon<'a, DeriveFunction<F, T>>
+pub fn new<'a, T, F>(base: T, derive: F) -> Oyakodon<'a, T, F>
 where
-    for<'b> F: OnInput<&'b mut T>,
+    F: for<'b> Derive<&'b mut T>,
 {
-    from_derive(base, DeriveFunction(derive, PhantomData))
+    new_into(base, derive)
 }
 
-pub fn from_fn_into<'a, F: Derive>(
-    base: F::Base,
-    derive: impl for<'b> OnInput<&'b mut F::Base, Output = F::Derived<'b>>,
-) -> Oyakodon<'a, F> {
-    from_derive_into(base, DeriveFunction(derive, PhantomData))
-}
-
-pub fn from_boxed_into<'a, F: Derive>(
-    base: F::Base,
-    derive: Box<dyn for<'b> FnOnce(&'b mut F::Base) -> F::Derived<'b>>,
-) -> Oyakodon<'a, F> {
-    from_derive_into(base, DeriveFunction(derive, PhantomData))
-}
-
-pub fn from_dyn_into<'a, 'b, F: Derive + 'b>(
-    base: F::Base,
-    derive: &'b dyn for<'c> Fn(&'c mut F::Base) -> F::Derived<'c>,
-) -> Oyakodon<'a, F> {
-    from_derive_into(base, DeriveFunction(derive, PhantomData))
-}
-
-pub fn from_dyn_mut_into<'a, 'b, F: Derive + 'b>(
-    base: F::Base,
-    derive: &'b mut dyn for<'c> FnMut(&'c mut F::Base) -> F::Derived<'c>,
-) -> Oyakodon<'a, F> {
-    from_derive_into(base, DeriveFunction(derive, PhantomData))
-}
-
-impl<'a, F: Derive> Oyakodon<'a, F> {
-    pub fn map<'b, G, H>(mut self, f: H) -> Oyakodon<'b, G>
+impl<'a, T, F> Oyakodon<'a, T, F>
+where
+    F: for<'b> Derive<&'b mut T>,
+{
+    pub fn map_into<'b, G, H>(mut self, f: H) -> Oyakodon<'b, T, G>
     where
-        for<'c> H: OnInput<F::Derived<'c>>,
-        for<'c> G: Derive<Base = F::Base, Derived<'c> = <H as OnInput<F::Derived<'c>>>::Output>,
+        for<'c> H: Derive<<F as Derive<&'c mut T>>::Output>,
+        for<'c> G:
+            Derive<&'c mut T, Output = <H as Derive<<F as Derive<&'c mut T>>::Output>>::Output>,
     {
         let base = self.base;
         let derived = &mut self.derived;
@@ -105,54 +82,59 @@ impl<'a, F: Derive> Oyakodon<'a, F> {
         // and its resources are transferred to the new copy.
         let derived = unsafe { ManuallyDrop::take(derived) };
         core::mem::forget(self);
-        let derived = f.call(derived);
-        // SAFETY: Same as `cast()`.
-        let derived = unsafe { (&raw const derived).cast::<G::Derived<'_>>().read() };
-        Oyakodon {
+        Oyakodon::<'_, T, G> {
             base,
-            derived: ManuallyDrop::new(derived),
+            derived: ManuallyDrop::new(f.call(derived)),
         }
+        .cast()
     }
 
-    pub fn cast_lifetime<'b>(self) -> Oyakodon<'b, F> {
+    pub fn map<G>(self, f: G) -> Oyakodon<'a, T, Map<T, F, G>>
+    where
+        G: for<'b> Derive<<F as Derive<&'b mut T>>::Output>,
+    {
+        self.map_into(f)
+    }
+
+    pub fn cast_lifetime<'b>(self) -> Oyakodon<'b, T, F> {
         // SAFETY: The HRTB on `derive()` guarantees any `'c`
-        // that does not outlive `*base` can produce a valid `F::Derived<'c>`.
+        // that does not outlive `*base` can produce a valid `F::Output<'c>`.
         // Since `*base` is heap-allocated and outlives `self`
         // any borrow `'b` of `self` satisfies the HRTB.
-        // This is not a contradiction to the possible invariance of `F::Derived`.
+        // This is not a contradiction to the possible invariance of `F::Output`.
         // Think of it as if `derive()` was called with the lifetime of the borrow,
         // and we merely used `'a` as a placeholder.
         // The memory layout is the same because lifetime information is erased in runtime.
         unsafe { transmute(self) }
     }
-    pub fn cast_lifetime_ref<'b>(&self) -> &Oyakodon<'b, F> {
+    pub fn cast_lifetime_ref<'b>(&self) -> &Oyakodon<'b, T, F> {
         // SAFETY: Same as `cast_lifetime()`.
         unsafe { transmute(self) }
     }
-    pub fn cast_lifetime_mut<'b>(&mut self) -> &mut Oyakodon<'b, F> {
+    pub fn cast_lifetime_mut<'b>(&mut self) -> &mut Oyakodon<'b, T, F> {
         // SAFETY: Same as `cast_lifetime()`.
         unsafe { transmute(self) }
     }
 
-    pub fn cast<'b, G>(self) -> Oyakodon<'b, G>
+    pub fn cast<'b, G>(self) -> Oyakodon<'b, T, G>
     where
-        for<'c> G: Derive<Base = F::Base, Derived<'c> = F::Derived<'c>>,
+        for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
     {
         // SAFETY: The HRTB of this function maintains the HRTB invariant of `derive()`.
         // The object cast implementation follows `ManuallyDrop::into_inner`
         // because the compiler can't figure out that their size are the same.
-        unsafe { (&raw const self).cast::<Oyakodon<'_, _>>().read() }
+        unsafe { (&raw const self).cast::<Oyakodon<'_, _, _>>().read() }
     }
 
     // Convenience delegation so callers don't need to import the trait.
-    pub fn get(&self) -> &F::Derived<'_> {
+    pub fn get(&self) -> &<F as Derive<&'_ mut T>>::Output {
         Don::get(self)
     }
-    pub fn get_mut(&mut self) -> &mut F::Derived<'_> {
+    pub fn get_mut(&mut self) -> &<F as Derive<&'_ mut T>>::Output {
         Don::get_mut(self)
     }
 
-    pub fn into_inner(mut self) -> F::Base {
+    pub fn into_inner(mut self) -> T {
         let base = self.base;
         // SAFETY: This runs the deconstructor of `derived`,
         // and the memory is freed in `forget(self)`.
@@ -163,9 +145,12 @@ impl<'a, F: Derive> Oyakodon<'a, F> {
     }
 }
 
-impl<'a, F: Derive> Don for Oyakodon<'a, F> {
+impl<'a, T, F> Don for Oyakodon<'a, T, F>
+where
+    F: for<'b> Derive<&'b mut T>,
+{
     type Value<'b>
-        = F::Derived<'b>
+        = <F as Derive<&'b mut T>>::Output
     where
         Self: 'b;
     fn get(&self) -> &Self::Value<'_> {
@@ -183,7 +168,10 @@ impl<'a, F: Derive> Don for Oyakodon<'a, F> {
     }
 }
 
-impl<'a, F: Derive> Drop for Oyakodon<'a, F> {
+impl<'a, T, F> Drop for Oyakodon<'a, T, F>
+where
+    F: for<'b> Derive<&'b mut T>,
+{
     fn drop(&mut self) {
         // SAFETY: `derived` may hold references to `*base`, so it must be dropped first.
         unsafe { ManuallyDrop::drop(&mut self.derived) }
@@ -192,33 +180,83 @@ impl<'a, F: Derive> Drop for Oyakodon<'a, F> {
     }
 }
 
-trait OnInput<T> {
-    type Output;
-    fn call(self, input: T) -> Self::Output;
-}
-
-impl<T, F, R> OnInput<T> for F
+pub struct Map<T, F, G>(G, PhantomData<(T, F)>);
+impl<'a, T, F, G> Derive<&'a mut T> for Map<T, F, G>
 where
-    F: FnOnce(T) -> R,
+    F: for<'b> Derive<&'b mut T>,
+    G: for<'b> Derive<<F as Derive<&'b mut T>>::Output>,
 {
-    type Output = R;
-    fn call(self, input: T) -> Self::Output {
-        self(input)
+    type Output = <G as Derive<<F as Derive<&'a mut T>>::Output>>::Output;
+    fn call(self, _: &'a mut T) -> Self::Output {
+        unreachable!()
     }
 }
 
-struct DeriveFunction<F, T>(F, PhantomData<T>);
-
-impl<T, F> Derive for DeriveFunction<F, T>
+pub struct DynFnOnce<T, F>(Box<dyn for<'a> FnOnce(&'a mut T) -> <F as Derive<&'a mut T>>::Output>)
 where
-    for<'a> F: OnInput<&'a mut T>,
+    F: for<'a> Derive<&'a mut T>;
+impl<'a, T, F> Derive<&'a mut T> for DynFnOnce<T, F>
+where
+    F: for<'b> Derive<&'b mut T>,
 {
-    type Base = T;
-    type Derived<'a>
-        = <F as OnInput<&'a mut T>>::Output
-    where
-        Self::Base: 'a;
-    fn derive<'a>(self, base: &'a mut Self::Base) -> Self::Derived<'a> {
-        self.0.call(base)
+    type Output = <F as Derive<&'a mut T>>::Output;
+    fn call(self, input: &'a mut T) -> Self::Output {
+        self.0(input)
+    }
+}
+impl<T, F> DynFnOnce<T, F>
+where
+    F: for<'a> Derive<&'a mut T>,
+{
+    pub fn new(
+        derive: Box<dyn for<'a> FnOnce(&'a mut T) -> <F as Derive<&'a mut T>>::Output>,
+    ) -> Self {
+        Self(derive)
+    }
+}
+
+pub struct DynFn<'a, T, F: 'a>(&'a dyn for<'b> Fn(&'b mut T) -> <F as Derive<&'b mut T>>::Output)
+where
+    F: for<'b> Derive<&'b mut T>;
+impl<'a, 'b, T, F> Derive<&'b mut T> for DynFn<'a, T, F>
+where
+    F: for<'c> Derive<&'c mut T>,
+{
+    type Output = <F as Derive<&'b mut T>>::Output;
+    fn call(self, input: &'b mut T) -> Self::Output {
+        self.0(input)
+    }
+}
+impl<'a, T, F: 'a> DynFn<'a, T, F>
+where
+    F: for<'c> Derive<&'c mut T>,
+{
+    pub fn new(derive: &'a dyn for<'b> Fn(&'b mut T) -> <F as Derive<&'b mut T>>::Output) -> Self {
+        Self(derive)
+    }
+}
+
+pub struct DynFnMut<'a, T, F: 'a>(
+    &'a mut dyn for<'b> FnMut(&'b mut T) -> <F as Derive<&'b mut T>>::Output,
+)
+where
+    F: for<'b> Derive<&'b mut T>;
+impl<'a, 'b, T, F> Derive<&'b mut T> for DynFnMut<'a, T, F>
+where
+    F: for<'c> Derive<&'c mut T>,
+{
+    type Output = <F as Derive<&'b mut T>>::Output;
+    fn call(self, input: &'b mut T) -> Self::Output {
+        self.0(input)
+    }
+}
+impl<'a, T, F: 'a> DynFnMut<'a, T, F>
+where
+    F: for<'b> Derive<&'b mut T>,
+{
+    pub fn new(
+        derive: &'a mut dyn for<'b> FnMut(&'b mut T) -> <F as Derive<&'b mut T>>::Output,
+    ) -> Self {
+        Self(derive)
     }
 }
