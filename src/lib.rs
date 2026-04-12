@@ -9,13 +9,13 @@ use ::{
     },
 };
 
-pub struct Oyakodon<'a, T, F: for<'b> Derive<&'b mut T>> {
+pub struct BowlMut<'a, T, F: for<'b> Derive<&'b mut T>> {
     base: *mut T,
     derived: ManuallyDrop<<F as Derive<&'a mut T>>::Output>,
 }
 
 #[cfg(feature = "gat")]
-pub trait Don {
+pub trait Bowl {
     type Value<'a>
     where
         Self: 'a;
@@ -38,7 +38,7 @@ where
     }
 }
 
-impl<'a, T, F> Oyakodon<'a, T, F>
+impl<'a, T, F> BowlMut<'a, T, F>
 where
     F: for<'b> Derive<&'b mut T>,
 {
@@ -55,7 +55,7 @@ where
         // Now `derived` is annotated with a fake lifetime `'a`
         // and the safety of reading `derived` is handed off to getters.
         let derived = derive.call(unsafe { &mut *base });
-        Oyakodon {
+        BowlMut {
             base,
             derived: ManuallyDrop::new(derived),
         }
@@ -65,7 +65,7 @@ where
         Self::new_into(base, derive)
     }
 
-    pub fn map_into<'b, G, H>(mut self, f: H) -> Oyakodon<'b, T, G>
+    pub fn map_into<'b, G, H>(mut self, f: H) -> BowlMut<'b, T, G>
     where
         for<'c> H: Derive<<F as Derive<&'c mut T>>::Output>,
         for<'c> G:
@@ -77,21 +77,21 @@ where
         // and its resources are transferred to the new copy.
         let derived = unsafe { ManuallyDrop::take(derived) };
         core::mem::forget(self);
-        Oyakodon::<'_, T, G> {
+        BowlMut::<'_, T, G> {
             base,
             derived: ManuallyDrop::new(f.call(derived)),
         }
         .cast()
     }
 
-    pub fn map<G>(self, f: G) -> Oyakodon<'a, T, Map<T, F, G>>
+    pub fn map<G>(self, f: G) -> BowlMut<'a, T, Map<T, F, G>>
     where
         G: for<'b> Derive<<F as Derive<&'b mut T>>::Output>,
     {
         self.map_into(f)
     }
 
-    pub fn cast_ref<'b, G>(&self) -> &Oyakodon<'b, T, G>
+    pub fn cast_ref<'b, G>(&self) -> &BowlMut<'b, T, G>
     where
         for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
     {
@@ -106,20 +106,20 @@ where
         // The memory layout is the same because lifetime information is erased in runtime.
         unsafe { transmute(self) }
     }
-    pub fn cast_mut<'b, G>(&mut self) -> &mut Oyakodon<'b, T, G>
+    pub fn cast_mut<'b, G>(&mut self) -> &mut BowlMut<'b, T, G>
     where
         for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
     {
         // SAFETY: Same as `cast_ref()`.
         unsafe { transmute(self) }
     }
-    pub fn cast<'b, G>(self) -> Oyakodon<'b, T, G>
+    pub fn cast<'b, G>(self) -> BowlMut<'b, T, G>
     where
         for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
     {
         // SAFETY: The object cast implementation follows `ManuallyDrop::into_inner`
         // because the compiler can't figure out that their sizes are the same.
-        unsafe { (&raw const self).cast::<Oyakodon<'_, _, _>>().read() }
+        unsafe { (&raw const self).cast::<BowlMut<'_, _, _>>().read() }
     }
 
     pub fn get(&self) -> &<F as Derive<&'_ mut T>>::Output {
@@ -148,7 +148,7 @@ where
 }
 
 #[cfg(feature = "gat")]
-impl<'a, T, F> Don for Oyakodon<'a, T, F>
+impl<'a, T, F> Bowl for BowlMut<'a, T, F>
 where
     F: for<'b> Derive<&'b mut T>,
 {
@@ -157,14 +157,14 @@ where
     where
         Self: 'b;
     fn get(&self) -> &Self::Value<'_> {
-        Oyakodon::get(self)
+        BowlMut::get(self)
     }
     fn get_mut(&mut self) -> &mut Self::Value<'_> {
-        Oyakodon::get_mut(self)
+        BowlMut::get_mut(self)
     }
 }
 
-impl<'a, T, F> Drop for Oyakodon<'a, T, F>
+impl<'a, T, F> Drop for BowlMut<'a, T, F>
 where
     F: for<'b> Derive<&'b mut T>,
 {
