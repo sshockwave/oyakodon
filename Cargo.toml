@@ -5,8 +5,11 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [features]
-default = ["alloc", "gat"]
-alloc = []
+default = ["std", "gat"]
+std = ["alloc", "stable_deref_trait?/std"]
+alloc = ["stable_deref_trait?/alloc"]
+stable_deref = ["dep:stable_deref_trait"]
 gat = []
 
 [dependencies]
+stable_deref_trait = { version = "1", default-features = false, optional = true }

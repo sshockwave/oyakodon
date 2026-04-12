@@ -1,7 +1,8 @@
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+#[cfg(not(feature = "stable_deref"))]
 mod stable_deref;
 
 #[cfg(feature = "alloc")]
@@ -11,6 +12,9 @@ use ::core::{
     mem::transmute,
     ops::{Deref, DerefMut},
 };
+#[cfg(feature = "stable_deref")]
+pub use ::stable_deref_trait::StableDeref;
+#[cfg(not(feature = "stable_deref"))]
 pub use stable_deref::StableDeref;
 
 pub struct BowlMut<'a, T: Deref, F: for<'b> Derive<&'b mut T::Target>> {
