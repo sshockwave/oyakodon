@@ -1,0 +1,233 @@
+use super::{Derive, StableDeref};
+#[cfg(feature = "alloc")]
+use ::alloc::boxed::Box;
+use ::core::{marker::PhantomData, mem::transmute, ops::Deref};
+
+pub struct BowlRef<'a, T: Deref, F: for<'b> Derive<&'b T::Target>> {
+    // `base` will be dropped after `derived`.
+    // Rust guarantees that fields are dropped in the order of declaration.
+    // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
+    derived: <F as Derive<&'a T::Target>>::Output,
+    base: T,
+}
+
+#[cfg(feature = "alloc")]
+impl<'a, T, F> BowlRef<'a, Box<T>, F>
+where
+    F: for<'b> Derive<&'b T>,
+{
+    pub fn new(base: T, derive: F) -> Self {
+        Self::from_ptr(Box::new(base), derive)
+    }
+    pub fn new_into(
+        base: T,
+        derive: impl for<'b> Derive<&'b T, Output = <F as Derive<&'b T>>::Output>,
+    ) -> Self {
+        Self::from_ptr_into(Box::new(base), derive)
+    }
+    pub fn into_inner(self) -> T {
+        *self.into_ptr()
+    }
+}
+
+impl<'a, T, F> BowlRef<'a, T, F>
+where
+    T: StableDeref,
+    F: for<'b> Derive<&'b T::Target>,
+{
+    /// The primary constructor. All other constructors are convenience wrappers around this.
+    pub fn from_ptr_into(
+        base: T,
+        derive: impl for<'b> Derive<&'b T::Target, Output = <F as Derive<&'b T::Target>>::Output>,
+    ) -> Self {
+        // SAFETY: The lifetime `'a` passed to `derive()` might differ from the actual borrow,
+        // but the HRTB requires `derive()` to work uniformly for any lifetime,
+        // so `derive()` cannot exploit the length of `'a`.
+        // Thus we can assume that `derive()` had received the real lifetime of `*base`.
+        // Now `derived` is annotated with a fake lifetime `'a`
+        // and the safety of reading `derived` is handed off to getters.
+        let derived = derive.call(unsafe { transmute(&*base) });
+        BowlRef { base, derived }
+    }
+
+    pub fn from_ptr(base: T, derive: F) -> Self {
+        Self::from_ptr_into(base, derive)
+    }
+
+    pub fn map_into<'b, G, H>(self, f: H) -> BowlRef<'b, T, G>
+    where
+        for<'c> H: Derive<<F as Derive<&'c T::Target>>::Output>,
+        for<'c> G: Derive<
+                &'c T::Target,
+                Output = <H as Derive<<F as Derive<&'c T::Target>>::Output>>::Output,
+            >,
+    {
+        let Self { base, derived } = self;
+        // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
+        BowlRef::<'_, T, G> {
+            base,
+            derived: f.call(derived),
+        }
+        .cast()
+    }
+
+    pub fn map<G>(self, f: G) -> BowlRef<'a, T, Map<T::Target, F, G>>
+    where
+        G: for<'b> Derive<<F as Derive<&'b T::Target>>::Output>,
+    {
+        self.map_into(f)
+    }
+}
+
+impl<'a, T, F> BowlRef<'a, T, F>
+where
+    T: Deref,
+    F: for<'b> Derive<&'b T::Target>,
+{
+    pub fn cast_ref<'b, G>(&self) -> &BowlRef<'b, T, G>
+    where
+        for<'c> G: Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
+    {
+        // SAFETY: We maintain an HRTB invariant on `derive()`
+        // to make sure any `'c` that does not outlive `*base`
+        // corresponds to a valid `F::Output<'c>`.
+        // Since `*base` is heap-allocated and outlives `self`
+        // any borrow `'b` of `self` satisfies the HRTB.
+        // This is not a contradiction to the possible invariance of `F::Output`.
+        // Think of it as if `derive()` was called with the lifetime of the borrow,
+        // and we merely used `'a` as a placeholder.
+        // The memory layout is the same because lifetime information is erased in runtime.
+        unsafe { transmute(self) }
+    }
+    pub fn cast_mut<'b, G>(&mut self) -> &mut BowlRef<'b, T, G>
+    where
+        for<'c> G: Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
+    {
+        // SAFETY: Same as `cast_ref()`.
+        unsafe { transmute(self) }
+    }
+    pub fn cast<'b, G>(self) -> BowlRef<'b, T, G>
+    where
+        for<'c> G: Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
+    {
+        // SAFETY: The object cast implementation follows `ManuallyDrop::into_inner`
+        // because the compiler can't figure out that their sizes are the same.
+        unsafe { (&raw const self).cast::<BowlRef<'_, _, _>>().read() }
+    }
+
+    pub fn get(&self) -> &<F as Derive<&'_ T::Target>>::Output {
+        // SAFETY: Reading `derived` is safe only if
+        // the lifetime passed to `derive()` is shorter than that of `*base`.
+        // Ideally we would like to use the lifetime of the `self` instance
+        // because that's the actual lifetime of `*base`,
+        // but we don't know about that yet,
+        // so using `'b` is the best we can do.
+        &self.cast_ref::<F>().derived
+    }
+    pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ T::Target>>::Output {
+        // SAFETY: Same as `get()`, but for mutable references.
+        &mut self.cast_mut::<F>().derived
+    }
+
+    pub fn into_ptr(self) -> T {
+        let Self { base, derived: _ } = self;
+        // SAFETY: `*base` is not used elsewhere after `derived` is dropped.
+        base
+    }
+}
+
+#[cfg(feature = "gat")]
+impl<'a, T, F> super::Bowl for BowlRef<'a, T, F>
+where
+    T: Deref,
+    F: for<'b> Derive<&'b T::Target>,
+{
+    type Value<'b>
+        = <F as Derive<&'b T::Target>>::Output
+    where
+        Self: 'b;
+    fn get(&self) -> &Self::Value<'_> {
+        BowlRef::get(self)
+    }
+    fn get_mut(&mut self) -> &mut Self::Value<'_> {
+        BowlRef::get_mut(self)
+    }
+}
+
+pub struct Map<T: ?Sized, F, G>(G, PhantomData<(F, T)>);
+impl<'a, T: ?Sized, F, G> Derive<&'a T> for Map<T, F, G>
+where
+    F: for<'b> Derive<&'b T>,
+    G: for<'b> Derive<<F as Derive<&'b T>>::Output>,
+{
+    type Output = <G as Derive<<F as Derive<&'a T>>::Output>>::Output;
+    fn call(self, _: &'a T) -> Self::Output {
+        unreachable!()
+    }
+}
+
+#[cfg(feature = "alloc")]
+pub struct DynFnOnce<T, F>(Box<dyn for<'a> FnOnce(&'a T) -> <F as Derive<&'a T>>::Output>)
+where
+    F: for<'a> Derive<&'a T>;
+#[cfg(feature = "alloc")]
+impl<'a, T, F> Derive<&'a T> for DynFnOnce<T, F>
+where
+    F: for<'b> Derive<&'b T>,
+{
+    type Output = <F as Derive<&'a T>>::Output;
+    fn call(self, input: &'a T) -> Self::Output {
+        self.0(input)
+    }
+}
+#[cfg(feature = "alloc")]
+impl<T, F> DynFnOnce<T, F>
+where
+    F: for<'a> Derive<&'a T>,
+{
+    pub fn new(derive: Box<dyn for<'a> FnOnce(&'a T) -> <F as Derive<&'a T>>::Output>) -> Self {
+        Self(derive)
+    }
+}
+
+pub struct DynFn<'a, T, F: 'a>(&'a dyn for<'b> Fn(&'b T) -> <F as Derive<&'b T>>::Output)
+where
+    F: for<'b> Derive<&'b T>;
+impl<'a, 'b, T, F> Derive<&'b T> for DynFn<'a, T, F>
+where
+    F: for<'c> Derive<&'c T>,
+{
+    type Output = <F as Derive<&'b T>>::Output;
+    fn call(self, input: &'b T) -> Self::Output {
+        self.0(input)
+    }
+}
+impl<'a, T, F: 'a> DynFn<'a, T, F>
+where
+    F: for<'c> Derive<&'c T>,
+{
+    pub fn new(derive: &'a dyn for<'b> Fn(&'b T) -> <F as Derive<&'b T>>::Output) -> Self {
+        Self(derive)
+    }
+}
+
+pub struct DynFnMut<'a, T, F: 'a>(&'a mut dyn for<'b> FnMut(&'b T) -> <F as Derive<&'b T>>::Output)
+where
+    F: for<'b> Derive<&'b T>;
+impl<'a, 'b, T, F> Derive<&'b T> for DynFnMut<'a, T, F>
+where
+    F: for<'c> Derive<&'c T>,
+{
+    type Output = <F as Derive<&'b T>>::Output;
+    fn call(self, input: &'b T) -> Self::Output {
+        self.0(input)
+    }
+}
+impl<'a, T, F: 'a> DynFnMut<'a, T, F>
+where
+    F: for<'b> Derive<&'b T>,
+{
+    pub fn new(derive: &'a mut dyn for<'b> FnMut(&'b T) -> <F as Derive<&'b T>>::Output) -> Self {
+        Self(derive)
+    }
+}
