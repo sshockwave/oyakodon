@@ -37,39 +37,33 @@ where
     }
 }
 
-/// The primary constructor. All other `from_*` functions are convenience wrappers around this.
-pub fn new_into<'a, T, F>(
-    base: T,
-    derive: impl for<'b> Derive<&'b mut T, Output = <F as Derive<&'b mut T>>::Output>,
-) -> Oyakodon<'a, T, F>
-where
-    F: for<'b> Derive<&'b mut T>,
-{
-    let base = Box::into_raw(Box::new(base));
-    // SAFETY: The lifetime `'a` passed to `derive()` might differ from the actual borrow,
-    // but the HRTB requires `derive()` to work uniformly for any lifetime,
-    // so `derive()` cannot exploit the length of `'a`.
-    // Thus we can assume that `derive()` had received the real lifetime of `*base`.
-    // Now `derived` is annotated with a fake lifetime `'a`
-    // and the safety of reading `derived` is handed off to getters.
-    let derived = derive.call(unsafe { &mut *base });
-    Oyakodon {
-        base,
-        derived: ManuallyDrop::new(derived),
-    }
-}
-
-pub fn new<'a, T, F>(base: T, derive: F) -> Oyakodon<'a, T, F>
-where
-    F: for<'b> Derive<&'b mut T>,
-{
-    new_into(base, derive)
-}
-
 impl<'a, T, F> Oyakodon<'a, T, F>
 where
     F: for<'b> Derive<&'b mut T>,
 {
+    /// The primary constructor. All other `from_*` functions are convenience wrappers around this.
+    pub fn new_into(
+        base: T,
+        derive: impl for<'b> Derive<&'b mut T, Output = <F as Derive<&'b mut T>>::Output>,
+    ) -> Self {
+        let base = Box::into_raw(Box::new(base));
+        // SAFETY: The lifetime `'a` passed to `derive()` might differ from the actual borrow,
+        // but the HRTB requires `derive()` to work uniformly for any lifetime,
+        // so `derive()` cannot exploit the length of `'a`.
+        // Thus we can assume that `derive()` had received the real lifetime of `*base`.
+        // Now `derived` is annotated with a fake lifetime `'a`
+        // and the safety of reading `derived` is handed off to getters.
+        let derived = derive.call(unsafe { &mut *base });
+        Oyakodon {
+            base,
+            derived: ManuallyDrop::new(derived),
+        }
+    }
+
+    pub fn new(base: T, derive: F) -> Self {
+        Self::new_into(base, derive)
+    }
+
     pub fn map_into<'b, G, H>(mut self, f: H) -> Oyakodon<'b, T, G>
     where
         for<'c> H: Derive<<F as Derive<&'c mut T>>::Output>,
