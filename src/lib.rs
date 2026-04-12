@@ -90,9 +90,13 @@ where
         self.map_into(f)
     }
 
-    pub fn cast_lifetime<'b>(self) -> Oyakodon<'b, T, F> {
-        // SAFETY: The HRTB on `derive()` guarantees any `'c`
-        // that does not outlive `*base` can produce a valid `F::Output<'c>`.
+    pub fn cast_ref<'b, G>(&self) -> &Oyakodon<'b, T, G>
+    where
+        for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
+    {
+        // SAFETY: We maintain an HRTB invariant on `derive()`
+        // to make sure any `'c` that does not outlive `*base`
+        // corresponds to a valid `F::Output<'c>`.
         // Since `*base` is heap-allocated and outlives `self`
         // any borrow `'b` of `self` satisfies the HRTB.
         // This is not a contradiction to the possible invariance of `F::Output`.
@@ -101,22 +105,19 @@ where
         // The memory layout is the same because lifetime information is erased in runtime.
         unsafe { transmute(self) }
     }
-    pub fn cast_lifetime_ref<'b>(&self) -> &Oyakodon<'b, T, F> {
-        // SAFETY: Same as `cast_lifetime()`.
+    pub fn cast_mut<'b, G>(&mut self) -> &mut Oyakodon<'b, T, G>
+    where
+        for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
+    {
+        // SAFETY: Same as `cast_ref()`.
         unsafe { transmute(self) }
     }
-    pub fn cast_lifetime_mut<'b>(&mut self) -> &mut Oyakodon<'b, T, F> {
-        // SAFETY: Same as `cast_lifetime()`.
-        unsafe { transmute(self) }
-    }
-
     pub fn cast<'b, G>(self) -> Oyakodon<'b, T, G>
     where
         for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
     {
-        // SAFETY: The HRTB of this function maintains the HRTB invariant of `derive()`.
-        // The object cast implementation follows `ManuallyDrop::into_inner`
-        // because the compiler can't figure out that their size are the same.
+        // SAFETY: The object cast implementation follows `ManuallyDrop::into_inner`
+        // because the compiler can't figure out that their sizes are the same.
         unsafe { (&raw const self).cast::<Oyakodon<'_, _, _>>().read() }
     }
 
@@ -154,11 +155,11 @@ where
         // because that's the actual lifetime of `*base`,
         // but we don't know about that yet,
         // so using `'b` is the best we can do.
-        &*self.cast_lifetime_ref().derived
+        &*self.cast_ref::<F>().derived
     }
     fn get_mut(&mut self) -> &mut Self::Value<'_> {
         // SAFETY: Same as `get()`, but for mutable references.
-        &mut *self.cast_lifetime_mut().derived
+        &mut *self.cast_mut::<F>().derived
     }
 }
 
