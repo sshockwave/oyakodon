@@ -1,15 +1,15 @@
 #![no_std]
+#[cfg(feature = "alloc")]
 extern crate alloc;
 
 mod stable_deref;
 
-use ::{
-    alloc::boxed::Box,
-    core::{
-        marker::PhantomData,
-        mem::transmute,
-        ops::{Deref, DerefMut},
-    },
+#[cfg(feature = "alloc")]
+use ::alloc::boxed::Box;
+use ::core::{
+    marker::PhantomData,
+    mem::transmute,
+    ops::{Deref, DerefMut},
 };
 pub use stable_deref::StableDeref;
 
@@ -45,6 +45,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<'a, T, F> BowlMut<'a, Box<T>, F>
 where
     F: for<'b> Derive<&'b mut T>,
@@ -202,9 +203,11 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 pub struct DynFnOnce<T, F>(Box<dyn for<'a> FnOnce(&'a mut T) -> <F as Derive<&'a mut T>>::Output>)
 where
     F: for<'a> Derive<&'a mut T>;
+#[cfg(feature = "alloc")]
 impl<'a, T, F> Derive<&'a mut T> for DynFnOnce<T, F>
 where
     F: for<'b> Derive<&'b mut T>,
@@ -214,6 +217,7 @@ where
         self.0(input)
     }
 }
+#[cfg(feature = "alloc")]
 impl<T, F> DynFnOnce<T, F>
 where
     F: for<'a> Derive<&'a mut T>,
