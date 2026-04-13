@@ -39,6 +39,36 @@ where
     pub fn into_inner(self) -> T {
         *self.into_ptr()
     }
+
+    #[cfg(feature = "alloc")]
+    pub fn from_fn<'b>(
+        base: T,
+        derive: &'b dyn for<'c> Fn(&'c mut T) -> <F as Derive<&'c mut T>>::Output,
+    ) -> Self
+    where
+        F: 'b,
+    {
+        Self::from_ptr_into(Box::new(base), derive)
+    }
+
+    #[cfg(feature = "alloc")]
+    pub fn from_fn_mut<'b>(
+        base: T,
+        derive: &'b mut dyn for<'c> FnMut(&'c mut T) -> <F as Derive<&'c mut T>>::Output,
+    ) -> Self
+    where
+        F: 'b,
+    {
+        Self::from_ptr_into(Box::new(base), derive)
+    }
+
+    #[cfg(feature = "alloc")]
+    pub fn from_fn_once(
+        base: T,
+        derive: Box<dyn for<'c> FnOnce(&'c mut T) -> <F as Derive<&'c mut T>>::Output>,
+    ) -> Self {
+        Self::from_ptr_into(Box::new(base), derive)
+    }
 }
 
 impl<'a, T, F> BowlMut<'a, T, F>
@@ -176,76 +206,4 @@ where
     G: for<'b> Derive<<F as Derive<&'b mut T>>::Output>,
 {
     type Output = <G as Derive<<F as Derive<&'a mut T>>::Output>>::Output;
-}
-
-#[cfg(feature = "alloc")]
-pub struct DynFnOnce<T, F>(Box<dyn for<'a> FnOnce(&'a mut T) -> <F as Derive<&'a mut T>>::Output>)
-where
-    F: for<'a> Derive<&'a mut T>;
-#[cfg(feature = "alloc")]
-impl<'a, T, F> Derive<&'a mut T> for DynFnOnce<T, F>
-where
-    F: for<'b> Derive<&'b mut T>,
-{
-    type Output = <F as Derive<&'a mut T>>::Output;
-    fn call(self, input: &'a mut T) -> Self::Output {
-        self.0(input)
-    }
-}
-#[cfg(feature = "alloc")]
-impl<T, F> DynFnOnce<T, F>
-where
-    F: for<'a> Derive<&'a mut T>,
-{
-    pub fn new(
-        derive: Box<dyn for<'a> FnOnce(&'a mut T) -> <F as Derive<&'a mut T>>::Output>,
-    ) -> Self {
-        Self(derive)
-    }
-}
-
-pub struct DynFn<'a, T, F: 'a>(&'a dyn for<'b> Fn(&'b mut T) -> <F as Derive<&'b mut T>>::Output)
-where
-    F: for<'b> Derive<&'b mut T>;
-impl<'a, 'b, T, F> Derive<&'b mut T> for DynFn<'a, T, F>
-where
-    F: for<'c> Derive<&'c mut T>,
-{
-    type Output = <F as Derive<&'b mut T>>::Output;
-    fn call(self, input: &'b mut T) -> Self::Output {
-        self.0(input)
-    }
-}
-impl<'a, T, F: 'a> DynFn<'a, T, F>
-where
-    F: for<'c> Derive<&'c mut T>,
-{
-    pub fn new(derive: &'a dyn for<'b> Fn(&'b mut T) -> <F as Derive<&'b mut T>>::Output) -> Self {
-        Self(derive)
-    }
-}
-
-pub struct DynFnMut<'a, T, F: 'a>(
-    &'a mut dyn for<'b> FnMut(&'b mut T) -> <F as Derive<&'b mut T>>::Output,
-)
-where
-    F: for<'b> Derive<&'b mut T>;
-impl<'a, 'b, T, F> Derive<&'b mut T> for DynFnMut<'a, T, F>
-where
-    F: for<'c> Derive<&'c mut T>,
-{
-    type Output = <F as Derive<&'b mut T>>::Output;
-    fn call(self, input: &'b mut T) -> Self::Output {
-        self.0(input)
-    }
-}
-impl<'a, T, F: 'a> DynFnMut<'a, T, F>
-where
-    F: for<'b> Derive<&'b mut T>,
-{
-    pub fn new(
-        derive: &'a mut dyn for<'b> FnMut(&'b mut T) -> <F as Derive<&'b mut T>>::Output,
-    ) -> Self {
-        Self(derive)
-    }
 }
