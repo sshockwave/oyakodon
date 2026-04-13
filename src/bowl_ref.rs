@@ -175,9 +175,6 @@ where
     G: for<'b> Derive<<F as Derive<&'b T>>::Output>,
 {
     type Output = <G as Derive<<F as Derive<&'a T>>::Output>>::Output;
-    fn call(self, _: &'a T) -> Self::Output {
-        unreachable!()
-    }
 }
 
 #[cfg(feature = "alloc")]

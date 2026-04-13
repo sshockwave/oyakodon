@@ -25,7 +25,15 @@ pub trait Bowl {
 
 pub trait Derive<T> {
     type Output;
-    fn call(self, input: T) -> Self::Output;
+    #[allow(unused_variables)]
+    fn call(self, input: T) -> Self::Output
+    where
+        Self: Sized,
+    {
+        unreachable!(
+            "Using the default implementation of Derive::call() indicates that this type is used for type inference only and should never be called."
+        )
+    }
 }
 
 impl<T, F, R> Derive<T> for F
