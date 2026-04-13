@@ -1,5 +1,10 @@
 use super::{Derive, StableDeref};
-use ::core::{marker::PhantomData, mem::transmute, ops::Deref};
+use ::core::{
+    convert::{AsMut, AsRef},
+    marker::PhantomData,
+    mem::transmute,
+    ops::Deref,
+};
 
 pub struct BowlRef<'a, T: Deref, F: for<'b> Derive<&'b T::Target>> {
     // `base` will be dropped after `derived`.
@@ -88,15 +93,13 @@ where
     }
 }
 
-impl<'a, T, F> BowlRef<'a, T, F>
+impl<'a, 'b, T, F, G> AsRef<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
     T: Deref,
-    F: for<'b> Derive<&'b T::Target>,
+    F: for<'c> Derive<&'c T::Target>,
+    G: for<'c> Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
 {
-    pub fn cast_ref<'b, G>(&self) -> &BowlRef<'b, T, G>
-    where
-        for<'c> G: Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
-    {
+    fn as_ref(&self) -> &BowlRef<'b, T, G> {
         // SAFETY: We maintain an HRTB invariant on `derive()`
         // to make sure any `'c` that does not outlive `*base`
         // corresponds to a valid `F::Output<'c>`.
@@ -108,13 +111,25 @@ where
         // The memory layout is the same because lifetime information is erased in runtime.
         unsafe { transmute(self) }
     }
-    pub fn cast_mut<'b, G>(&mut self) -> &mut BowlRef<'b, T, G>
-    where
-        for<'c> G: Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
-    {
-        // SAFETY: Same as `cast_ref()`.
+}
+
+impl<'a, 'b, T, F, G> AsMut<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
+where
+    T: Deref,
+    F: for<'c> Derive<&'c T::Target>,
+    G: for<'c> Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
+{
+    fn as_mut(&mut self) -> &mut BowlRef<'b, T, G> {
+        // SAFETY: Same as `as_ref()`.
         unsafe { transmute(self) }
     }
+}
+
+impl<'a, T, F> BowlRef<'a, T, F>
+where
+    T: Deref,
+    F: for<'b> Derive<&'b T::Target>,
+{
     pub fn cast<'b, G>(self) -> BowlRef<'b, T, G>
     where
         for<'c> G: Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
@@ -131,11 +146,13 @@ where
         // because that's the actual lifetime of `*base`,
         // but we don't know about that yet,
         // so using `'b` is the best we can do.
-        &self.cast_ref::<F>().derived
+        let other: &BowlRef<_, F> = self.as_ref();
+        &other.derived
     }
     pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ T::Target>>::Output {
         // SAFETY: Same as `get()`, but for mutable references.
-        &mut self.cast_mut::<F>().derived
+        let other: &mut BowlRef<_, F> = self.as_mut();
+        &mut other.derived
     }
 
     pub fn into_inner(self) -> T {

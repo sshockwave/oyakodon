@@ -96,23 +96,33 @@ where
     }
 }
 
+impl<'a, 'b, T, F, G> AsRef<BowlMut<'b, T, G>> for BowlMut<'a, T, F>
+where
+    T: Deref,
+    F: for<'c> Derive<&'c mut T::Target>,
+    G: for<'c> Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>,
+{
+    fn as_ref(&self) -> &BowlMut<'b, T, G> {
+        unsafe { transmute(self) }
+    }
+}
+
+impl<'a, 'b, T, F, G> AsMut<BowlMut<'b, T, G>> for BowlMut<'a, T, F>
+where
+    T: Deref,
+    F: for<'c> Derive<&'c mut T::Target>,
+    G: for<'c> Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>,
+{
+    fn as_mut(&mut self) -> &mut BowlMut<'b, T, G> {
+        unsafe { transmute(self) }
+    }
+}
+
 impl<'a, T, F> BowlMut<'a, T, F>
 where
     T: Deref,
     F: for<'b> Derive<&'b mut T::Target>,
 {
-    pub fn cast_ref<'b, G>(&self) -> &BowlMut<'b, T, G>
-    where
-        for<'c> G: Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>,
-    {
-        unsafe { transmute(self) }
-    }
-    pub fn cast_mut<'b, G>(&mut self) -> &mut BowlMut<'b, T, G>
-    where
-        for<'c> G: Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>,
-    {
-        unsafe { transmute(self) }
-    }
     pub fn cast<'b, G>(self) -> BowlMut<'b, T, G>
     where
         for<'c> G: Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>,
@@ -121,10 +131,12 @@ where
     }
 
     pub fn get(&self) -> &<F as Derive<&'_ mut T::Target>>::Output {
-        &self.cast_ref::<F>().derived
+        let other: &BowlMut<_, F> = self.as_ref();
+        &other.derived
     }
     pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ mut T::Target>>::Output {
-        &mut self.cast_mut::<F>().derived
+        let other: &mut BowlMut<_, F> = self.as_mut();
+        &mut other.derived
     }
 
     pub fn into_inner(self) -> T {

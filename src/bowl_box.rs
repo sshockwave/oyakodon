@@ -68,20 +68,6 @@ where
         self.map_into(f)
     }
 
-    pub fn cast_ref<'b, G>(&self) -> &BowlBox<'b, T, G>
-    where
-        for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
-    {
-        // SAFETY: Same as BowlMut::cast_ref()
-        unsafe { transmute(self) }
-    }
-    pub fn cast_mut<'b, G>(&mut self) -> &mut BowlBox<'b, T, G>
-    where
-        for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
-    {
-        // SAFETY: Same as BowlMut::cast_mut()
-        unsafe { transmute(self) }
-    }
     pub fn cast<'b, G>(self) -> BowlBox<'b, T, G>
     where
         for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
@@ -94,6 +80,48 @@ where
     }
     pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ mut T>>::Output {
         self.0.get_mut()
+    }
+}
+
+impl<'a, 'b, T, F, G> AsRef<BowlBox<'b, T, G>> for BowlBox<'a, T, F>
+where
+    F: for<'c> Derive<&'c mut T>,
+    G: for<'c> Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
+{
+    fn as_ref(&self) -> &BowlBox<'b, T, G> {
+        // SAFETY: `#[repr(transparent)]` delegates to the same safety contract as `BowlMut::as_ref()`
+        unsafe { transmute(self) }
+    }
+}
+
+impl<'a, 'b, T, F, G> AsMut<BowlBox<'b, T, G>> for BowlBox<'a, T, F>
+where
+    F: for<'c> Derive<&'c mut T>,
+    G: for<'c> Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
+{
+    fn as_mut(&mut self) -> &mut BowlBox<'b, T, G> {
+        // SAFETY: `#[repr(transparent)]` delegates to the same safety contract as `BowlMut::as_mut()`
+        unsafe { transmute(self) }
+    }
+}
+
+impl<'a, 'b, T, F, G> AsRef<BowlMut<'b, Box<T>, G>> for BowlBox<'a, T, F>
+where
+    F: for<'c> Derive<&'c mut T>,
+    G: for<'c> Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
+{
+    fn as_ref(&self) -> &BowlMut<'b, Box<T>, G> {
+        self.0.as_ref()
+    }
+}
+
+impl<'a, 'b, T, F, G> AsMut<BowlMut<'b, Box<T>, G>> for BowlBox<'a, T, F>
+where
+    F: for<'c> Derive<&'c mut T>,
+    G: for<'c> Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
+{
+    fn as_mut(&mut self) -> &mut BowlMut<'b, Box<T>, G> {
+        self.0.as_mut()
     }
 }
 
