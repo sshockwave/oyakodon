@@ -15,7 +15,7 @@ where
     F: for<'b> Derive<&'b T::Target>,
 {
     /// The primary constructor. All other constructors are convenience wrappers around this.
-    pub fn from_ptr_into(
+    pub fn new_into(
         base: T,
         derive: impl for<'b> Derive<&'b T::Target, Output = <F as Derive<&'b T::Target>>::Output>,
     ) -> Self {
@@ -29,8 +29,8 @@ where
         BowlRef { base, derived }
     }
 
-    pub fn from_ptr(base: T, derive: F) -> Self {
-        Self::from_ptr_into(base, derive)
+    pub fn new(base: T, derive: F) -> Self {
+        Self::new_into(base, derive)
     }
 
     pub fn from_fn<'b>(
@@ -40,7 +40,7 @@ where
     where
         F: 'b,
     {
-        Self::from_ptr_into(base, derive)
+        Self::new_into(base, derive)
     }
 
     pub fn from_fn_mut<'b>(
@@ -50,7 +50,7 @@ where
     where
         F: 'b,
     {
-        Self::from_ptr_into(base, derive)
+        Self::new_into(base, derive)
     }
 
     #[cfg(feature = "alloc")]
@@ -60,7 +60,7 @@ where
             dyn for<'c> FnOnce(&'c T::Target) -> <F as Derive<&'c T::Target>>::Output,
         >,
     ) -> Self {
-        Self::from_ptr_into(base, derive)
+        Self::new_into(base, derive)
     }
 
     pub fn map_into<'b, G, H>(self, f: H) -> BowlRef<'b, T, G>
@@ -138,7 +138,7 @@ where
         &mut self.cast_mut::<F>().derived
     }
 
-    pub fn into_ptr(self) -> T {
+    pub fn into_inner(self) -> T {
         let Self { base, derived: _ } = self;
         // SAFETY: `*base` is not used elsewhere after `derived` is dropped.
         base

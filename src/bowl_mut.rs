@@ -25,7 +25,7 @@ where
     T: StableDeref + DerefMut,
     F: for<'b> Derive<&'b mut T::Target>,
 {
-    pub fn from_ptr_into(
+    pub fn new_into(
         mut base: T,
         derive: impl for<'b> Derive<
             &'b mut T::Target,
@@ -36,8 +36,8 @@ where
         BowlMut { base, derived }
     }
 
-    pub fn from_ptr(base: T, derive: F) -> Self {
-        Self::from_ptr_into(base, derive)
+    pub fn new(base: T, derive: F) -> Self {
+        Self::new_into(base, derive)
     }
 
     pub fn from_fn<'b>(
@@ -47,7 +47,7 @@ where
     where
         F: 'b,
     {
-        Self::from_ptr_into(base, derive)
+        Self::new_into(base, derive)
     }
 
     pub fn from_fn_mut<'b>(
@@ -59,7 +59,7 @@ where
     where
         F: 'b,
     {
-        Self::from_ptr_into(base, derive)
+        Self::new_into(base, derive)
     }
 
     #[cfg(feature = "alloc")]
@@ -69,7 +69,7 @@ where
             dyn for<'c> FnOnce(&'c mut T::Target) -> <F as Derive<&'c mut T::Target>>::Output,
         >,
     ) -> Self {
-        Self::from_ptr_into(base, derive)
+        Self::new_into(base, derive)
     }
 
     pub fn map_into<'b, G, H>(self, f: H) -> BowlMut<'b, T, G>
@@ -127,7 +127,7 @@ where
         &mut self.cast_mut::<F>().derived
     }
 
-    pub fn into_ptr(self) -> T {
+    pub fn into_inner(self) -> T {
         let Self { base, derived: _ } = self;
         base
     }

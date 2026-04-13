@@ -11,18 +11,18 @@ where
     F: for<'b> Derive<&'b mut T>,
 {
     pub fn new(base: T, derive: F) -> Self {
-        Self(BowlMut::from_ptr(Box::new(base), derive))
+        Self(BowlMut::new(Box::new(base), derive))
     }
 
     pub fn new_into(
         base: T,
         derive: impl for<'b> Derive<&'b mut T, Output = <F as Derive<&'b mut T>>::Output>,
     ) -> Self {
-        Self(BowlMut::from_ptr_into(Box::new(base), derive))
+        Self(BowlMut::new_into(Box::new(base), derive))
     }
 
     pub fn into_inner(self) -> T {
-        *self.0.into_ptr()
+        *self.0.into_inner()
     }
 
     pub fn from_fn<'b>(
@@ -32,7 +32,7 @@ where
     where
         F: 'b,
     {
-        Self(BowlMut::from_ptr_into(Box::new(base), derive))
+        Self(BowlMut::new_into(Box::new(base), derive))
     }
 
     pub fn from_fn_mut<'b>(
@@ -42,13 +42,13 @@ where
     where
         F: 'b,
     {
-        Self(BowlMut::from_ptr_into(Box::new(base), derive))
+        Self(BowlMut::new_into(Box::new(base), derive))
     }
 
     pub fn from_fn_once(
         base: T,
         derive: Box<dyn for<'c> FnOnce(&'c mut T) -> <F as Derive<&'c mut T>>::Output>,
     ) -> Self {
-        Self(BowlMut::from_ptr_into(Box::new(base), derive))
+        Self(BowlMut::new_into(Box::new(base), derive))
     }
 }
