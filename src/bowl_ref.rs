@@ -1,6 +1,8 @@
 use super::{Derive, StableDeref};
 use ::core::{
+    cmp::{Eq, PartialEq},
     convert::{AsMut, AsRef},
+    hash::{Hash, Hasher},
     marker::PhantomData,
     mem::transmute,
     ops::Deref,
@@ -220,4 +222,41 @@ where
     G: for<'b> Derive<<F as Derive<&'b T>>::Output>,
 {
     type Output = <G as Derive<<F as Derive<&'a T>>::Output>>::Output;
+}
+
+// These traits are specific to `BowlRef`
+// because they require access to `base`,
+// which is not available in `BowlMut`.
+impl<'a, 'b, T, F, G> PartialEq<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
+where
+    T: Deref + PartialEq,
+    F: for<'c> Derive<&'c T::Target>,
+    G: for<'c> Derive<&'c T::Target>,
+    for<'c> <F as Derive<&'c T::Target>>::Output: PartialEq<<G as Derive<&'c T::Target>>::Output>,
+{
+    fn eq(&self, other: &BowlRef<'b, T, G>) -> bool {
+        // SAFETY: Accessing `base` is safe because `derived` does not have exlusive access to `base`.
+        self.base.eq(&other.base) && self.get().eq(other.get())
+    }
+}
+
+impl<'a, T, F> Eq for BowlRef<'a, T, F>
+where
+    T: Deref + Eq,
+    F: for<'b> Derive<&'b T::Target>,
+    for<'b> <F as Derive<&'b T::Target>>::Output: Eq,
+{
+}
+
+impl<'a, T, F> Hash for BowlRef<'a, T, F>
+where
+    T: Deref + Hash,
+    F: for<'b> Derive<&'b T::Target>,
+    for<'b> <F as Derive<&'b T::Target>>::Output: Hash,
+{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // SAFETY: Same as `PartialEq::eq()`.
+        self.base.hash(state);
+        self.get().hash(state);
+    }
 }
