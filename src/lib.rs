@@ -8,11 +8,11 @@ pub mod bowl_ref;
 mod stable_deref;
 
 #[cfg(feature = "stable_deref")]
-pub use ::stable_deref_trait::StableDeref;
+pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
 pub use bowl_mut::BowlMut;
 pub use bowl_ref::BowlRef;
 #[cfg(not(feature = "stable_deref"))]
-pub use stable_deref::StableDeref;
+pub use stable_deref::{CloneStableDeref, StableDeref};
 
 #[cfg(feature = "gat")]
 pub trait Bowl {

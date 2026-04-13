@@ -122,6 +122,20 @@ where
     }
 }
 
+// This is possible if `Derived=Rc<RefCell<&mut T::Target>>`.
+impl<'a, T, F> Clone for BowlMut<'a, T, F>
+where
+    T: super::CloneStableDeref,
+    F: for<'b> Derive<&'b mut T::Target>,
+    for<'b> <F as Derive<&'b mut T::Target>>::Output: Clone,
+{
+    fn clone(&self) -> Self {
+        let base = self.base.clone();
+        let derived = self.derived.clone();
+        Self { base, derived }
+    }
+}
+
 #[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlMut<'a, T, F>
 where

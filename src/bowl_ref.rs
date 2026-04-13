@@ -136,6 +136,21 @@ where
     }
 }
 
+impl<'a, T, F> Clone for BowlRef<'a, T, F>
+where
+    T: super::CloneStableDeref,
+    F: for<'b> Derive<&'b T::Target>,
+    for<'b> <F as Derive<&'b T::Target>>::Output: Clone,
+{
+    fn clone(&self) -> Self {
+        let base = self.base.clone();
+        // SAFETY: `StableDeref` should guarantee that `*base` outlives `base`,
+        // so the new `derived` will be valid as long as we hold the new `base`.
+        let derived = self.derived.clone();
+        Self { base, derived }
+    }
+}
+
 #[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlRef<'a, T, F>
 where
