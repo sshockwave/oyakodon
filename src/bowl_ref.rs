@@ -11,25 +11,6 @@ pub struct BowlRef<'a, T: Deref, F: for<'b> Derive<&'b T::Target>> {
     base: T,
 }
 
-#[cfg(feature = "alloc")]
-impl<'a, T, F> BowlRef<'a, Box<T>, F>
-where
-    F: for<'b> Derive<&'b T>,
-{
-    pub fn new(base: T, derive: F) -> Self {
-        Self::from_ptr(Box::new(base), derive)
-    }
-    pub fn new_into(
-        base: T,
-        derive: impl for<'b> Derive<&'b T, Output = <F as Derive<&'b T>>::Output>,
-    ) -> Self {
-        Self::from_ptr_into(Box::new(base), derive)
-    }
-    pub fn into_inner(self) -> T {
-        *self.into_ptr()
-    }
-}
-
 impl<'a, T, F> BowlRef<'a, T, F>
 where
     T: StableDeref,
