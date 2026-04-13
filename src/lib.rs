@@ -2,6 +2,8 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+#[cfg(feature = "alloc")]
+pub mod bowl_box;
 pub mod bowl_mut;
 pub mod bowl_ref;
 #[cfg(not(feature = "stable_deref"))]
@@ -9,6 +11,8 @@ mod stable_deref;
 
 #[cfg(feature = "stable_deref")]
 pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
+#[cfg(feature = "alloc")]
+pub use bowl_box::BowlBox;
 pub use bowl_mut::BowlMut;
 pub use bowl_ref::BowlRef;
 #[cfg(not(feature = "stable_deref"))]

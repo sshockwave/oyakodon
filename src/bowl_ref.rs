@@ -1,6 +1,4 @@
 use super::{Derive, StableDeref};
-#[cfg(feature = "alloc")]
-use ::alloc::boxed::Box;
 use ::core::{marker::PhantomData, mem::transmute, ops::Deref};
 
 pub struct BowlRef<'a, T: Deref, F: for<'b> Derive<&'b T::Target>> {
@@ -32,6 +30,36 @@ where
     }
 
     pub fn from_ptr(base: T, derive: F) -> Self {
+        Self::from_ptr_into(base, derive)
+    }
+
+    pub fn from_fn<'b>(
+        base: T,
+        derive: &'b dyn for<'c> Fn(&'c T::Target) -> <F as Derive<&'c T::Target>>::Output,
+    ) -> Self
+    where
+        F: 'b,
+    {
+        Self::from_ptr_into(base, derive)
+    }
+
+    pub fn from_fn_mut<'b>(
+        base: T,
+        derive: &'b mut dyn for<'c> FnMut(&'c T::Target) -> <F as Derive<&'c T::Target>>::Output,
+    ) -> Self
+    where
+        F: 'b,
+    {
+        Self::from_ptr_into(base, derive)
+    }
+
+    #[cfg(feature = "alloc")]
+    pub fn from_fn_once(
+        base: T,
+        derive: ::alloc::boxed::Box<
+            dyn for<'c> FnOnce(&'c T::Target) -> <F as Derive<&'c T::Target>>::Output,
+        >,
+    ) -> Self {
         Self::from_ptr_into(base, derive)
     }
 

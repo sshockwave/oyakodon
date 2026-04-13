@@ -9,8 +9,6 @@
 // The code size increase is not significant anyway.
 
 use super::{Derive, StableDeref};
-#[cfg(feature = "alloc")]
-use ::alloc::boxed::Box;
 use ::core::{
     marker::PhantomData,
     mem::transmute,
@@ -20,55 +18,6 @@ use ::core::{
 pub struct BowlMut<'a, T: Deref, F: for<'b> Derive<&'b mut T::Target>> {
     derived: <F as Derive<&'a mut T::Target>>::Output,
     base: T,
-}
-
-#[cfg(feature = "alloc")]
-impl<'a, T, F> BowlMut<'a, Box<T>, F>
-where
-    F: for<'b> Derive<&'b mut T>,
-{
-    pub fn new(base: T, derive: F) -> Self {
-        Self::from_ptr(Box::new(base), derive)
-    }
-    pub fn new_into(
-        base: T,
-        derive: impl for<'b> Derive<&'b mut T, Output = <F as Derive<&'b mut T>>::Output>,
-    ) -> Self {
-        Self::from_ptr_into(Box::new(base), derive)
-    }
-    pub fn into_inner(self) -> T {
-        *self.into_ptr()
-    }
-
-    #[cfg(feature = "alloc")]
-    pub fn from_fn<'b>(
-        base: T,
-        derive: &'b dyn for<'c> Fn(&'c mut T) -> <F as Derive<&'c mut T>>::Output,
-    ) -> Self
-    where
-        F: 'b,
-    {
-        Self::from_ptr_into(Box::new(base), derive)
-    }
-
-    #[cfg(feature = "alloc")]
-    pub fn from_fn_mut<'b>(
-        base: T,
-        derive: &'b mut dyn for<'c> FnMut(&'c mut T) -> <F as Derive<&'c mut T>>::Output,
-    ) -> Self
-    where
-        F: 'b,
-    {
-        Self::from_ptr_into(Box::new(base), derive)
-    }
-
-    #[cfg(feature = "alloc")]
-    pub fn from_fn_once(
-        base: T,
-        derive: Box<dyn for<'c> FnOnce(&'c mut T) -> <F as Derive<&'c mut T>>::Output>,
-    ) -> Self {
-        Self::from_ptr_into(Box::new(base), derive)
-    }
 }
 
 impl<'a, T, F> BowlMut<'a, T, F>
@@ -88,6 +37,38 @@ where
     }
 
     pub fn from_ptr(base: T, derive: F) -> Self {
+        Self::from_ptr_into(base, derive)
+    }
+
+    pub fn from_fn<'b>(
+        base: T,
+        derive: &'b dyn for<'c> Fn(&'c mut T::Target) -> <F as Derive<&'c mut T::Target>>::Output,
+    ) -> Self
+    where
+        F: 'b,
+    {
+        Self::from_ptr_into(base, derive)
+    }
+
+    pub fn from_fn_mut<'b>(
+        base: T,
+        derive: &'b mut dyn for<'c> FnMut(
+            &'c mut T::Target,
+        ) -> <F as Derive<&'c mut T::Target>>::Output,
+    ) -> Self
+    where
+        F: 'b,
+    {
+        Self::from_ptr_into(base, derive)
+    }
+
+    #[cfg(feature = "alloc")]
+    pub fn from_fn_once(
+        base: T,
+        derive: ::alloc::boxed::Box<
+            dyn for<'c> FnOnce(&'c mut T::Target) -> <F as Derive<&'c mut T::Target>>::Output,
+        >,
+    ) -> Self {
         Self::from_ptr_into(base, derive)
     }
 
