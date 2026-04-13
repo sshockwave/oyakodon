@@ -8,7 +8,7 @@ use ::core::{
     ops::Deref,
 };
 
-pub struct BowlRef<'a, T: Deref, F: for<'b> Derive<&'b T::Target>> {
+pub struct BowlRef<'a, T: Deref + ?Sized, F: for<'b> Derive<&'b T::Target> + ?Sized> {
     // `base` will be dropped after `derived`.
     // Rust guarantees that fields are dropped in the order of declaration.
     // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
@@ -20,6 +20,16 @@ impl<'a, T, F> BowlRef<'a, T, F>
 where
     T: StableDeref,
     F: for<'b> Derive<&'b T::Target>,
+{
+    pub fn new(base: T, derive: F) -> Self {
+        Self::new_into(base, derive)
+    }
+}
+
+impl<'a, T, F> BowlRef<'a, T, F>
+where
+    T: StableDeref,
+    F: for<'b> Derive<&'b T::Target> + ?Sized,
 {
     /// The primary constructor. All other constructors are convenience wrappers around this.
     pub fn new_into(
@@ -35,11 +45,6 @@ where
         let derived = derive.call(unsafe { transmute(&*base) });
         BowlRef { base, derived }
     }
-
-    pub fn new(base: T, derive: F) -> Self {
-        Self::new_into(base, derive)
-    }
-
     pub fn from_fn<'b>(
         base: T,
         derive: &'b dyn for<'c> Fn(&'c T::Target) -> <F as Derive<&'c T::Target>>::Output,
@@ -70,7 +75,7 @@ where
         Self::new_into(base, derive)
     }
 
-    pub fn map_into<'b, G, H>(self, f: H) -> BowlRef<'b, T, G>
+    pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlRef<'b, T, G>
     where
         for<'c> H: Derive<<F as Derive<&'c T::Target>>::Output>,
         for<'c> G: Derive<
@@ -97,9 +102,9 @@ where
 
 impl<'a, 'b, T, F, G> AsRef<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
-    T: Deref,
-    F: for<'c> Derive<&'c T::Target>,
-    G: for<'c> Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
+    T: Deref + ?Sized,
+    F: for<'c> Derive<&'c T::Target> + ?Sized,
+    G: for<'c> Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output> + ?Sized,
 {
     fn as_ref(&self) -> &BowlRef<'b, T, G> {
         // SAFETY: We maintain an HRTB invariant on `derive()`
@@ -117,9 +122,9 @@ where
 
 impl<'a, 'b, T, F, G> AsMut<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
-    T: Deref,
-    F: for<'c> Derive<&'c T::Target>,
-    G: for<'c> Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
+    T: Deref + ?Sized,
+    F: for<'c> Derive<&'c T::Target> + ?Sized,
+    G: for<'c> Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output> + ?Sized,
 {
     fn as_mut(&mut self) -> &mut BowlRef<'b, T, G> {
         // SAFETY: Same as `as_ref()`.
@@ -130,9 +135,9 @@ where
 impl<'a, T, F> BowlRef<'a, T, F>
 where
     T: Deref,
-    F: for<'b> Derive<&'b T::Target>,
+    F: for<'b> Derive<&'b T::Target> + ?Sized,
 {
-    pub fn cast<'b, G>(self) -> BowlRef<'b, T, G>
+    pub fn cast<'b, G: ?Sized>(self) -> BowlRef<'b, T, G>
     where
         for<'c> G: Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
     {
@@ -141,6 +146,18 @@ where
         unsafe { (&raw const self).cast::<BowlRef<'_, _, _>>().read() }
     }
 
+    pub fn into_inner(self) -> T {
+        let Self { base, derived: _ } = self;
+        // SAFETY: `*base` is not used elsewhere after `derived` is dropped.
+        base
+    }
+}
+
+impl<'a, T, F> BowlRef<'a, T, F>
+where
+    T: Deref + ?Sized,
+    F: for<'b> Derive<&'b T::Target> + ?Sized,
+{
     pub fn get(&self) -> &<F as Derive<&'_ T::Target>>::Output {
         // SAFETY: Reading `derived` is safe only if
         // the lifetime passed to `derive()` is shorter than that of `*base`.
@@ -156,18 +173,12 @@ where
         let other: &mut BowlRef<_, F> = self.as_mut();
         &mut other.derived
     }
-
-    pub fn into_inner(self) -> T {
-        let Self { base, derived: _ } = self;
-        // SAFETY: `*base` is not used elsewhere after `derived` is dropped.
-        base
-    }
 }
 
 impl<'a, T, F> Clone for BowlRef<'a, T, F>
 where
-    T: super::CloneStableDeref,
-    F: for<'b> Derive<&'b T::Target>,
+    T: super::CloneStableDeref + ?Sized,
+    F: for<'b> Derive<&'b T::Target> + ?Sized,
     for<'b> <F as Derive<&'b T::Target>>::Output: Clone,
 {
     fn clone(&self) -> Self {
@@ -182,8 +193,8 @@ where
 // SAFETY: `T::Target: Sync` is implied by `Derive::Output: Send` on demand
 unsafe impl<'a, T, F> Send for BowlRef<'a, T, F>
 where
-    T: StableDeref + Send,
-    F: for<'b> Derive<&'b T::Target>,
+    T: StableDeref + Send + ?Sized,
+    F: for<'b> Derive<&'b T::Target> + ?Sized,
     for<'b> <F as Derive<&'b T::Target>>::Output: Send,
 {
 }
@@ -191,8 +202,8 @@ where
 // That gives us the flexibility to omit `T: Sync`.
 unsafe impl<'a, T, F> Sync for BowlRef<'a, T, F>
 where
-    T: Deref,
-    F: for<'b> Derive<&'b T::Target>,
+    T: Deref + ?Sized,
+    F: for<'b> Derive<&'b T::Target> + ?Sized,
     for<'b> <F as Derive<&'b T::Target>>::Output: Sync,
 {
 }
@@ -200,8 +211,8 @@ where
 #[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlRef<'a, T, F>
 where
-    T: Deref,
-    F: for<'b> Derive<&'b T::Target>,
+    T: Deref + ?Sized,
+    F: for<'b> Derive<&'b T::Target> + ?Sized,
 {
     type Value<'b>
         = <F as Derive<&'b T::Target>>::Output
@@ -215,11 +226,11 @@ where
     }
 }
 
-pub struct Map<T: ?Sized, F, G>(G, PhantomData<(F, T)>);
+pub struct Map<T: ?Sized, F: ?Sized, G: ?Sized>(PhantomData<F>, PhantomData<T>, G);
 impl<'a, T: ?Sized, F, G> Derive<&'a T> for Map<T, F, G>
 where
-    F: for<'b> Derive<&'b T>,
-    G: for<'b> Derive<<F as Derive<&'b T>>::Output>,
+    F: for<'b> Derive<&'b T> + ?Sized,
+    G: for<'b> Derive<<F as Derive<&'b T>>::Output> + ?Sized,
 {
     type Output = <G as Derive<<F as Derive<&'a T>>::Output>>::Output;
 }
@@ -229,9 +240,9 @@ where
 // which is not available in `BowlMut`.
 impl<'a, 'b, T, F, G> PartialEq<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
-    T: Deref + PartialEq,
-    F: for<'c> Derive<&'c T::Target>,
-    G: for<'c> Derive<&'c T::Target>,
+    T: Deref + PartialEq + ?Sized,
+    F: for<'c> Derive<&'c T::Target> + ?Sized,
+    G: for<'c> Derive<&'c T::Target> + ?Sized,
     for<'c> <F as Derive<&'c T::Target>>::Output: PartialEq<<G as Derive<&'c T::Target>>::Output>,
 {
     fn eq(&self, other: &BowlRef<'b, T, G>) -> bool {
@@ -242,16 +253,16 @@ where
 
 impl<'a, T, F> Eq for BowlRef<'a, T, F>
 where
-    T: Deref + Eq,
-    F: for<'b> Derive<&'b T::Target>,
+    T: Deref + Eq + ?Sized,
+    F: for<'b> Derive<&'b T::Target> + ?Sized,
     for<'b> <F as Derive<&'b T::Target>>::Output: Eq,
 {
 }
 
 impl<'a, T, F> Hash for BowlRef<'a, T, F>
 where
-    T: Deref + Hash,
-    F: for<'b> Derive<&'b T::Target>,
+    T: Deref + Hash + ?Sized,
+    F: for<'b> Derive<&'b T::Target> + ?Sized,
     for<'b> <F as Derive<&'b T::Target>>::Output: Hash,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
