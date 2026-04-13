@@ -151,6 +151,24 @@ where
     }
 }
 
+// SAFETY: `T::Target: Sync` is implied by `Derive::Output: Send` on demand
+unsafe impl<'a, T, F> Send for BowlRef<'a, T, F>
+where
+    T: StableDeref + Send,
+    F: for<'b> Derive<&'b T::Target>,
+    for<'b> <F as Derive<&'b T::Target>>::Output: Send,
+{
+}
+// SAFETY: We do not provide access to `&*base` since it can be stored in `derived`.
+// That gives us the flexibility to omit `T: Sync`.
+unsafe impl<'a, T, F> Sync for BowlRef<'a, T, F>
+where
+    T: Deref,
+    F: for<'b> Derive<&'b T::Target>,
+    for<'b> <F as Derive<&'b T::Target>>::Output: Sync,
+{
+}
+
 #[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlRef<'a, T, F>
 where

@@ -136,6 +136,21 @@ where
     }
 }
 
+unsafe impl<'a, T, F> Send for BowlMut<'a, T, F>
+where
+    T: StableDeref + Send,
+    F: for<'b> Derive<&'b mut T::Target>,
+    for<'b> <F as Derive<&'b mut T::Target>>::Output: Send,
+{
+}
+unsafe impl<'a, T, F> Sync for BowlMut<'a, T, F>
+where
+    T: Deref,
+    F: for<'b> Derive<&'b mut T::Target>,
+    for<'b> <F as Derive<&'b mut T::Target>>::Output: Sync,
+{
+}
+
 #[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlMut<'a, T, F>
 where
