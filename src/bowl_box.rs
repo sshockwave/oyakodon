@@ -20,11 +20,11 @@ impl<'a, T, F> BowlBox<'a, T, F>
 where
     F: ?Sized + for<'b> View<&'b mut T>,
 {
-    pub fn new_into(
+    pub fn from_derive(
         base: T,
         derive: impl for<'b> Derive<&'b mut T, Output = <F as View<&'b mut T>>::Output>,
     ) -> Self {
-        Self(BowlMut::new_into(Box::new(base), derive))
+        Self(BowlMut::from_derive(Box::new(base), derive))
     }
 
     pub fn into_inner(self) -> T {
@@ -38,7 +38,7 @@ where
     where
         F: 'b,
     {
-        Self(BowlMut::new_into(Box::new(base), derive))
+        Self(BowlMut::from_derive(Box::new(base), derive))
     }
 
     pub fn from_fn_mut<'b>(
@@ -48,14 +48,14 @@ where
     where
         F: 'b,
     {
-        Self(BowlMut::new_into(Box::new(base), derive))
+        Self(BowlMut::from_derive(Box::new(base), derive))
     }
 
     pub fn from_fn_once(
         base: T,
         derive: Box<dyn for<'c> FnOnce(&'c mut T) -> <F as View<&'c mut T>>::Output>,
     ) -> Self {
-        Self(BowlMut::new_into(Box::new(base), derive))
+        Self(BowlMut::from_derive(Box::new(base), derive))
     }
 }
 

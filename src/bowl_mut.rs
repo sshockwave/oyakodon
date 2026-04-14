@@ -29,7 +29,7 @@ where
     F: for<'b> Derive<&'b mut T::Target>,
 {
     pub fn new(base: T, derive: F) -> Self {
-        Self::new_into(base, derive)
+        Self::from_derive(base, derive)
     }
 }
 
@@ -38,7 +38,7 @@ where
     T: StableDeref + DerefMut,
     F: for<'b> View<&'b mut T::Target> + ?Sized,
 {
-    pub fn new_into(
+    pub fn from_derive(
         mut base: T,
         derive: impl for<'b> Derive<&'b mut T::Target, Output = <F as View<&'b mut T::Target>>::Output>,
     ) -> Self {
@@ -53,7 +53,7 @@ where
     where
         F: 'b,
     {
-        Self::new_into(base, derive)
+        Self::from_derive(base, derive)
     }
 
     pub fn from_fn_mut<'b>(
@@ -65,7 +65,7 @@ where
     where
         F: 'b,
     {
-        Self::new_into(base, derive)
+        Self::from_derive(base, derive)
     }
 
     #[cfg(feature = "alloc")]
@@ -75,7 +75,7 @@ where
             dyn for<'c> FnOnce(&'c mut T::Target) -> <F as View<&'c mut T::Target>>::Output,
         >,
     ) -> Self {
-        Self::new_into(base, derive)
+        Self::from_derive(base, derive)
     }
 
     pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlMut<'b, T, G>

@@ -22,7 +22,7 @@ where
     F: for<'b> Derive<&'b T::Target>,
 {
     pub fn new(base: T, derive: F) -> Self {
-        Self::new_into(base, derive)
+        Self::from_derive(base, derive)
     }
 }
 
@@ -32,7 +32,7 @@ where
     F: for<'b> View<&'b T::Target> + ?Sized,
 {
     /// The primary constructor. All other constructors are convenience wrappers around this.
-    pub fn new_into(
+    pub fn from_derive(
         base: T,
         derive: impl for<'b> Derive<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
     ) -> Self {
@@ -52,7 +52,7 @@ where
     where
         F: 'b,
     {
-        Self::new_into(base, derive)
+        Self::from_derive(base, derive)
     }
 
     pub fn from_fn_mut<'b>(
@@ -62,7 +62,7 @@ where
     where
         F: 'b,
     {
-        Self::new_into(base, derive)
+        Self::from_derive(base, derive)
     }
 
     #[cfg(feature = "alloc")]
@@ -72,7 +72,7 @@ where
             dyn for<'c> FnOnce(&'c T::Target) -> <F as View<&'c T::Target>>::Output,
         >,
     ) -> Self {
-        Self::new_into(base, derive)
+        Self::from_derive(base, derive)
     }
 
     pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlRef<'b, T, G>
