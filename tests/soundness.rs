@@ -1,4 +1,28 @@
-use oyakodon::{Bowl, BowlMut, View};
+use oyakodon::{Bowl, BowlMut, BowlRef, View};
+
+/// Regression: [`into_inner()`] must drop `base` even when `derived`'s drop panics.
+/// Previously, `derived: _` in the destructure produced an unnamed temporary
+/// that Rust's unwind machinery did not track,
+/// causing `base` to leak when `derived`'s drop panicked.
+/// Fixed by using a named binding so `base` is a proper tracked local.
+///
+/// [`into_inner()`]: BowlRef::into_inner
+#[test]
+#[should_panic]
+fn into_inner_drops_base_on_derived_panic() {
+    #[allow(dead_code)]
+    struct PanicOnDrop<'a>(&'a String);
+    impl Drop for PanicOnDrop<'_> {
+        fn drop(&mut self) {
+            panic!("derived drop panic");
+        }
+    }
+    fn make(s: &String) -> PanicOnDrop<'_> {
+        PanicOnDrop(s)
+    }
+    // Miri detects the leak if `Box<String>` is not freed after the panic.
+    BowlRef::new(Box::new(String::from("hello")), make).into_inner();
+}
 
 /// https://github.com/someguynamedjosh/ouroboros/issues/88
 /// The issue states that Miri requires all parameters to a function

@@ -146,7 +146,8 @@ where
     }
 
     pub fn into_inner(self) -> T {
-        let Self { base, derived: _ } = self;
+        let Self { base, derived } = self;
+        drop(derived);
         MaybeDangling::into_inner(base)
     }
 

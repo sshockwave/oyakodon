@@ -175,7 +175,11 @@ where
     }
 
     pub fn into_inner(self) -> T {
-        let Self { base, derived: _ } = self;
+        let Self { base, derived } = self;
+        // `base` must be dropped even if `derived`'s drop panics.
+        // Miri reports that this is not guaranteed
+        // if `derived` is dropped implicitly at the end of the function.
+        drop(derived);
         // SAFETY: `*base` is not used elsewhere after `derived` is dropped.
         MaybeDangling::into_inner(base)
     }
