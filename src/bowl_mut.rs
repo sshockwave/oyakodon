@@ -9,18 +9,21 @@
 // The code size increase is not significant anyway.
 
 use super::{Derive, StableDeref, View};
-use ::core::{
-    marker::PhantomData,
-    mem::{forget, transmute},
-    ops::{Deref, DerefMut},
+use ::{
+    core::{
+        marker::PhantomData,
+        mem::{forget, transmute},
+        ops::{Deref, DerefMut},
+    },
+    maybe_dangling::MaybeDangling,
 };
 
-pub struct BowlMut<'a, T: Deref + ?Sized, F: ?Sized>
+pub struct BowlMut<'a, T: Deref, F: ?Sized>
 where
     F: for<'b> View<&'b mut T::Target>,
 {
-    derived: <F as View<&'a mut T::Target>>::Output,
-    base: T,
+    derived: MaybeDangling<<F as View<&'a mut T::Target>>::Output>,
+    base: MaybeDangling<T>,
 }
 
 impl<'a, T, F> BowlMut<'a, T, F>
@@ -39,11 +42,15 @@ where
     F: for<'b> View<&'b mut T::Target> + ?Sized,
 {
     pub fn from_derive(
-        mut base: T,
+        base: T,
         derive: impl for<'b> Derive<&'b mut T::Target, Output = <F as View<&'b mut T::Target>>::Output>,
     ) -> Self {
-        let derived = derive.call(unsafe { transmute(&mut *base) });
-        BowlMut { base, derived }
+        let mut base = MaybeDangling::new(base);
+        let derived = derive.call(unsafe { transmute(&mut **base) });
+        BowlMut {
+            base,
+            derived: MaybeDangling::new(derived),
+        }
     }
 
     pub fn from_fn<'b>(
@@ -89,7 +96,7 @@ where
         let Self { base, derived } = self;
         BowlMut::<'_, T, G> {
             base,
-            derived: f.call(derived),
+            derived: MaybeDangling::new(f.call(MaybeDangling::into_inner(derived))),
         }
         .cast()
     }
@@ -104,7 +111,7 @@ where
 
 impl<'a, 'b, T, F, G> AsRef<BowlMut<'b, T, G>> for BowlMut<'a, T, F>
 where
-    T: Deref + ?Sized,
+    T: Deref,
     F: for<'c> View<&'c mut T::Target> + ?Sized,
     G: for<'c> View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output> + ?Sized,
 {
@@ -115,7 +122,7 @@ where
 
 impl<'a, 'b, T, F, G> AsMut<BowlMut<'b, T, G>> for BowlMut<'a, T, F>
 where
-    T: Deref + ?Sized,
+    T: Deref,
     F: for<'c> View<&'c mut T::Target> + ?Sized,
     G: for<'c> View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output> + ?Sized,
 {
@@ -140,35 +147,29 @@ where
 
     pub fn into_inner(self) -> T {
         let Self { base, derived: _ } = self;
-        base
+        MaybeDangling::into_inner(base)
     }
 
     pub fn into_view<S>(self) -> S
     where
         for<'c> F: View<&'c mut T::Target, Output = S>,
     {
-        self.derived
+        MaybeDangling::into_inner(self.derived)
     }
-}
 
-impl<'a, T, F> BowlMut<'a, T, F>
-where
-    T: Deref + ?Sized,
-    F: for<'b> View<&'b mut T::Target> + ?Sized,
-{
     pub fn get(&self) -> &<F as View<&'_ mut T::Target>>::Output {
         let other: &BowlMut<_, F> = self.as_ref();
-        &other.derived
+        &*other.derived
     }
     pub fn get_mut(&mut self) -> &mut <F as View<&'_ mut T::Target>>::Output {
         let other: &mut BowlMut<_, F> = self.as_mut();
-        &mut other.derived
+        &mut *other.derived
     }
 }
 
 unsafe impl<'a, T, F> Sync for BowlMut<'a, T, F>
 where
-    T: Deref + ?Sized,
+    T: Deref,
     F: for<'b> View<&'b mut T::Target> + ?Sized,
     for<'b> <F as View<&'b mut T::Target>>::Output: Sync,
 {
@@ -177,7 +178,7 @@ where
 #[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlMut<'a, T, F>
 where
-    T: Deref + ?Sized,
+    T: Deref,
     F: for<'b> View<&'b mut T::Target> + ?Sized,
 {
     type Value<'b>

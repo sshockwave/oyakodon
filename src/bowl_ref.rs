@@ -1,19 +1,40 @@
 use super::{Derive, StableDeref, View};
-use ::core::{
-    cmp::{Eq, PartialEq},
-    convert::{AsMut, AsRef},
-    hash::{Hash, Hasher},
-    marker::PhantomData,
-    mem::{forget, transmute},
-    ops::Deref,
+use ::{
+    core::{
+        cmp::{Eq, PartialEq},
+        convert::{AsMut, AsRef},
+        hash::{Hash, Hasher},
+        marker::PhantomData,
+        mem::{forget, transmute},
+        ops::Deref,
+    },
+    maybe_dangling::MaybeDangling,
 };
 
-pub struct BowlRef<'a, T: Deref + ?Sized, F: for<'b> View<&'b T::Target> + ?Sized> {
+pub struct BowlRef<'a, T: Deref, F: for<'b> View<&'b T::Target> + ?Sized> {
     // `base` will be dropped after `derived`.
     // Rust guarantees that fields are dropped in the order of declaration.
     // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
-    derived: <F as View<&'a T::Target>>::Output,
-    base: T,
+    //
+    // Both fields are wrapped in `MaybeDangling` for distinct reasons:
+    //
+    // `derived: MaybeDangling<_>` suppresses Tree Borrows reference protection.
+    // When `BowlRef` is passed by value to a function,
+    // Tree Borrows would normally "protect" any references inside it for the entire call duration,
+    // asserting that the memory they point to remains valid.
+    // But `BowlRef` owns both `derived` (the borrow) and `base` (the allocation),
+    // so dropping `BowlRef` inside the callee frees `base` while `derived` is still considered live.
+    // `MaybeDangling` opts out of the `dereferenceable` assumption, suppressing the protector.
+    //
+    // `base: MaybeDangling<_>` suppresses Stacked Borrows Unique retag.
+    // Box-like types assert Unique ownership over their allocation whenever they are moved
+    // (e.g., as a function argument).
+    // If `base` were moved after `derived` was computed,
+    // the resulting Unique retag would invalidate `derived`'s SharedReadWrite tag on the same allocation.
+    // Wrapping `base` in `MaybeDangling` (a union) before calling `derive`
+    // means no further Box move occurs after `derived` is created.
+    derived: MaybeDangling<<F as View<&'a T::Target>>::Output>,
+    base: MaybeDangling<T>,
 }
 
 impl<'a, T, F> BowlRef<'a, T, F>
@@ -36,6 +57,7 @@ where
         base: T,
         derive: impl for<'b> Derive<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
     ) -> Self {
+        let base = MaybeDangling::new(base);
         // SAFETY: The lifetime `'a` passed to `derive()` might differ from the actual borrow,
         // but the HRTB requires `derive()` to work uniformly for any lifetime,
         // so `derive()` cannot exploit the length of `'a`.
@@ -44,8 +66,11 @@ where
         // and the safety of reading `derived` is handed off to getters.
         // We ensure that the base is never accessed until `derived` is dropped
         // to satisfy the possible LLVM `noalias` attribute on `base`.
-        let derived = derive.call(unsafe { transmute(&*base) });
-        BowlRef { base, derived }
+        let derived = derive.call(unsafe { transmute(&**base) });
+        BowlRef {
+            base,
+            derived: MaybeDangling::new(derived),
+        }
     }
     pub fn from_fn<'b>(
         base: T,
@@ -87,7 +112,7 @@ where
         // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
         BowlRef::<'_, T, G> {
             base,
-            derived: f.call(derived),
+            derived: MaybeDangling::new(f.call(MaybeDangling::into_inner(derived))),
         }
         .cast()
     }
@@ -102,7 +127,7 @@ where
 
 impl<'a, 'b, T, F, G> AsRef<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
-    T: Deref + ?Sized,
+    T: Deref,
     F: for<'c> View<&'c T::Target> + ?Sized,
     G: for<'c> View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output> + ?Sized,
 {
@@ -122,7 +147,7 @@ where
 
 impl<'a, 'b, T, F, G> AsMut<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
-    T: Deref + ?Sized,
+    T: Deref,
     F: for<'c> View<&'c T::Target> + ?Sized,
     G: for<'c> View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output> + ?Sized,
 {
@@ -152,7 +177,7 @@ where
     pub fn into_inner(self) -> T {
         let Self { base, derived: _ } = self;
         // SAFETY: `*base` is not used elsewhere after `derived` is dropped.
-        base
+        MaybeDangling::into_inner(base)
     }
 
     pub fn into_view<S>(self) -> S
@@ -160,15 +185,9 @@ where
         for<'c> F: View<&'c T::Target, Output = S>,
     {
         // SAFETY: The HRTB requires `F::Output` to not depend on `base`.
-        self.derived
+        MaybeDangling::into_inner(self.derived)
     }
-}
 
-impl<'a, T, F> BowlRef<'a, T, F>
-where
-    T: Deref + ?Sized,
-    F: for<'b> View<&'b T::Target> + ?Sized,
-{
     pub fn get(&self) -> &<F as View<&'_ T::Target>>::Output {
         // SAFETY: Reading `derived` is safe only if
         // the lifetime passed to `derive()` is shorter than that of `*base`.
@@ -177,18 +196,18 @@ where
         // but we don't know about that yet,
         // so using `'b` is the best we can do.
         let other: &BowlRef<_, F> = self.as_ref();
-        &other.derived
+        &*other.derived
     }
     pub fn get_mut(&mut self) -> &mut <F as View<&'_ T::Target>>::Output {
         // SAFETY: Same as `get()`, but for mutable references.
         let other: &mut BowlRef<_, F> = self.as_mut();
-        &mut other.derived
+        &mut *other.derived
     }
 }
 
 impl<'a, T, F> Clone for BowlRef<'a, T, F>
 where
-    T: super::CloneStableDeref + ?Sized,
+    T: super::CloneStableDeref,
     F: for<'b> View<&'b T::Target> + ?Sized,
     for<'b> <F as View<&'b T::Target>>::Output: Clone,
 {
@@ -205,7 +224,7 @@ where
 // That gives us the flexibility to omit `T: Sync`.
 unsafe impl<'a, T, F> Sync for BowlRef<'a, T, F>
 where
-    T: Deref + ?Sized,
+    T: Deref,
     F: for<'b> View<&'b T::Target> + ?Sized,
     for<'b> <F as View<&'b T::Target>>::Output: Sync,
 {
@@ -214,7 +233,7 @@ where
 #[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlRef<'a, T, F>
 where
-    T: Deref + ?Sized,
+    T: Deref,
     F: for<'b> View<&'b T::Target> + ?Sized,
 {
     type Value<'b>
@@ -243,20 +262,20 @@ where
 // which is not available in `BowlMut`.
 impl<'a, 'b, T, F, G> PartialEq<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
-    T: Deref + PartialEq + ?Sized,
+    T: Deref + PartialEq,
     F: for<'c> View<&'c T::Target> + ?Sized,
     G: for<'c> View<&'c T::Target> + ?Sized,
     for<'c> <F as View<&'c T::Target>>::Output: PartialEq<<G as View<&'c T::Target>>::Output>,
 {
     fn eq(&self, other: &BowlRef<'b, T, G>) -> bool {
         // SAFETY: Accessing `base` is safe because `derived` does not have exlusive access to `base`.
-        self.base.eq(&other.base) && self.get().eq(other.get())
+        (*self.base).eq(&*other.base) && self.get().eq(other.get())
     }
 }
 
 impl<'a, T, F> Eq for BowlRef<'a, T, F>
 where
-    T: Deref + Eq + ?Sized,
+    T: Deref + Eq,
     F: for<'b> View<&'b T::Target> + ?Sized,
     for<'b> <F as View<&'b T::Target>>::Output: Eq,
 {
@@ -264,7 +283,7 @@ where
 
 impl<'a, T, F> Hash for BowlRef<'a, T, F>
 where
-    T: Deref + Hash + ?Sized,
+    T: Deref + Hash,
     F: for<'b> View<&'b T::Target> + ?Sized,
     for<'b> <F as View<&'b T::Target>>::Output: Hash,
 {
