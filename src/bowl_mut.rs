@@ -1,4 +1,4 @@
-// The safety arguments in this file are mostly the same as `BowlRef`, so they are not repeated here.
+/// The safety arguments in this file are mostly the same as `BowlRef`, so they are not repeated here.
 // These two implementations are not merged using macros because they break rust-analyzer.
 // We also cannot use a common trait
 // because an explicit reference `&'a T` in HRTB `for<'a> F: Ref<&'a T>`
@@ -6,24 +6,31 @@
 // while `for<'a> F: Ref<'a, T>` requires `T` to be static to satisfy `'a: 'static`.
 // See https://sabrinajewson.org/blog/the-better-alternative-to-lifetime-gats
 // for an in-depth discussion on this issue.
-// The code size increase is not significant anyway.
-
-use super::{Derive, Map, StableDeref, View};
+// Internally, we implement `BowlMut` as a wrapper around `BowlRef`
+// so the code size increase is not significant anyway.
+use super::{BowlRef, Derive, Map, StableDeref, View};
 use ::{
     core::{
-        mem::{forget, transmute},
+        mem::transmute,
         ops::{Deref, DerefMut},
     },
     maybe_dangling::MaybeDangling,
 };
 
-pub struct BowlMut<'a, T: Deref, F: ?Sized>
+/// We create this internal type to re-use some implementations from [`BowlRef`].
+#[repr(transparent)]
+struct MutToRef<F: ?Sized>(F);
+impl<'a, T, F> View<&'a T> for MutToRef<F>
 where
-    F: for<'b> View<&'b mut T::Target>,
+    T: ?Sized,
+    F: ?Sized + for<'b> View<&'b mut T>,
 {
-    derived: MaybeDangling<<F as View<&'a mut T::Target>>::Output>,
-    base: MaybeDangling<T>,
+    type Output = <F as View<&'a mut T>>::Output;
 }
+
+pub struct BowlMut<'a, T: Deref, F: ?Sized>(BowlRef<'a, T, MutToRef<F>>)
+where
+    F: for<'b> View<&'b mut T::Target>;
 
 impl<'a, T, F> BowlMut<'a, T, F>
 where
@@ -45,11 +52,15 @@ where
         derive: impl for<'b> Derive<&'b mut T::Target, Output = <F as View<&'b mut T::Target>>::Output>,
     ) -> Self {
         let mut base = MaybeDangling::new(base);
+        // SAFETY: The difference of `BowlMut` and `BowlRef` is
+        // only the mutability of the base when deriving the view.
+        // That restricts access to the base after the view is alive,
+        // but it does not change anything here.
         let derived = derive.call(unsafe { transmute(&mut **base) });
-        BowlMut {
+        Self(BowlRef {
             base,
             derived: MaybeDangling::new(derived),
-        }
+        })
     }
 
     pub fn from_fn<'b>(
@@ -92,12 +103,7 @@ where
                 Output = <H as View<<F as View<&'c mut T::Target>>::Output>>::Output,
             >,
     {
-        let Self { base, derived } = self;
-        BowlMut::<'_, T, G> {
-            base,
-            derived: MaybeDangling::new(f.call(MaybeDangling::into_inner(derived))),
-        }
-        .cast()
+        BowlMut(self.0.map_into(f))
     }
 
     pub fn map<G>(self, f: G) -> BowlMut<'a, T, Map<T::Target, F, G>>
@@ -115,6 +121,7 @@ where
     G: for<'c> View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output> + ?Sized,
 {
     fn as_ref(&self) -> &BowlMut<'b, T, G> {
+        // SAFETY: `#[repr(transparent)]` delegates to the same safety contract as `BowlRef::as_ref()`
         unsafe { transmute(self) }
     }
 }
@@ -126,6 +133,7 @@ where
     G: for<'c> View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output> + ?Sized,
 {
     fn as_mut(&mut self) -> &mut BowlMut<'b, T, G> {
+        // SAFETY: `#[repr(transparent)]` delegates to the same safety contract as `BowlRef::as_mut()`
         unsafe { transmute(self) }
     }
 }
@@ -139,42 +147,26 @@ where
     where
         for<'c> G: View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output>,
     {
-        let result = unsafe { (&raw const self).cast::<BowlMut<'_, _, _>>().read() };
-        forget(self);
-        result
+        BowlMut(self.0.cast())
     }
 
     pub fn into_inner(self) -> T {
-        let Self { base, derived } = self;
-        drop(derived);
-        MaybeDangling::into_inner(base)
+        self.0.into_inner()
     }
 
     pub fn into_view<S>(self) -> S
     where
         for<'c> F: View<&'c mut T::Target, Output = S>,
     {
-        let Self { base, derived } = self;
-        drop(base);
-        MaybeDangling::into_inner(derived)
+        self.0.into_view()
     }
 
     pub fn get(&self) -> &<F as View<&'_ mut T::Target>>::Output {
-        let other: &BowlMut<_, F> = self.as_ref();
-        &*other.derived
+        self.0.get()
     }
     pub fn get_mut(&mut self) -> &mut <F as View<&'_ mut T::Target>>::Output {
-        let other: &mut BowlMut<_, F> = self.as_mut();
-        &mut *other.derived
+        self.0.get_mut()
     }
-}
-
-unsafe impl<'a, T, F> Sync for BowlMut<'a, T, F>
-where
-    T: Deref,
-    F: for<'b> View<&'b mut T::Target> + ?Sized,
-    for<'b> <F as View<&'b mut T::Target>>::Output: Sync,
-{
 }
 
 #[cfg(feature = "gat")]
@@ -188,9 +180,9 @@ where
     where
         Self: 'b;
     fn get(&self) -> &Self::Value<'_> {
-        BowlMut::get(self)
+        self.0.get()
     }
     fn get_mut(&mut self) -> &mut Self::Value<'_> {
-        BowlMut::get_mut(self)
+        self.0.get_mut()
     }
 }

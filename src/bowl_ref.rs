@@ -32,8 +32,8 @@ pub struct BowlRef<'a, T: Deref, F: for<'b> View<&'b T::Target> + ?Sized> {
     // the resulting Unique retag would invalidate `derived`'s SharedReadWrite tag on the same allocation.
     // Wrapping `base` in `MaybeDangling` (a union) before calling `derive`
     // means no further Box move occurs after `derived` is created.
-    derived: MaybeDangling<<F as View<&'a T::Target>>::Output>,
-    base: MaybeDangling<T>,
+    pub(crate) derived: MaybeDangling<<F as View<&'a T::Target>>::Output>,
+    pub(crate) base: MaybeDangling<T>,
 }
 
 impl<'a, T, F> BowlRef<'a, T, F>
