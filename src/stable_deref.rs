@@ -12,12 +12,23 @@ unsafe impl<'a, T: ?Sized> CloneStableDeref for &'a T {}
 
 unsafe impl<'a, T: ?Sized> StableDeref for &'a mut T {}
 
+unsafe impl<'a, T: ?Sized> StableDeref for ::core::cell::Ref<'a, T> {}
+unsafe impl<'a, T: ?Sized> StableDeref for ::core::cell::RefMut<'a, T> {}
+
 #[cfg(feature = "alloc")]
 mod has_alloc {
     use super::*;
     use ::alloc::*;
 
     unsafe impl<T: ?Sized> StableDeref for boxed::Box<T> {}
+    unsafe impl<T> StableDeref for vec::Vec<T> {}
+    unsafe impl StableDeref for string::String {}
+    unsafe impl StableDeref for ffi::CString {}
+
+    unsafe impl<'a, B: 'a + borrow::ToOwned + ?Sized> StableDeref for borrow::Cow<'a, B> where
+        B::Owned: StableDeref
+    {
+    }
 
     unsafe impl<T: ?Sized> StableDeref for rc::Rc<T> {}
     unsafe impl<T: ?Sized> CloneStableDeref for rc::Rc<T> {}
@@ -26,4 +37,17 @@ mod has_alloc {
     unsafe impl<T: ?Sized> StableDeref for sync::Arc<T> {}
     #[cfg(target_has_atomic = "ptr")]
     unsafe impl<T: ?Sized> CloneStableDeref for sync::Arc<T> {}
+}
+
+#[cfg(feature = "std")]
+mod has_std {
+    use super::*;
+    use ::std::*;
+
+    unsafe impl StableDeref for ffi::OsString {}
+    unsafe impl StableDeref for path::PathBuf {}
+
+    unsafe impl<'a, T: ?Sized> StableDeref for sync::MutexGuard<'a, T> {}
+    unsafe impl<'a, T: ?Sized> StableDeref for sync::RwLockReadGuard<'a, T> {}
+    unsafe impl<'a, T: ?Sized> StableDeref for sync::RwLockWriteGuard<'a, T> {}
 }
