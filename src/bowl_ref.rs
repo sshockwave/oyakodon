@@ -188,8 +188,11 @@ where
     where
         for<'c> F: View<&'c T::Target, Output = S>,
     {
+        let Self { base, derived } = self;
+        // Same reason as `into_inner()`
+        drop(base);
         // SAFETY: The HRTB requires `F::Output` to not depend on `base`.
-        MaybeDangling::into_inner(self.derived)
+        MaybeDangling::into_inner(derived)
     }
 
     pub fn get(&self) -> &<F as View<&'_ T::Target>>::Output {

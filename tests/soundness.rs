@@ -24,6 +24,27 @@ fn into_inner_drops_base_on_derived_panic() {
     BowlRef::new(Box::new(String::from("hello")), make).into_inner();
 }
 
+/// The same as [`into_inner_drops_base_on_derived_panic`] but for [`BowlRef::into_view()`]
+#[test]
+#[should_panic]
+fn into_view_drops_view_on_base_panic() {
+    struct PanicOnDrop(String);
+    impl Drop for PanicOnDrop {
+        fn drop(&mut self) {
+            panic!("base drop panic");
+        }
+    }
+    fn make_view(owner: &PanicOnDrop) -> Box<String> {
+        Box::new(owner.0.clone())
+    }
+    // Miri detects the leak if Box<String> (the view) is not freed after the panic.
+    let _: Box<String> = BowlRef::<Box<PanicOnDrop>, fn(&PanicOnDrop) -> Box<String>>::new(
+        Box::new(PanicOnDrop("hello".to_string())),
+        make_view,
+    )
+    .into_view();
+}
+
 /// https://github.com/someguynamedjosh/ouroboros/issues/88
 /// The issue states that Miri requires all parameters to a function
 /// must be valid throughout the entire function body,

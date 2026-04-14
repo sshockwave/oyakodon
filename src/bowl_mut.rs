@@ -155,7 +155,9 @@ where
     where
         for<'c> F: View<&'c mut T::Target, Output = S>,
     {
-        MaybeDangling::into_inner(self.derived)
+        let Self { base, derived } = self;
+        drop(base);
+        MaybeDangling::into_inner(derived)
     }
 
     pub fn get(&self) -> &<F as View<&'_ mut T::Target>>::Output {
