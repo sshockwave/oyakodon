@@ -4,7 +4,7 @@ use ::{
         cmp::{Eq, PartialEq},
         convert::{AsMut, AsRef},
         hash::{Hash, Hasher},
-        mem::{forget, transmute},
+        mem::transmute,
         ops::Deref,
     },
     maybe_dangling::MaybeDangling,
@@ -124,13 +124,12 @@ where
     }
 }
 
-impl<'a, 'b, T, F, G> AsRef<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
+impl<'a, 'b, T, F> AsRef<BowlRef<'b, T, F>> for BowlRef<'a, T, F>
 where
     T: Deref,
     F: for<'c> View<&'c T::Target> + ?Sized,
-    G: for<'c> View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output> + ?Sized,
 {
-    fn as_ref(&self) -> &BowlRef<'b, T, G> {
+    fn as_ref(&self) -> &BowlRef<'b, T, F> {
         // SAFETY: We maintain an HRTB invariant on `derive()`
         // to make sure any `'c` that does not outlive `*base`
         // corresponds to a valid `F::Output<'c>`.
@@ -144,13 +143,12 @@ where
     }
 }
 
-impl<'a, 'b, T, F, G> AsMut<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
+impl<'a, 'b, T, F> AsMut<BowlRef<'b, T, F>> for BowlRef<'a, T, F>
 where
     T: Deref,
     F: for<'c> View<&'c T::Target> + ?Sized,
-    G: for<'c> View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output> + ?Sized,
 {
-    fn as_mut(&mut self) -> &mut BowlRef<'b, T, G> {
+    fn as_mut(&mut self) -> &mut BowlRef<'b, T, F> {
         // SAFETY: Same as `as_ref()`.
         unsafe { transmute(self) }
     }
@@ -161,16 +159,17 @@ where
     T: Deref,
     F: for<'b> View<&'b T::Target> + ?Sized,
 {
+    fn cast_life<'b>(self) -> BowlRef<'b, T, F> {
+        // SAFETY: Same as `as_ref()`.
+        unsafe { transmute(self) }
+    }
+
     pub fn cast<'b, G: ?Sized>(self) -> BowlRef<'b, T, G>
     where
         for<'c> G: View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output>,
     {
-        // SAFETY: The object cast implementation follows `ManuallyDrop::into_inner`
-        // because the compiler can't figure out that their sizes are the same.
-        // Extra care needs to be taken that the resources in `self` shouldn't be freed.
-        let result = unsafe { (&raw const self).cast::<BowlRef<'_, _, _>>().read() };
-        forget(self);
-        result
+        let BowlRef { base, derived } = self.cast_life();
+        BowlRef { base, derived }
     }
 
     pub fn into_inner(self) -> T {

@@ -101,48 +101,44 @@ where
     }
 }
 
-impl<'a, 'b, T, F, G> AsRef<BowlBox<'b, T, G>> for BowlBox<'a, T, F>
+impl<'a, 'b, T, F> AsRef<BowlBox<'b, T, F>> for BowlBox<'a, T, F>
 where
     T: ?Sized,
     F: for<'c> View<&'c mut T> + ?Sized,
-    G: for<'c> View<&'c mut T, Output = <F as View<&'c mut T>>::Output> + ?Sized,
 {
-    fn as_ref(&self) -> &BowlBox<'b, T, G> {
+    fn as_ref(&self) -> &BowlBox<'b, T, F> {
         // SAFETY: `#[repr(transparent)]` delegates to the same safety contract as `BowlMut::as_ref()`
         unsafe { transmute(self) }
     }
 }
 
-impl<'a, 'b, T, F, G> AsMut<BowlBox<'b, T, G>> for BowlBox<'a, T, F>
+impl<'a, 'b, T, F> AsMut<BowlBox<'b, T, F>> for BowlBox<'a, T, F>
 where
     T: ?Sized,
     F: for<'c> View<&'c mut T> + ?Sized,
-    G: for<'c> View<&'c mut T, Output = <F as View<&'c mut T>>::Output> + ?Sized,
 {
-    fn as_mut(&mut self) -> &mut BowlBox<'b, T, G> {
+    fn as_mut(&mut self) -> &mut BowlBox<'b, T, F> {
         // SAFETY: `#[repr(transparent)]` delegates to the same safety contract as `BowlMut::as_mut()`
         unsafe { transmute(self) }
     }
 }
 
-impl<'a, 'b, T, F, G> AsRef<BowlMut<'b, Box<T>, G>> for BowlBox<'a, T, F>
+impl<'a, 'b, T, F> AsRef<BowlMut<'b, Box<T>, F>> for BowlBox<'a, T, F>
 where
     T: ?Sized,
     F: for<'c> View<&'c mut T> + ?Sized,
-    G: for<'c> View<&'c mut T, Output = <F as View<&'c mut T>>::Output> + ?Sized,
 {
-    fn as_ref(&self) -> &BowlMut<'b, Box<T>, G> {
+    fn as_ref(&self) -> &BowlMut<'b, Box<T>, F> {
         self.0.as_ref()
     }
 }
 
-impl<'a, 'b, T, F, G> AsMut<BowlMut<'b, Box<T>, G>> for BowlBox<'a, T, F>
+impl<'a, 'b, T, F> AsMut<BowlMut<'b, Box<T>, F>> for BowlBox<'a, T, F>
 where
     T: ?Sized,
     F: for<'c> View<&'c mut T> + ?Sized,
-    G: for<'c> View<&'c mut T, Output = <F as View<&'c mut T>>::Output> + ?Sized,
 {
-    fn as_mut(&mut self) -> &mut BowlMut<'b, Box<T>, G> {
+    fn as_mut(&mut self) -> &mut BowlMut<'b, Box<T>, F> {
         self.0.as_mut()
     }
 }
