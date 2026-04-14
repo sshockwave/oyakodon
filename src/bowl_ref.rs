@@ -154,6 +154,14 @@ where
         // SAFETY: `*base` is not used elsewhere after `derived` is dropped.
         base
     }
+
+    pub fn into_view<S>(self) -> S
+    where
+        for<'c> F: View<&'c T::Target, Output = S>,
+    {
+        // SAFETY: The HRTB requires `F::Output` to not depend on `base`.
+        self.derived
+    }
 }
 
 impl<'a, T, F> BowlRef<'a, T, F>

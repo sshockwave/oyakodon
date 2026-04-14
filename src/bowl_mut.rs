@@ -142,6 +142,13 @@ where
         let Self { base, derived: _ } = self;
         base
     }
+
+    pub fn into_view<S>(self) -> S
+    where
+        for<'c> F: View<&'c mut T::Target, Output = S>,
+    {
+        self.derived
+    }
 }
 
 impl<'a, T, F> BowlMut<'a, T, F>

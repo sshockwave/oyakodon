@@ -86,6 +86,13 @@ where
         BowlBox(self.0.cast())
     }
 
+    pub fn into_view<S>(self) -> S
+    where
+        for<'c> F: View<&'c mut T, Output = S>,
+    {
+        self.0.into_view()
+    }
+
     pub fn get(&self) -> &<F as View<&'_ mut T>>::Output {
         self.0.get()
     }
