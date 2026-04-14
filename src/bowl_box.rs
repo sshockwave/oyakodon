@@ -1,11 +1,11 @@
-use super::{BowlMut, Derive, bowl_mut::Map};
+use super::{BowlMut, Derive, View, bowl_mut::Map};
 use ::{alloc::boxed::Box, core::mem::transmute};
 
 #[repr(transparent)]
 pub struct BowlBox<'a, T, F>(BowlMut<'a, Box<T>, F>)
 where
     T: ?Sized,
-    F: for<'b> Derive<&'b mut T> + ?Sized;
+    F: for<'b> View<&'b mut T> + ?Sized;
 
 impl<'a, T, F> BowlBox<'a, T, F>
 where
@@ -18,11 +18,11 @@ where
 
 impl<'a, T, F> BowlBox<'a, T, F>
 where
-    F: ?Sized + for<'b> Derive<&'b mut T>,
+    F: ?Sized + for<'b> View<&'b mut T>,
 {
     pub fn new_into(
         base: T,
-        derive: impl for<'b> Derive<&'b mut T, Output = <F as Derive<&'b mut T>>::Output>,
+        derive: impl for<'b> Derive<&'b mut T, Output = <F as View<&'b mut T>>::Output>,
     ) -> Self {
         Self(BowlMut::new_into(Box::new(base), derive))
     }
@@ -33,7 +33,7 @@ where
 
     pub fn from_fn<'b>(
         base: T,
-        derive: &'b dyn for<'c> Fn(&'c mut T) -> <F as Derive<&'c mut T>>::Output,
+        derive: &'b dyn for<'c> Fn(&'c mut T) -> <F as View<&'c mut T>>::Output,
     ) -> Self
     where
         F: 'b,
@@ -43,7 +43,7 @@ where
 
     pub fn from_fn_mut<'b>(
         base: T,
-        derive: &'b mut dyn for<'c> FnMut(&'c mut T) -> <F as Derive<&'c mut T>>::Output,
+        derive: &'b mut dyn for<'c> FnMut(&'c mut T) -> <F as View<&'c mut T>>::Output,
     ) -> Self
     where
         F: 'b,
@@ -53,7 +53,7 @@ where
 
     pub fn from_fn_once(
         base: T,
-        derive: Box<dyn for<'c> FnOnce(&'c mut T) -> <F as Derive<&'c mut T>>::Output>,
+        derive: Box<dyn for<'c> FnOnce(&'c mut T) -> <F as View<&'c mut T>>::Output>,
     ) -> Self {
         Self(BowlMut::new_into(Box::new(base), derive))
     }
@@ -62,35 +62,34 @@ where
 impl<'a, T, F> BowlBox<'a, T, F>
 where
     T: ?Sized,
-    F: for<'b> Derive<&'b mut T> + ?Sized,
+    F: for<'b> View<&'b mut T> + ?Sized,
 {
     pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlBox<'b, T, G>
     where
-        for<'c> H: Derive<<F as Derive<&'c mut T>>::Output>,
-        for<'c> G:
-            Derive<&'c mut T, Output = <H as Derive<<F as Derive<&'c mut T>>::Output>>::Output>,
+        for<'c> H: Derive<<F as View<&'c mut T>>::Output>,
+        for<'c> G: View<&'c mut T, Output = <H as View<<F as View<&'c mut T>>::Output>>::Output>,
     {
         BowlBox(self.0.map_into(f))
     }
 
     pub fn map<G>(self, f: G) -> BowlBox<'a, T, Map<T, F, G>>
     where
-        G: for<'b> Derive<<F as Derive<&'b mut T>>::Output>,
+        G: for<'b> Derive<<F as View<&'b mut T>>::Output>,
     {
         self.map_into(f)
     }
 
     pub fn cast<'b, G: ?Sized>(self) -> BowlBox<'b, T, G>
     where
-        for<'c> G: Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output>,
+        for<'c> G: View<&'c mut T, Output = <F as View<&'c mut T>>::Output>,
     {
         BowlBox(self.0.cast())
     }
 
-    pub fn get(&self) -> &<F as Derive<&'_ mut T>>::Output {
+    pub fn get(&self) -> &<F as View<&'_ mut T>>::Output {
         self.0.get()
     }
-    pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ mut T>>::Output {
+    pub fn get_mut(&mut self) -> &mut <F as View<&'_ mut T>>::Output {
         self.0.get_mut()
     }
 }
@@ -98,8 +97,8 @@ where
 impl<'a, 'b, T, F, G> AsRef<BowlBox<'b, T, G>> for BowlBox<'a, T, F>
 where
     T: ?Sized,
-    F: for<'c> Derive<&'c mut T> + ?Sized,
-    G: for<'c> Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output> + ?Sized,
+    F: for<'c> View<&'c mut T> + ?Sized,
+    G: for<'c> View<&'c mut T, Output = <F as View<&'c mut T>>::Output> + ?Sized,
 {
     fn as_ref(&self) -> &BowlBox<'b, T, G> {
         // SAFETY: `#[repr(transparent)]` delegates to the same safety contract as `BowlMut::as_ref()`
@@ -110,8 +109,8 @@ where
 impl<'a, 'b, T, F, G> AsMut<BowlBox<'b, T, G>> for BowlBox<'a, T, F>
 where
     T: ?Sized,
-    F: for<'c> Derive<&'c mut T> + ?Sized,
-    G: for<'c> Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output> + ?Sized,
+    F: for<'c> View<&'c mut T> + ?Sized,
+    G: for<'c> View<&'c mut T, Output = <F as View<&'c mut T>>::Output> + ?Sized,
 {
     fn as_mut(&mut self) -> &mut BowlBox<'b, T, G> {
         // SAFETY: `#[repr(transparent)]` delegates to the same safety contract as `BowlMut::as_mut()`
@@ -122,8 +121,8 @@ where
 impl<'a, 'b, T, F, G> AsRef<BowlMut<'b, Box<T>, G>> for BowlBox<'a, T, F>
 where
     T: ?Sized,
-    F: for<'c> Derive<&'c mut T> + ?Sized,
-    G: for<'c> Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output> + ?Sized,
+    F: for<'c> View<&'c mut T> + ?Sized,
+    G: for<'c> View<&'c mut T, Output = <F as View<&'c mut T>>::Output> + ?Sized,
 {
     fn as_ref(&self) -> &BowlMut<'b, Box<T>, G> {
         self.0.as_ref()
@@ -133,8 +132,8 @@ where
 impl<'a, 'b, T, F, G> AsMut<BowlMut<'b, Box<T>, G>> for BowlBox<'a, T, F>
 where
     T: ?Sized,
-    F: for<'c> Derive<&'c mut T> + ?Sized,
-    G: for<'c> Derive<&'c mut T, Output = <F as Derive<&'c mut T>>::Output> + ?Sized,
+    F: for<'c> View<&'c mut T> + ?Sized,
+    G: for<'c> View<&'c mut T, Output = <F as View<&'c mut T>>::Output> + ?Sized,
 {
     fn as_mut(&mut self) -> &mut BowlMut<'b, Box<T>, G> {
         self.0.as_mut()
@@ -144,7 +143,7 @@ where
 impl<'a, T, F> Clone for BowlBox<'a, T, F>
 where
     T: ?Sized,
-    F: for<'b> Derive<&'b mut T> + ?Sized,
+    F: for<'b> View<&'b mut T> + ?Sized,
     BowlMut<'a, Box<T>, F>: Clone,
 {
     fn clone(&self) -> Self {
@@ -155,7 +154,7 @@ where
 impl<'a, T, F> From<BowlMut<'a, Box<T>, F>> for BowlBox<'a, T, F>
 where
     T: ?Sized,
-    F: for<'b> Derive<&'b mut T> + ?Sized,
+    F: for<'b> View<&'b mut T> + ?Sized,
 {
     fn from(value: BowlMut<'a, Box<T>, F>) -> Self {
         Self(value)
@@ -165,7 +164,7 @@ where
 impl<'a, T, F> From<BowlBox<'a, T, F>> for BowlMut<'a, Box<T>, F>
 where
     T: ?Sized,
-    F: for<'b> Derive<&'b mut T> + ?Sized,
+    F: for<'b> View<&'b mut T> + ?Sized,
 {
     fn from(value: BowlBox<'a, T, F>) -> Self {
         value.0
@@ -176,10 +175,10 @@ where
 impl<'a, T, F> super::Bowl for BowlBox<'a, T, F>
 where
     T: ?Sized,
-    F: for<'b> Derive<&'b mut T> + ?Sized,
+    F: for<'b> View<&'b mut T> + ?Sized,
 {
     type Value<'b>
-        = <F as Derive<&'b mut T>>::Output
+        = <F as View<&'b mut T>>::Output
     where
         Self: 'b;
     fn get(&self) -> &Self::Value<'_> {

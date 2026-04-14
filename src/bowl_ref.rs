@@ -1,4 +1,4 @@
-use super::{Derive, StableDeref};
+use super::{Derive, StableDeref, View};
 use ::core::{
     cmp::{Eq, PartialEq},
     convert::{AsMut, AsRef},
@@ -8,11 +8,11 @@ use ::core::{
     ops::Deref,
 };
 
-pub struct BowlRef<'a, T: Deref + ?Sized, F: for<'b> Derive<&'b T::Target> + ?Sized> {
+pub struct BowlRef<'a, T: Deref + ?Sized, F: for<'b> View<&'b T::Target> + ?Sized> {
     // `base` will be dropped after `derived`.
     // Rust guarantees that fields are dropped in the order of declaration.
     // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
-    derived: <F as Derive<&'a T::Target>>::Output,
+    derived: <F as View<&'a T::Target>>::Output,
     base: T,
 }
 
@@ -29,12 +29,12 @@ where
 impl<'a, T, F> BowlRef<'a, T, F>
 where
     T: StableDeref,
-    F: for<'b> Derive<&'b T::Target> + ?Sized,
+    F: for<'b> View<&'b T::Target> + ?Sized,
 {
     /// The primary constructor. All other constructors are convenience wrappers around this.
     pub fn new_into(
         base: T,
-        derive: impl for<'b> Derive<&'b T::Target, Output = <F as Derive<&'b T::Target>>::Output>,
+        derive: impl for<'b> Derive<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
     ) -> Self {
         // SAFETY: The lifetime `'a` passed to `derive()` might differ from the actual borrow,
         // but the HRTB requires `derive()` to work uniformly for any lifetime,
@@ -47,7 +47,7 @@ where
     }
     pub fn from_fn<'b>(
         base: T,
-        derive: &'b dyn for<'c> Fn(&'c T::Target) -> <F as Derive<&'c T::Target>>::Output,
+        derive: &'b dyn for<'c> Fn(&'c T::Target) -> <F as View<&'c T::Target>>::Output,
     ) -> Self
     where
         F: 'b,
@@ -57,7 +57,7 @@ where
 
     pub fn from_fn_mut<'b>(
         base: T,
-        derive: &'b mut dyn for<'c> FnMut(&'c T::Target) -> <F as Derive<&'c T::Target>>::Output,
+        derive: &'b mut dyn for<'c> FnMut(&'c T::Target) -> <F as View<&'c T::Target>>::Output,
     ) -> Self
     where
         F: 'b,
@@ -69,7 +69,7 @@ where
     pub fn from_fn_once(
         base: T,
         derive: ::alloc::boxed::Box<
-            dyn for<'c> FnOnce(&'c T::Target) -> <F as Derive<&'c T::Target>>::Output,
+            dyn for<'c> FnOnce(&'c T::Target) -> <F as View<&'c T::Target>>::Output,
         >,
     ) -> Self {
         Self::new_into(base, derive)
@@ -77,11 +77,9 @@ where
 
     pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlRef<'b, T, G>
     where
-        for<'c> H: Derive<<F as Derive<&'c T::Target>>::Output>,
-        for<'c> G: Derive<
-                &'c T::Target,
-                Output = <H as Derive<<F as Derive<&'c T::Target>>::Output>>::Output,
-            >,
+        for<'c> H: Derive<<F as View<&'c T::Target>>::Output>,
+        for<'c> G:
+            View<&'c T::Target, Output = <H as View<<F as View<&'c T::Target>>::Output>>::Output>,
     {
         let Self { base, derived } = self;
         // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
@@ -94,7 +92,7 @@ where
 
     pub fn map<G>(self, f: G) -> BowlRef<'a, T, Map<T::Target, F, G>>
     where
-        G: for<'b> Derive<<F as Derive<&'b T::Target>>::Output>,
+        G: for<'b> Derive<<F as View<&'b T::Target>>::Output>,
     {
         self.map_into(f)
     }
@@ -103,8 +101,8 @@ where
 impl<'a, 'b, T, F, G> AsRef<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
     T: Deref + ?Sized,
-    F: for<'c> Derive<&'c T::Target> + ?Sized,
-    G: for<'c> Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output> + ?Sized,
+    F: for<'c> View<&'c T::Target> + ?Sized,
+    G: for<'c> View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output> + ?Sized,
 {
     fn as_ref(&self) -> &BowlRef<'b, T, G> {
         // SAFETY: We maintain an HRTB invariant on `derive()`
@@ -123,8 +121,8 @@ where
 impl<'a, 'b, T, F, G> AsMut<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
     T: Deref + ?Sized,
-    F: for<'c> Derive<&'c T::Target> + ?Sized,
-    G: for<'c> Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output> + ?Sized,
+    F: for<'c> View<&'c T::Target> + ?Sized,
+    G: for<'c> View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output> + ?Sized,
 {
     fn as_mut(&mut self) -> &mut BowlRef<'b, T, G> {
         // SAFETY: Same as `as_ref()`.
@@ -135,11 +133,11 @@ where
 impl<'a, T, F> BowlRef<'a, T, F>
 where
     T: Deref,
-    F: for<'b> Derive<&'b T::Target> + ?Sized,
+    F: for<'b> View<&'b T::Target> + ?Sized,
 {
     pub fn cast<'b, G: ?Sized>(self) -> BowlRef<'b, T, G>
     where
-        for<'c> G: Derive<&'c T::Target, Output = <F as Derive<&'c T::Target>>::Output>,
+        for<'c> G: View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output>,
     {
         // SAFETY: The object cast implementation follows `ManuallyDrop::into_inner`
         // because the compiler can't figure out that their sizes are the same.
@@ -156,9 +154,9 @@ where
 impl<'a, T, F> BowlRef<'a, T, F>
 where
     T: Deref + ?Sized,
-    F: for<'b> Derive<&'b T::Target> + ?Sized,
+    F: for<'b> View<&'b T::Target> + ?Sized,
 {
-    pub fn get(&self) -> &<F as Derive<&'_ T::Target>>::Output {
+    pub fn get(&self) -> &<F as View<&'_ T::Target>>::Output {
         // SAFETY: Reading `derived` is safe only if
         // the lifetime passed to `derive()` is shorter than that of `*base`.
         // Ideally we would like to use the lifetime of the `self` instance
@@ -168,7 +166,7 @@ where
         let other: &BowlRef<_, F> = self.as_ref();
         &other.derived
     }
-    pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ T::Target>>::Output {
+    pub fn get_mut(&mut self) -> &mut <F as View<&'_ T::Target>>::Output {
         // SAFETY: Same as `get()`, but for mutable references.
         let other: &mut BowlRef<_, F> = self.as_mut();
         &mut other.derived
@@ -178,8 +176,8 @@ where
 impl<'a, T, F> Clone for BowlRef<'a, T, F>
 where
     T: super::CloneStableDeref + ?Sized,
-    F: for<'b> Derive<&'b T::Target> + ?Sized,
-    for<'b> <F as Derive<&'b T::Target>>::Output: Clone,
+    F: for<'b> View<&'b T::Target> + ?Sized,
+    for<'b> <F as View<&'b T::Target>>::Output: Clone,
 {
     fn clone(&self) -> Self {
         let base = self.base.clone();
@@ -194,8 +192,8 @@ where
 unsafe impl<'a, T, F> Send for BowlRef<'a, T, F>
 where
     T: StableDeref + Send + ?Sized,
-    F: for<'b> Derive<&'b T::Target> + ?Sized,
-    for<'b> <F as Derive<&'b T::Target>>::Output: Send,
+    F: for<'b> View<&'b T::Target> + ?Sized,
+    for<'b> <F as View<&'b T::Target>>::Output: Send,
 {
 }
 // SAFETY: We do not provide access to `&*base` since it can be stored in `derived`.
@@ -203,8 +201,8 @@ where
 unsafe impl<'a, T, F> Sync for BowlRef<'a, T, F>
 where
     T: Deref + ?Sized,
-    F: for<'b> Derive<&'b T::Target> + ?Sized,
-    for<'b> <F as Derive<&'b T::Target>>::Output: Sync,
+    F: for<'b> View<&'b T::Target> + ?Sized,
+    for<'b> <F as View<&'b T::Target>>::Output: Sync,
 {
 }
 
@@ -212,10 +210,10 @@ where
 impl<'a, T, F> super::Bowl for BowlRef<'a, T, F>
 where
     T: Deref + ?Sized,
-    F: for<'b> Derive<&'b T::Target> + ?Sized,
+    F: for<'b> View<&'b T::Target> + ?Sized,
 {
     type Value<'b>
-        = <F as Derive<&'b T::Target>>::Output
+        = <F as View<&'b T::Target>>::Output
     where
         Self: 'b;
     fn get(&self) -> &Self::Value<'_> {
@@ -227,12 +225,12 @@ where
 }
 
 pub struct Map<T: ?Sized, F: ?Sized, G: ?Sized>(PhantomData<F>, PhantomData<T>, G);
-impl<'a, T: ?Sized, F, G> Derive<&'a T> for Map<T, F, G>
+impl<'a, T: ?Sized, F, G> View<&'a T> for Map<T, F, G>
 where
-    F: for<'b> Derive<&'b T> + ?Sized,
-    G: for<'b> Derive<<F as Derive<&'b T>>::Output> + ?Sized,
+    F: for<'b> View<&'b T> + ?Sized,
+    G: for<'b> View<<F as View<&'b T>>::Output> + ?Sized,
 {
-    type Output = <G as Derive<<F as Derive<&'a T>>::Output>>::Output;
+    type Output = <G as View<<F as View<&'a T>>::Output>>::Output;
 }
 
 // These traits are specific to `BowlRef`
@@ -241,9 +239,9 @@ where
 impl<'a, 'b, T, F, G> PartialEq<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
     T: Deref + PartialEq + ?Sized,
-    F: for<'c> Derive<&'c T::Target> + ?Sized,
-    G: for<'c> Derive<&'c T::Target> + ?Sized,
-    for<'c> <F as Derive<&'c T::Target>>::Output: PartialEq<<G as Derive<&'c T::Target>>::Output>,
+    F: for<'c> View<&'c T::Target> + ?Sized,
+    G: for<'c> View<&'c T::Target> + ?Sized,
+    for<'c> <F as View<&'c T::Target>>::Output: PartialEq<<G as View<&'c T::Target>>::Output>,
 {
     fn eq(&self, other: &BowlRef<'b, T, G>) -> bool {
         // SAFETY: Accessing `base` is safe because `derived` does not have exlusive access to `base`.
@@ -254,16 +252,16 @@ where
 impl<'a, T, F> Eq for BowlRef<'a, T, F>
 where
     T: Deref + Eq + ?Sized,
-    F: for<'b> Derive<&'b T::Target> + ?Sized,
-    for<'b> <F as Derive<&'b T::Target>>::Output: Eq,
+    F: for<'b> View<&'b T::Target> + ?Sized,
+    for<'b> <F as View<&'b T::Target>>::Output: Eq,
 {
 }
 
 impl<'a, T, F> Hash for BowlRef<'a, T, F>
 where
     T: Deref + Hash + ?Sized,
-    F: for<'b> Derive<&'b T::Target> + ?Sized,
-    for<'b> <F as Derive<&'b T::Target>>::Output: Hash,
+    F: for<'b> View<&'b T::Target> + ?Sized,
+    for<'b> <F as View<&'b T::Target>>::Output: Hash,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // SAFETY: Same as `PartialEq::eq()`.

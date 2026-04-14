@@ -8,7 +8,7 @@
 // for an in-depth discussion on this issue.
 // The code size increase is not significant anyway.
 
-use super::{Derive, StableDeref};
+use super::{Derive, StableDeref, View};
 use ::core::{
     marker::PhantomData,
     mem::transmute,
@@ -17,9 +17,9 @@ use ::core::{
 
 pub struct BowlMut<'a, T: Deref + ?Sized, F: ?Sized>
 where
-    F: for<'b> Derive<&'b mut T::Target>,
+    F: for<'b> View<&'b mut T::Target>,
 {
-    derived: <F as Derive<&'a mut T::Target>>::Output,
+    derived: <F as View<&'a mut T::Target>>::Output,
     base: T,
 }
 
@@ -36,14 +36,11 @@ where
 impl<'a, T, F> BowlMut<'a, T, F>
 where
     T: StableDeref + DerefMut,
-    F: for<'b> Derive<&'b mut T::Target> + ?Sized,
+    F: for<'b> View<&'b mut T::Target> + ?Sized,
 {
     pub fn new_into(
         mut base: T,
-        derive: impl for<'b> Derive<
-            &'b mut T::Target,
-            Output = <F as Derive<&'b mut T::Target>>::Output,
-        >,
+        derive: impl for<'b> Derive<&'b mut T::Target, Output = <F as View<&'b mut T::Target>>::Output>,
     ) -> Self {
         let derived = derive.call(unsafe { transmute(&mut *base) });
         BowlMut { base, derived }
@@ -51,7 +48,7 @@ where
 
     pub fn from_fn<'b>(
         base: T,
-        derive: &'b dyn for<'c> Fn(&'c mut T::Target) -> <F as Derive<&'c mut T::Target>>::Output,
+        derive: &'b dyn for<'c> Fn(&'c mut T::Target) -> <F as View<&'c mut T::Target>>::Output,
     ) -> Self
     where
         F: 'b,
@@ -63,7 +60,7 @@ where
         base: T,
         derive: &'b mut dyn for<'c> FnMut(
             &'c mut T::Target,
-        ) -> <F as Derive<&'c mut T::Target>>::Output,
+        ) -> <F as View<&'c mut T::Target>>::Output,
     ) -> Self
     where
         F: 'b,
@@ -75,7 +72,7 @@ where
     pub fn from_fn_once(
         base: T,
         derive: ::alloc::boxed::Box<
-            dyn for<'c> FnOnce(&'c mut T::Target) -> <F as Derive<&'c mut T::Target>>::Output,
+            dyn for<'c> FnOnce(&'c mut T::Target) -> <F as View<&'c mut T::Target>>::Output,
         >,
     ) -> Self {
         Self::new_into(base, derive)
@@ -83,10 +80,10 @@ where
 
     pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlMut<'b, T, G>
     where
-        for<'c> H: Derive<<F as Derive<&'c mut T::Target>>::Output>,
-        for<'c> G: Derive<
+        for<'c> H: Derive<<F as View<&'c mut T::Target>>::Output>,
+        for<'c> G: View<
                 &'c mut T::Target,
-                Output = <H as Derive<<F as Derive<&'c mut T::Target>>::Output>>::Output,
+                Output = <H as View<<F as View<&'c mut T::Target>>::Output>>::Output,
             >,
     {
         let Self { base, derived } = self;
@@ -99,7 +96,7 @@ where
 
     pub fn map<G>(self, f: G) -> BowlMut<'a, T, Map<T::Target, F, G>>
     where
-        G: for<'b> Derive<<F as Derive<&'b mut T::Target>>::Output>,
+        G: for<'b> Derive<<F as View<&'b mut T::Target>>::Output>,
     {
         self.map_into(f)
     }
@@ -108,9 +105,8 @@ where
 impl<'a, 'b, T, F, G> AsRef<BowlMut<'b, T, G>> for BowlMut<'a, T, F>
 where
     T: Deref + ?Sized,
-    F: for<'c> Derive<&'c mut T::Target> + ?Sized,
-    G: for<'c> Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>
-        + ?Sized,
+    F: for<'c> View<&'c mut T::Target> + ?Sized,
+    G: for<'c> View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output> + ?Sized,
 {
     fn as_ref(&self) -> &BowlMut<'b, T, G> {
         unsafe { transmute(self) }
@@ -120,9 +116,8 @@ where
 impl<'a, 'b, T, F, G> AsMut<BowlMut<'b, T, G>> for BowlMut<'a, T, F>
 where
     T: Deref + ?Sized,
-    F: for<'c> Derive<&'c mut T::Target> + ?Sized,
-    G: for<'c> Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>
-        + ?Sized,
+    F: for<'c> View<&'c mut T::Target> + ?Sized,
+    G: for<'c> View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output> + ?Sized,
 {
     fn as_mut(&mut self) -> &mut BowlMut<'b, T, G> {
         unsafe { transmute(self) }
@@ -132,11 +127,11 @@ where
 impl<'a, T, F> BowlMut<'a, T, F>
 where
     T: Deref,
-    F: for<'b> Derive<&'b mut T::Target> + ?Sized,
+    F: for<'b> View<&'b mut T::Target> + ?Sized,
 {
     pub fn cast<'b, G: ?Sized>(self) -> BowlMut<'b, T, G>
     where
-        for<'c> G: Derive<&'c mut T::Target, Output = <F as Derive<&'c mut T::Target>>::Output>,
+        for<'c> G: View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output>,
     {
         unsafe { (&raw const self).cast::<BowlMut<'_, _, _>>().read() }
     }
@@ -150,24 +145,24 @@ where
 impl<'a, T, F> BowlMut<'a, T, F>
 where
     T: Deref + ?Sized,
-    F: for<'b> Derive<&'b mut T::Target> + ?Sized,
+    F: for<'b> View<&'b mut T::Target> + ?Sized,
 {
-    pub fn get(&self) -> &<F as Derive<&'_ mut T::Target>>::Output {
+    pub fn get(&self) -> &<F as View<&'_ mut T::Target>>::Output {
         let other: &BowlMut<_, F> = self.as_ref();
         &other.derived
     }
-    pub fn get_mut(&mut self) -> &mut <F as Derive<&'_ mut T::Target>>::Output {
+    pub fn get_mut(&mut self) -> &mut <F as View<&'_ mut T::Target>>::Output {
         let other: &mut BowlMut<_, F> = self.as_mut();
         &mut other.derived
     }
 }
 
-// This is possible if `Derived=Rc<RefCell<&mut T::Target>>`.
+// This is possible if `View::Output=Rc<RefCell<&mut T::Target>>`.
 impl<'a, T, F> Clone for BowlMut<'a, T, F>
 where
     T: super::CloneStableDeref + ?Sized,
-    F: for<'b> Derive<&'b mut T::Target> + ?Sized,
-    for<'b> <F as Derive<&'b mut T::Target>>::Output: Clone,
+    F: for<'b> View<&'b mut T::Target> + ?Sized,
+    for<'b> <F as View<&'b mut T::Target>>::Output: Clone,
 {
     fn clone(&self) -> Self {
         let base = self.base.clone();
@@ -179,15 +174,15 @@ where
 unsafe impl<'a, T, F> Send for BowlMut<'a, T, F>
 where
     T: StableDeref + Send + ?Sized,
-    F: for<'b> Derive<&'b mut T::Target> + ?Sized,
-    for<'b> <F as Derive<&'b mut T::Target>>::Output: Send,
+    F: for<'b> View<&'b mut T::Target> + ?Sized,
+    for<'b> <F as View<&'b mut T::Target>>::Output: Send,
 {
 }
 unsafe impl<'a, T, F> Sync for BowlMut<'a, T, F>
 where
     T: Deref + ?Sized,
-    F: for<'b> Derive<&'b mut T::Target> + ?Sized,
-    for<'b> <F as Derive<&'b mut T::Target>>::Output: Sync,
+    F: for<'b> View<&'b mut T::Target> + ?Sized,
+    for<'b> <F as View<&'b mut T::Target>>::Output: Sync,
 {
 }
 
@@ -195,10 +190,10 @@ where
 impl<'a, T, F> super::Bowl for BowlMut<'a, T, F>
 where
     T: Deref + ?Sized,
-    F: for<'b> Derive<&'b mut T::Target> + ?Sized,
+    F: for<'b> View<&'b mut T::Target> + ?Sized,
 {
     type Value<'b>
-        = <F as Derive<&'b mut T::Target>>::Output
+        = <F as View<&'b mut T::Target>>::Output
     where
         Self: 'b;
     fn get(&self) -> &Self::Value<'_> {
@@ -210,10 +205,10 @@ where
 }
 
 pub struct Map<T: ?Sized, F: ?Sized, G: ?Sized>(PhantomData<T>, PhantomData<F>, G);
-impl<'a, T: ?Sized, F, G> Derive<&'a mut T> for Map<T, F, G>
+impl<'a, T: ?Sized, F, G> View<&'a mut T> for Map<T, F, G>
 where
-    F: for<'b> Derive<&'b mut T> + ?Sized,
-    G: for<'b> Derive<<F as Derive<&'b mut T>>::Output> + ?Sized,
+    F: for<'b> View<&'b mut T> + ?Sized,
+    G: for<'b> View<<F as View<&'b mut T>>::Output> + ?Sized,
 {
-    type Output = <G as Derive<<F as Derive<&'a mut T>>::Output>>::Output;
+    type Output = <G as View<<F as View<&'a mut T>>::Output>>::Output;
 }

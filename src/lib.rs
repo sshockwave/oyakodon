@@ -27,24 +27,25 @@ pub trait Bowl {
     fn get_mut(&mut self) -> &mut Self::Value<'_>;
 }
 
-pub trait Derive<T> {
+pub trait View<T> {
     type Output;
-    #[allow(unused_variables)]
-    fn call(self, input: T) -> Self::Output
-    where
-        Self: Sized,
-    {
-        unreachable!(
-            "Using the default implementation of Derive::call() indicates that this type is used for type inference only and should never be called."
-        )
-    }
+}
+
+pub trait Derive<T>: View<T> {
+    fn call(self, input: T) -> Self::Output;
+}
+
+impl<T, F, R> View<T> for F
+where
+    F: FnOnce(T) -> R + ?Sized,
+{
+    type Output = R;
 }
 
 impl<T, F, R> Derive<T> for F
 where
     F: FnOnce(T) -> R,
 {
-    type Output = R;
     fn call(self, input: T) -> Self::Output {
         self(input)
     }
