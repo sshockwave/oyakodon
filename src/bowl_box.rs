@@ -1,4 +1,4 @@
-use super::{BowlMut, Derive, View, bowl_mut::Map};
+use super::{BowlMut, Derive, Map, View};
 use ::{alloc::boxed::Box, core::mem::transmute};
 
 #[repr(transparent)]

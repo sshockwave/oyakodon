@@ -3,12 +3,13 @@
 extern crate alloc;
 
 #[cfg(feature = "alloc")]
-pub mod bowl_box;
-pub mod bowl_mut;
-pub mod bowl_ref;
+mod bowl_box;
+mod bowl_mut;
+mod bowl_ref;
 #[cfg(not(feature = "stable_deref"))]
 mod stable_deref;
 
+use ::core::marker::PhantomData;
 #[cfg(feature = "stable_deref")]
 pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
 #[cfg(feature = "alloc")]
@@ -49,4 +50,22 @@ where
     fn call(self, input: T) -> Self::Output {
         self(input)
     }
+}
+
+pub struct Map<T: ?Sized, F: ?Sized, G: ?Sized>(PhantomData<T>, PhantomData<F>, PhantomData<G>);
+
+impl<'a, T: ?Sized, F, G> View<&'a T> for Map<T, F, G>
+where
+    F: for<'b> View<&'b T> + ?Sized,
+    G: for<'b> View<<F as View<&'b T>>::Output> + ?Sized,
+{
+    type Output = <G as View<<F as View<&'a T>>::Output>>::Output;
+}
+
+impl<'a, T: ?Sized, F, G> View<&'a mut T> for Map<T, F, G>
+where
+    F: for<'b> View<&'b mut T> + ?Sized,
+    G: for<'b> View<<F as View<&'b mut T>>::Output> + ?Sized,
+{
+    type Output = <G as View<<F as View<&'a mut T>>::Output>>::Output;
 }

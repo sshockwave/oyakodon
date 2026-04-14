@@ -1,10 +1,9 @@
-use super::{Derive, StableDeref, View};
+use super::{Derive, Map, StableDeref, View};
 use ::{
     core::{
         cmp::{Eq, PartialEq},
         convert::{AsMut, AsRef},
         hash::{Hash, Hasher},
-        marker::PhantomData,
         mem::{forget, transmute},
         ops::Deref,
     },
@@ -253,15 +252,6 @@ where
     fn get_mut(&mut self) -> &mut Self::Value<'_> {
         BowlRef::get_mut(self)
     }
-}
-
-pub struct Map<T: ?Sized, F: ?Sized, G: ?Sized>(PhantomData<F>, PhantomData<T>, G);
-impl<'a, T: ?Sized, F, G> View<&'a T> for Map<T, F, G>
-where
-    F: for<'b> View<&'b T> + ?Sized,
-    G: for<'b> View<<F as View<&'b T>>::Output> + ?Sized,
-{
-    type Output = <G as View<<F as View<&'a T>>::Output>>::Output;
 }
 
 // These traits are specific to `BowlRef`

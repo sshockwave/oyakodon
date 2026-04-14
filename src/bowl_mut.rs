@@ -8,10 +8,9 @@
 // for an in-depth discussion on this issue.
 // The code size increase is not significant anyway.
 
-use super::{Derive, StableDeref, View};
+use super::{Derive, Map, StableDeref, View};
 use ::{
     core::{
-        marker::PhantomData,
         mem::{forget, transmute},
         ops::{Deref, DerefMut},
     },
@@ -194,13 +193,4 @@ where
     fn get_mut(&mut self) -> &mut Self::Value<'_> {
         BowlMut::get_mut(self)
     }
-}
-
-pub struct Map<T: ?Sized, F: ?Sized, G: ?Sized>(PhantomData<T>, PhantomData<F>, G);
-impl<'a, T: ?Sized, F, G> View<&'a mut T> for Map<T, F, G>
-where
-    F: for<'b> View<&'b mut T> + ?Sized,
-    G: for<'b> View<<F as View<&'b mut T>>::Output> + ?Sized,
-{
-    type Output = <G as View<<F as View<&'a mut T>>::Output>>::Output;
 }
