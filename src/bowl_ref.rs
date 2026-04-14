@@ -188,14 +188,6 @@ where
     }
 }
 
-// SAFETY: `T::Target: Sync` is implied by `Derive::Output: Send` on demand
-unsafe impl<'a, T, F> Send for BowlRef<'a, T, F>
-where
-    T: StableDeref + Send + ?Sized,
-    F: for<'b> View<&'b T::Target> + ?Sized,
-    for<'b> <F as View<&'b T::Target>>::Output: Send,
-{
-}
 // SAFETY: We do not provide access to `&*base` since it can be stored in `derived`.
 // That gives us the flexibility to omit `T: Sync`.
 unsafe impl<'a, T, F> Sync for BowlRef<'a, T, F>

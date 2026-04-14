@@ -171,13 +171,6 @@ where
     }
 }
 
-unsafe impl<'a, T, F> Send for BowlMut<'a, T, F>
-where
-    T: StableDeref + Send + ?Sized,
-    F: for<'b> View<&'b mut T::Target> + ?Sized,
-    for<'b> <F as View<&'b mut T::Target>>::Output: Send,
-{
-}
 unsafe impl<'a, T, F> Sync for BowlMut<'a, T, F>
 where
     T: Deref + ?Sized,
