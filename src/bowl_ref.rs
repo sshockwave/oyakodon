@@ -42,6 +42,8 @@ where
         // Thus we can assume that `derive()` had received the real lifetime of `*base`.
         // Now `derived` is annotated with a fake lifetime `'a`
         // and the safety of reading `derived` is handed off to getters.
+        // We ensure that the base is never accessed until `derived` is dropped
+        // to satisfy the possible LLVM `noalias` attribute on `base`.
         let derived = derive.call(unsafe { transmute(&*base) });
         BowlRef { base, derived }
     }

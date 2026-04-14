@@ -140,17 +140,6 @@ where
     }
 }
 
-impl<'a, T, F> Clone for BowlBox<'a, T, F>
-where
-    T: ?Sized,
-    F: for<'b> View<&'b mut T> + ?Sized,
-    BowlMut<'a, Box<T>, F>: Clone,
-{
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
 impl<'a, T, F> From<BowlMut<'a, Box<T>, F>> for BowlBox<'a, T, F>
 where
     T: ?Sized,

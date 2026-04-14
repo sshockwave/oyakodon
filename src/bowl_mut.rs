@@ -159,20 +159,6 @@ where
     }
 }
 
-// This is possible if `View::Output=Rc<RefCell<&mut T::Target>>`.
-impl<'a, T, F> Clone for BowlMut<'a, T, F>
-where
-    T: super::CloneStableDeref + ?Sized,
-    F: for<'b> View<&'b mut T::Target> + ?Sized,
-    for<'b> <F as View<&'b mut T::Target>>::Output: Clone,
-{
-    fn clone(&self) -> Self {
-        let base = self.base.clone();
-        let derived = self.derived.clone();
-        Self { base, derived }
-    }
-}
-
 unsafe impl<'a, T, F> Sync for BowlMut<'a, T, F>
 where
     T: Deref + ?Sized,
