@@ -13,14 +13,17 @@ unsafe impl<'a, T: ?Sized> CloneStableDeref for &'a T {}
 unsafe impl<'a, T: ?Sized> StableDeref for &'a mut T {}
 
 #[cfg(feature = "alloc")]
-unsafe impl<T: ?Sized> StableDeref for ::alloc::boxed::Box<T> {}
+mod has_alloc {
+    use super::*;
+    use ::alloc::*;
 
-#[cfg(feature = "alloc")]
-unsafe impl<T: ?Sized> StableDeref for ::alloc::rc::Rc<T> {}
-#[cfg(feature = "alloc")]
-unsafe impl<T: ?Sized> CloneStableDeref for ::alloc::rc::Rc<T> {}
+    unsafe impl<T: ?Sized> StableDeref for boxed::Box<T> {}
 
-#[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
-unsafe impl<T: ?Sized> StableDeref for ::alloc::sync::Arc<T> {}
-#[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
-unsafe impl<T: ?Sized> CloneStableDeref for ::alloc::sync::Arc<T> {}
+    unsafe impl<T: ?Sized> StableDeref for rc::Rc<T> {}
+    unsafe impl<T: ?Sized> CloneStableDeref for rc::Rc<T> {}
+
+    #[cfg(target_has_atomic = "ptr")]
+    unsafe impl<T: ?Sized> StableDeref for sync::Arc<T> {}
+    #[cfg(target_has_atomic = "ptr")]
+    unsafe impl<T: ?Sized> CloneStableDeref for sync::Arc<T> {}
+}
