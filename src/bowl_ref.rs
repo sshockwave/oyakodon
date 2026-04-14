@@ -4,7 +4,7 @@ use ::core::{
     convert::{AsMut, AsRef},
     hash::{Hash, Hasher},
     marker::PhantomData,
-    mem::transmute,
+    mem::{forget, transmute},
     ops::Deref,
 };
 
@@ -141,7 +141,10 @@ where
     {
         // SAFETY: The object cast implementation follows `ManuallyDrop::into_inner`
         // because the compiler can't figure out that their sizes are the same.
-        unsafe { (&raw const self).cast::<BowlRef<'_, _, _>>().read() }
+        // Extra care needs to be taken that the resources in `self` shouldn't be freed.
+        let result = unsafe { (&raw const self).cast::<BowlRef<'_, _, _>>().read() };
+        forget(self);
+        result
     }
 
     pub fn into_inner(self) -> T {

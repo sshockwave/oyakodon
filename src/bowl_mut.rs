@@ -11,7 +11,7 @@
 use super::{Derive, StableDeref, View};
 use ::core::{
     marker::PhantomData,
-    mem::transmute,
+    mem::{forget, transmute},
     ops::{Deref, DerefMut},
 };
 
@@ -133,7 +133,9 @@ where
     where
         for<'c> G: View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output>,
     {
-        unsafe { (&raw const self).cast::<BowlMut<'_, _, _>>().read() }
+        let result = unsafe { (&raw const self).cast::<BowlMut<'_, _, _>>().read() };
+        forget(self);
+        result
     }
 
     pub fn into_inner(self) -> T {
