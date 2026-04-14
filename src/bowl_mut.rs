@@ -167,6 +167,16 @@ where
     }
 }
 
+// SAFETY: We do not provide access to `&*base` since it can be stored in `derived`.
+// That gives us the flexibility to omit `T: Sync`.
+unsafe impl<'a, T, F> Sync for BowlMut<'a, T, F>
+where
+    T: Deref,
+    F: for<'b> View<&'b mut T::Target> + ?Sized,
+    for<'b> <F as View<&'b mut T::Target>>::Output: Sync,
+{
+}
+
 #[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlMut<'a, T, F>
 where

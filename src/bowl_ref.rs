@@ -225,16 +225,6 @@ where
     }
 }
 
-// SAFETY: We do not provide access to `&*base` since it can be stored in `derived`.
-// That gives us the flexibility to omit `T: Sync`.
-unsafe impl<'a, T, F> Sync for BowlRef<'a, T, F>
-where
-    T: Deref,
-    F: for<'b> View<&'b T::Target> + ?Sized,
-    for<'b> <F as View<&'b T::Target>>::Output: Sync,
-{
-}
-
 #[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlRef<'a, T, F>
 where
