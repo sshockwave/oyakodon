@@ -30,8 +30,8 @@ where
         Self(BowlMut::from_derive(Box::new(base), derive))
     }
 
-    pub fn into_inner(self) -> T {
-        *self.0.into_inner()
+    pub fn into_base(self) -> T {
+        *self.0.into_base()
     }
 
     pub fn from_fn<'b>(

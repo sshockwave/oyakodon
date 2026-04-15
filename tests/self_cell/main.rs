@@ -6,7 +6,7 @@
 //   self_cell::borrow_dependent()           → BowlRef::get()
 //   self_cell::borrow_owner()               → no equivalent; oyakodon does not expose the base
 //   self_cell::with_dependent(|owner, dep|) → no equivalent; requires simultaneous owner + dep access
-//   self_cell::into_owner()                 → BowlRef::into_inner()
+//   self_cell::into_owner()                 → BowlRef::into_base()
 //   self_cell::with_dependent_mut()         → BowlMut::get_mut()
 
 mod no_std_lib;
@@ -174,7 +174,7 @@ fn drop_order() {
 }
 
 // --- into_owner_drop_dependent_without_panic ------------------------------------
-// into_inner() drops derived first, then returns base.
+// into_base() drops derived first, then returns base.
 
 #[test]
 fn into_owner_drop_dependent_without_panic() {
@@ -198,7 +198,7 @@ fn into_owner_drop_dependent_without_panic() {
     }
 
     let bowl = BowlRef::new(Rc::new(Cell::new(Some(Box::new(42u8)))), MakeD);
-    let base = bowl.into_inner(); // drops D first (takes from Cell), then returns Rc
+    let base = bowl.into_base(); // drops D first (takes from Cell), then returns Rc
     let cell = Rc::try_unwrap(base).ok().expect("Rc has multiple owners");
     assert!(cell.into_inner().is_none());
 }
@@ -229,7 +229,7 @@ fn into_owner_drop_dependent_with_panic() {
     }
 
     let bowl = BowlRef::new(Rc::new(Cell::new(Some(Box::new(42u8)))), MakeD);
-    bowl.into_inner();
+    bowl.into_base();
 }
 
 // --- drop_panic_owner -----------------------------------------------------------
@@ -300,7 +300,7 @@ fn into_owner() {
         BowlRef::<Rc<String>, fn(&String) -> &str>::new(Rc::clone(&expected), String::as_str);
     assert_eq!(*bowl.get(), expected.as_str());
 
-    let recovered: Rc<String> = bowl.into_inner();
+    let recovered: Rc<String> = bowl.into_base();
     assert_eq!(recovered, expected);
     assert_eq!(Rc::strong_count(&expected), 2);
 }

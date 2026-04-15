@@ -1,15 +1,15 @@
 use oyakodon::{Bowl, BowlMut, BowlRef, View};
 
-/// Regression: [`into_inner()`] must drop `base` even when `derived`'s drop panics.
+/// Regression: [`into_base()`] must drop `base` even when `derived`'s drop panics.
 /// Previously, `derived: _` in the destructure produced an unnamed temporary
 /// that Rust's unwind machinery did not track,
 /// causing `base` to leak when `derived`'s drop panicked.
 /// Fixed by using a named binding so `base` is a proper tracked local.
 ///
-/// [`into_inner()`]: BowlRef::into_inner
+/// [`into_base()`]: BowlRef::into_base
 #[test]
 #[should_panic]
-fn into_inner_drops_base_on_derived_panic() {
+fn into_base_drops_base_on_derived_panic() {
     #[allow(dead_code)]
     struct PanicOnDrop<'a>(&'a String);
     impl Drop for PanicOnDrop<'_> {
@@ -21,10 +21,10 @@ fn into_inner_drops_base_on_derived_panic() {
         PanicOnDrop(s)
     }
     // Miri detects the leak if `Box<String>` is not freed after the panic.
-    BowlRef::new(Box::new(String::from("hello")), make).into_inner();
+    BowlRef::new(Box::new(String::from("hello")), make).into_base();
 }
 
-/// The same as [`into_inner_drops_base_on_derived_panic`] but for [`BowlRef::into_view()`]
+/// The same as [`into_base_drops_base_on_derived_panic`] but for [`BowlRef::into_view()`]
 #[test]
 #[should_panic]
 fn into_view_drops_view_on_base_panic() {
@@ -91,6 +91,6 @@ fn owning_ref_49() {
     assert_eq!(res, 20);
 
     // Extra test to ensure that the base value is correct
-    let base = owning_ref.into_inner();
+    let base = owning_ref.into_base();
     assert_eq!(base.get(), 20);
 }

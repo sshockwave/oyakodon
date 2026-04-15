@@ -182,7 +182,7 @@ where
         self.cast_life().cast_view()
     }
 
-    pub fn into_inner(self) -> T {
+    pub fn into_base(self) -> T {
         let Self { base, derived } = self;
         // `base` must be dropped even if `derived`'s drop panics.
         // Miri reports that this is not guaranteed
@@ -197,7 +197,7 @@ where
         for<'c> F: View<&'c T::Target, Output = S>,
     {
         let Self { base, derived } = self;
-        // Same reason as `into_inner()`
+        // Same reason as `into_base()`
         drop(base);
         // SAFETY: The HRTB requires `F::Output` to not depend on `base`.
         MaybeDangling::into_inner(derived)

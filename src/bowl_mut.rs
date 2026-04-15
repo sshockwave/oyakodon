@@ -162,8 +162,8 @@ where
         BowlMut(self.0.cast())
     }
 
-    pub fn into_inner(self) -> T {
-        self.0.into_inner()
+    pub fn into_base(self) -> T {
+        self.0.into_base()
     }
 
     pub fn into_view<S>(self) -> S
