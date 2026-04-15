@@ -11,6 +11,7 @@
 use super::*;
 use ::{
     core::{
+        fmt::Debug,
         future::Future,
         mem::transmute,
         ops::{Deref, DerefMut},
@@ -225,5 +226,18 @@ where
     }
     fn get_mut(&mut self) -> &mut Self::Value<'_> {
         self.0.get_mut()
+    }
+}
+
+impl<'a, T, F> Debug for BowlMut<'a, T, F>
+where
+    T: Deref,
+    F: for<'b> View<&'b mut T::Target> + ?Sized,
+    for<'b> <F as View<&'b mut T::Target>>::Output: Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BowlMut")
+            .field("derived", self.get())
+            .finish_non_exhaustive()
     }
 }

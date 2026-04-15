@@ -3,6 +3,7 @@ use ::{
     core::{
         cmp::{Eq, PartialEq},
         convert::{AsMut, AsRef},
+        fmt::Debug,
         future::Future,
         hash::{Hash, Hasher},
         mem::transmute,
@@ -317,5 +318,20 @@ where
         // SAFETY: Same as `PartialEq::eq()`.
         self.base.hash(state);
         self.get().hash(state);
+    }
+}
+
+impl<'a, T, F> Debug for BowlRef<'a, T, F>
+where
+    T: Deref + Debug,
+    F: for<'b> View<&'b T::Target> + ?Sized,
+    for<'b> <F as View<&'b T::Target>>::Output: Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // SAFETY: Same as `PartialEq::eq()`.
+        f.debug_struct("BowlRef")
+            .field("base", &*self.base)
+            .field("derived", self.get())
+            .finish()
     }
 }

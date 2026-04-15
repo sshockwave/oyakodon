@@ -1,7 +1,7 @@
 use super::*;
 use ::{
     alloc::boxed::Box,
-    core::{future::Future, mem::transmute, result::Result},
+    core::{fmt::Debug, future::Future, mem::transmute, result::Result},
 };
 
 #[repr(transparent)]
@@ -107,7 +107,7 @@ where
         self.0.into_view()
     }
 
-    pub async fn into_async<S>(self) -> BowlBox<'a, T, Async<T, F>>
+    pub async fn into_async(self) -> BowlBox<'a, T, Async<T, F>>
     where
         for<'c> <F as View<&'c mut T>>::Output: Future,
     {
@@ -206,5 +206,18 @@ where
     }
     fn get_mut(&mut self) -> &mut Self::Value<'_> {
         self.0.get_mut()
+    }
+}
+
+impl<'a, T, F> Debug for BowlBox<'a, T, F>
+where
+    T: ?Sized,
+    F: for<'b> View<&'b mut T> + ?Sized,
+    for<'b> <F as View<&'b mut T>>::Output: Debug,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("BowlBox")
+            .field("derived", self.get())
+            .finish_non_exhaustive()
     }
 }
