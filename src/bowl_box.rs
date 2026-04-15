@@ -1,5 +1,8 @@
-use super::{BowlMut, Derive, Map, View};
-use ::{alloc::boxed::Box, core::mem::transmute};
+use super::*;
+use ::{
+    alloc::boxed::Box,
+    core::{future::Future, mem::transmute, result::Result},
+};
 
 #[repr(transparent)]
 pub struct BowlBox<'a, T, F>(BowlMut<'a, Box<T>, F>)
@@ -102,6 +105,20 @@ where
         for<'c> F: View<&'c mut T, Output = S>,
     {
         self.0.into_view()
+    }
+
+    pub async fn into_async<S>(self) -> BowlBox<'a, T, Async<T, F>>
+    where
+        for<'c> <F as View<&'c mut T>>::Output: Future,
+    {
+        BowlBox(self.0.into_async().await)
+    }
+
+    pub fn into_result(self) -> Result<BowlBox<'a, T, Success<T, F>>, BowlBox<'a, T, Failure<T, F>>>
+    where
+        for<'b> <F as View<&'b mut T>>::Output: Outcome,
+    {
+        self.0.into_result().map(BowlBox).map_err(BowlBox)
     }
 
     pub fn get(&self) -> &<F as View<&'_ mut T>>::Output {

@@ -8,11 +8,13 @@
 // for an in-depth discussion on this issue.
 // Internally, we implement `BowlMut` as a wrapper around `BowlRef`
 // so the code size increase is not significant anyway.
-use super::{BowlRef, Derive, Map, StableDeref, View};
+use super::*;
 use ::{
     core::{
+        future::Future,
         mem::transmute,
         ops::{Deref, DerefMut},
+        result::Result,
     },
     maybe_dangling::MaybeDangling,
 };
@@ -168,6 +170,26 @@ where
         for<'c> F: View<&'c mut T::Target, Output = S>,
     {
         self.0.into_view()
+    }
+
+    pub async fn into_async(self) -> BowlMut<'a, T, Async<T::Target, F>>
+    where
+        for<'c> <F as View<&'c mut T::Target>>::Output: Future,
+    {
+        BowlMut(self.0.into_async().await.cast_view())
+    }
+
+    pub fn into_result(
+        self,
+    ) -> Result<BowlMut<'a, T, Success<T::Target, F>>, BowlMut<'a, T, Failure<T::Target, F>>>
+    where
+        for<'b> <F as View<&'b mut T::Target>>::Output: Outcome,
+    {
+        use Result::*;
+        match self.0.into_result() {
+            Ok(v) => Ok(BowlMut(v.cast_view())),
+            Err(e) => Err(BowlMut(e.cast_view())),
+        }
     }
 
     pub fn get(&self) -> &<F as View<&'_ mut T::Target>>::Output {

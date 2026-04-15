@@ -9,7 +9,7 @@ mod bowl_ref;
 #[cfg(not(feature = "stable_deref"))]
 mod stable_deref;
 
-use ::core::marker::PhantomData;
+use ::core::{future::Future, marker::PhantomData, option::Option, result::Result};
 #[cfg(feature = "stable_deref")]
 pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
 #[cfg(feature = "alloc")]
@@ -68,4 +68,80 @@ where
     G: for<'b> View<<F as View<&'b mut T>>::Output> + ?Sized,
 {
     type Output = <G as View<<F as View<&'a mut T>>::Output>>::Output;
+}
+
+pub struct Async<T: ?Sized, F: ?Sized>(PhantomData<T>, PhantomData<F>);
+
+impl<'a, T: ?Sized, F> View<&'a T> for Async<T, F>
+where
+    F: for<'b> View<&'b T> + ?Sized,
+    <F as View<&'a T>>::Output: Future,
+{
+    type Output = <<F as View<&'a T>>::Output as Future>::Output;
+}
+
+impl<'a, T: ?Sized, F> View<&'a mut T> for Async<T, F>
+where
+    F: for<'b> View<&'b mut T> + ?Sized,
+    <F as View<&'a mut T>>::Output: Future,
+{
+    type Output = <<F as View<&'a mut T>>::Output as Future>::Output;
+}
+
+pub trait Outcome {
+    type Ok;
+    type Err;
+    fn get(self) -> Result<Self::Ok, Self::Err>;
+}
+
+impl<T> Outcome for Option<T> {
+    type Ok = T;
+    type Err = ();
+    fn get(self) -> Result<Self::Ok, Self::Err> {
+        self.ok_or(())
+    }
+}
+
+impl<T, E> Outcome for Result<T, E> {
+    type Ok = T;
+    type Err = E;
+    fn get(self) -> Result<T, E> {
+        self
+    }
+}
+
+pub struct Success<T: ?Sized, F: ?Sized>(PhantomData<T>, PhantomData<F>);
+
+impl<'a, T: ?Sized, F> View<&'a T> for Success<T, F>
+where
+    F: for<'b> View<&'b T> + ?Sized,
+    <F as View<&'a T>>::Output: Outcome,
+{
+    type Output = <<F as View<&'a T>>::Output as Outcome>::Ok;
+}
+
+impl<'a, T: ?Sized, F> View<&'a mut T> for Success<T, F>
+where
+    F: for<'b> View<&'b mut T> + ?Sized,
+    <F as View<&'a mut T>>::Output: Outcome,
+{
+    type Output = <<F as View<&'a mut T>>::Output as Outcome>::Ok;
+}
+
+pub struct Failure<T: ?Sized, F: ?Sized>(PhantomData<T>, PhantomData<F>);
+
+impl<'a, T: ?Sized, F> View<&'a T> for Failure<T, F>
+where
+    F: for<'b> View<&'b T> + ?Sized,
+    <F as View<&'a T>>::Output: Outcome,
+{
+    type Output = <<F as View<&'a T>>::Output as Outcome>::Err;
+}
+
+impl<'a, T: ?Sized, F> View<&'a mut T> for Failure<T, F>
+where
+    F: for<'b> View<&'b mut T> + ?Sized,
+    <F as View<&'a mut T>>::Output: Outcome,
+{
+    type Output = <<F as View<&'a mut T>>::Output as Outcome>::Err;
 }

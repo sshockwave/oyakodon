@@ -1,11 +1,13 @@
-use super::{Derive, Map, StableDeref, View};
+use super::*;
 use ::{
     core::{
         cmp::{Eq, PartialEq},
         convert::{AsMut, AsRef},
+        future::Future,
         hash::{Hash, Hasher},
         mem::transmute,
         ops::Deref,
+        result::Result,
     },
     maybe_dangling::MaybeDangling,
 };
@@ -198,6 +200,37 @@ where
         drop(base);
         // SAFETY: The HRTB requires `F::Output` to not depend on `base`.
         MaybeDangling::into_inner(derived)
+    }
+
+    pub async fn into_async(self) -> BowlRef<'a, T, Async<T::Target, F>>
+    where
+        for<'b> <F as View<&'b T::Target>>::Output: Future,
+    {
+        let Self { base, derived } = self;
+        BowlRef {
+            base,
+            derived: MaybeDangling::new(MaybeDangling::into_inner(derived).await),
+        }
+    }
+
+    pub fn into_result(
+        self,
+    ) -> Result<BowlRef<'a, T, Success<T::Target, F>>, BowlRef<'a, T, Failure<T::Target, F>>>
+    where
+        for<'b> <F as View<&'b T::Target>>::Output: Outcome,
+    {
+        let Self { base, derived } = self;
+        use Result::{Err, Ok};
+        match MaybeDangling::into_inner(derived).get() {
+            Ok(v) => Ok(BowlRef {
+                base,
+                derived: MaybeDangling::new(v),
+            }),
+            Err(e) => Err(BowlRef {
+                base,
+                derived: MaybeDangling::new(e),
+            }),
+        }
     }
 
     pub fn get(&self) -> &<F as View<&'_ T::Target>>::Output {
