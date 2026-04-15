@@ -203,6 +203,18 @@ where
         MaybeDangling::into_inner(derived)
     }
 
+    pub fn into_parts<S>(self) -> (T, S)
+    where
+        for<'c> F: View<&'c T::Target, Output = S>,
+    {
+        let Self { base, derived } = self;
+        // SAFETY: Same as `into_view()`
+        (
+            MaybeDangling::into_inner(base),
+            MaybeDangling::into_inner(derived),
+        )
+    }
+
     pub async fn into_async(self) -> BowlRef<'a, T, Async<T::Target, F>>
     where
         for<'b> <F as View<&'b T::Target>>::Output: Future,

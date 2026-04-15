@@ -60,6 +60,14 @@ where
     ) -> Self {
         Self(BowlMut::from_derive(Box::new(base), derive))
     }
+
+    pub fn into_parts<S>(self) -> (T, S)
+    where
+        for<'c> F: View<&'c mut T, Output = S>,
+    {
+        let (base, view) = self.0.into_parts();
+        (*base, view)
+    }
 }
 
 impl<'a, T, F> BowlBox<'a, T, F>

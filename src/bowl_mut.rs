@@ -173,6 +173,13 @@ where
         self.0.into_view()
     }
 
+    pub fn into_parts<S>(self) -> (T, S)
+    where
+        for<'c> F: View<&'c mut T::Target, Output = S>,
+    {
+        self.0.into_parts()
+    }
+
     pub async fn into_async(self) -> BowlMut<'a, T, Async<T::Target, F>>
     where
         for<'c> <F as View<&'c mut T::Target>>::Output: Future,
