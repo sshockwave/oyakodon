@@ -79,6 +79,17 @@ where
         self.map_into(f)
     }
 
+    pub fn cast_life<'b>(self) -> BowlBox<'b, T, F> {
+        BowlBox(self.0.cast_life())
+    }
+
+    pub fn cast_view<'b, G: ?Sized>(self) -> BowlBox<'a, T, G>
+    where
+        for<'c> G: View<&'c mut T, Output = <F as View<&'c mut T>>::Output>,
+    {
+        BowlBox(self.0.cast_view())
+    }
+
     pub fn cast<'b, G: ?Sized>(self) -> BowlBox<'b, T, G>
     where
         for<'c> G: View<&'c mut T, Output = <F as View<&'c mut T>>::Output>,

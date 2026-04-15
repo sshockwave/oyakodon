@@ -159,17 +159,24 @@ where
     T: Deref,
     F: for<'b> View<&'b T::Target> + ?Sized,
 {
-    fn cast_life<'b>(self) -> BowlRef<'b, T, F> {
+    pub fn cast_life<'b>(self) -> BowlRef<'b, T, F> {
         // SAFETY: Same as `as_ref()`.
         unsafe { transmute(self) }
+    }
+
+    pub fn cast_view<G: ?Sized>(self) -> BowlRef<'a, T, G>
+    where
+        for<'b> G: View<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
+    {
+        let Self { base, derived } = self;
+        BowlRef { base, derived }
     }
 
     pub fn cast<'b, G: ?Sized>(self) -> BowlRef<'b, T, G>
     where
         for<'c> G: View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output>,
     {
-        let BowlRef { base, derived } = self.cast_life();
-        BowlRef { base, derived }
+        self.cast_life().cast_view()
     }
 
     pub fn into_inner(self) -> T {

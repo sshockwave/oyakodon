@@ -141,6 +141,17 @@ where
     T: Deref,
     F: for<'b> View<&'b mut T::Target> + ?Sized,
 {
+    pub fn cast_life<'b>(self) -> BowlMut<'b, T, F> {
+        BowlMut(self.0.cast_life())
+    }
+
+    pub fn cast_view<G: ?Sized>(self) -> BowlMut<'a, T, G>
+    where
+        for<'b> G: View<&'b mut T::Target, Output = <F as View<&'b mut T::Target>>::Output>,
+    {
+        BowlMut(self.0.cast_view())
+    }
+
     pub fn cast<'b, G: ?Sized>(self) -> BowlMut<'b, T, G>
     where
         for<'c> G: View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output>,
