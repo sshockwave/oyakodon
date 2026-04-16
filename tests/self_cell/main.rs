@@ -421,6 +421,7 @@ fn panic_in_from_owner() {
 // a pattern with no equivalent in oyakodon.
 // Our version initialises eagerly in the derive function instead.
 
+#[rustversion::since(1.70)]
 #[test]
 fn lazy_ast() {
     use std::cell::OnceCell;
