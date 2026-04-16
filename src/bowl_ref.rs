@@ -401,16 +401,37 @@ where
 // These traits are specific to `BowlRef`
 // because they require access to `owner`,
 // which is not available in `BowlMut`.
+
+/// This is an trick to solve [`PartialEq`].
+/// The Rust compiler cannot not directly solve the HRTB
+/// `for<'c> <F as View<&'c T::Target>>::Output: PartialEq<<G as View<&'c T::Target>>::Output>`.
+trait Compare<A: ?Sized, B: ?Sized> {
+    fn eq(a: &A, b: &B) -> bool;
+}
+
+struct CompareViews;
+
+// Blanket implementation for any F and G that implement View
+impl<A: ?Sized, B: ?Sized> Compare<A, B> for CompareViews
+where
+    A: PartialEq<B>,
+{
+    fn eq(a: &A, b: &B) -> bool {
+        a.eq(b)
+    }
+}
+
 impl<'a, 'b, T, F, G> PartialEq<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
     T: Deref + PartialEq,
     F: for<'c> View<&'c T::Target> + ?Sized,
     G: for<'c> View<&'c T::Target> + ?Sized,
-    for<'c> <F as View<&'c T::Target>>::Output: PartialEq<<G as View<&'c T::Target>>::Output>,
+    for<'c> CompareViews:
+        Compare<<F as View<&'c T::Target>>::Output, <G as View<&'c T::Target>>::Output>,
 {
     fn eq(&self, other: &BowlRef<'b, T, G>) -> bool {
         // SAFETY: Accessing `owner` is safe because `view` does not have exlusive access to `owner`.
-        (*self.owner).eq(&*other.owner) && self.get().eq(other.get())
+        *self.owner == *other.owner && CompareViews::eq(self.get(), other.get())
     }
 }
 

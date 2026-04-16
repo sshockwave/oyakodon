@@ -39,7 +39,7 @@ pub trait Bowl {
 /// 1. It allows us to define the `View` trait for all functions
 /// without triggering [E0207](https://doc.rust-lang.org/error_codes/E0207.html).
 /// 2. Writing `&'a T` constrains the lifetime variable in HRTB to at most as long as `T`.
-pub trait View<T> {
+pub trait View<T: ?Sized> {
     type Output;
 }
 
