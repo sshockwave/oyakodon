@@ -68,11 +68,37 @@ fn return_self_ref_struct() {
 }
 
 // --- failable_constructor_success -----------------------------------------------
-// NOT MIGRATABLE: oyakodon has no fallible constructor (try_new).
-// The caller must validate the base before calling new().
+// Semantic difference: into_result() always runs the derive fn and stores the base;
+// try_new() skips storage on Err. The Ok-path outcome is equivalent.
+
+fn make_ast_ok(s: &String) -> Result<Ast<'_>, i32> {
+    Ok(Ast(vec![&s[2..5], &s[1..3]]))
+}
+
+#[test]
+fn failable_constructor_success() {
+    let owner = String::from("This string is no trout");
+    let expected_ast = MakeAst.call(&owner);
+
+    let result = BowlRef::new(Box::new(owner.clone()), make_ast_ok).into_result();
+    assert!(result.is_ok());
+    assert_eq!(*result.unwrap().get(), expected_ast);
+}
 
 // --- failable_constructor_fail --------------------------------------------------
-// NOT MIGRATABLE: same as above.
+
+fn make_ast_err(_s: &String) -> Result<Ast<'_>, i32> {
+    Err(22)
+}
+
+#[test]
+fn failable_constructor_fail() {
+    let owner = String::from("This string is no trout");
+
+    let result = BowlRef::new(Box::new(owner), make_ast_err).into_result();
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().into_view(), 22);
+}
 
 // --- from_fn --------------------------------------------------------------------
 // Cell<usize> is used for the counter so the closure borrows it immutably (&self),
@@ -289,7 +315,31 @@ fn dependent_mutate() {
 // oyakodon exposes only &mut Output via get_mut(); the base is inaccessible.
 
 // --- try_new_or_recover ---------------------------------------------------------
-// NOT MIGRATABLE: same root limitation as failable_constructor_*.
+// For Copy error types: borrow the error via get(), then consume with into_base().
+
+fn make_fail(_s: &String) -> Result<Ast<'_>, i32> {
+    Err(-1)
+}
+
+#[test]
+fn try_new_or_recover() {
+    let original_input = String::from("Ein See aus Schweiß ..");
+
+    // bad path: recover both the error and the base
+    let err_bowl = BowlRef::new(Box::new(original_input.clone()), make_fail)
+        .into_result()
+        .unwrap_err();
+    let err = *err_bowl.get();
+    let base = err_bowl.into_base();
+    assert_eq!(*base, original_input);
+    assert_eq!(err, -1);
+
+    // happy path
+    let bowl = BowlRef::new(Box::new(original_input.clone()), make_ast_ok)
+        .into_result()
+        .unwrap();
+    assert_eq!(*bowl.get(), MakeAst.call(&original_input));
+}
 
 // --- into_owner -----------------------------------------------------------------
 
@@ -306,8 +356,18 @@ fn into_owner() {
 }
 
 // --- zero_size_cell -------------------------------------------------------------
-// NOT MIGRATABLE: self_cell panics on ZST owners (implementation artifact of its
-// pointer-based storage). oyakodon accepts ZST base types without restriction.
+// self_cell panics on ZST owners. oyakodon imposes no such restriction.
+
+#[test]
+fn zero_size_cell() {
+    use core::marker::PhantomData;
+    struct ZeroSizeRef<'a>(PhantomData<&'a ()>);
+    fn make_zsr(_: &()) -> ZeroSizeRef<'_> {
+        ZeroSizeRef(PhantomData)
+    }
+    let bowl = BowlRef::new(Box::new(()), make_zsr);
+    let _ = bowl.get();
+}
 
 // --- nested_cells ---------------------------------------------------------------
 // The child cell owns &'a String (a reference into the parent's base),

@@ -11,6 +11,9 @@ alloc = ["stable_deref_trait?/alloc"]
 stable_deref = ["dep:stable_deref_trait"]
 gat = []
 
+[dev-dependencies]
+smol = "2"
+
 [dependencies]
 maybe-dangling = "0.1.2"
 stable_deref_trait = { version = "1", default-features = false, optional = true }
