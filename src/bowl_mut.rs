@@ -128,9 +128,9 @@ where
     where
         for<'c> H: Derive<<F as View<&'c mut T::Target>>::Output>,
         for<'c> G: View<
-                &'c mut T::Target,
-                Output = <H as View<<F as View<&'c mut T::Target>>::Output>>::Output,
-            >,
+            &'c mut T::Target,
+            Output = <H as View<<F as View<&'c mut T::Target>>::Output>>::Output,
+        >,
     {
         BowlMut(self.0.map_into(f))
     }
