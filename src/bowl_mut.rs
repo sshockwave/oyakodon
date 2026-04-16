@@ -40,8 +40,8 @@ where
     T: StableDeref + DerefMut,
     F: for<'b> Derive<&'b mut T::Target>,
 {
-    pub fn new(base: T, derive: F) -> Self {
-        Self::from_derive(base, derive)
+    pub fn new(owner: T, derive: F) -> Self {
+        Self::from_derive(owner, derive)
     }
 }
 
@@ -51,33 +51,33 @@ where
     F: for<'b> View<&'b mut T::Target> + ?Sized,
 {
     pub fn from_derive(
-        base: T,
+        owner: T,
         derive: impl for<'b> Derive<&'b mut T::Target, Output = <F as View<&'b mut T::Target>>::Output>,
     ) -> Self {
-        let mut base = MaybeDangling::new(base);
+        let mut owner = MaybeDangling::new(owner);
         // SAFETY: The difference of `BowlMut` and `BowlRef` is
-        // only the mutability of the base when deriving the view.
-        // That restricts access to the base after the view is alive,
+        // only the mutability of the owner when deriving the view.
+        // That restricts access to the owner after the view is alive,
         // but it does not change anything here.
-        let derived = derive.call(unsafe { transmute(&mut **base) });
+        let view = derive.call(unsafe { transmute(&mut **owner) });
         Self(BowlRef {
-            base,
-            derived: MaybeDangling::new(derived),
+            owner,
+            view: MaybeDangling::new(view),
         })
     }
 
     pub fn from_fn<'b>(
-        base: T,
+        owner: T,
         derive: &'b dyn for<'c> Fn(&'c mut T::Target) -> <F as View<&'c mut T::Target>>::Output,
     ) -> Self
     where
         F: 'b,
     {
-        Self::from_derive(base, derive)
+        Self::from_derive(owner, derive)
     }
 
     pub fn from_fn_mut<'b>(
-        base: T,
+        owner: T,
         derive: &'b mut dyn for<'c> FnMut(
             &'c mut T::Target,
         ) -> <F as View<&'c mut T::Target>>::Output,
@@ -85,17 +85,17 @@ where
     where
         F: 'b,
     {
-        Self::from_derive(base, derive)
+        Self::from_derive(owner, derive)
     }
 
     #[cfg(feature = "alloc")]
     pub fn from_fn_once(
-        base: T,
+        owner: T,
         derive: ::alloc::boxed::Box<
             dyn for<'c> FnOnce(&'c mut T::Target) -> <F as View<&'c mut T::Target>>::Output,
         >,
     ) -> Self {
-        Self::from_derive(base, derive)
+        Self::from_derive(owner, derive)
     }
 
     pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlMut<'b, T, G>
@@ -162,8 +162,8 @@ where
         BowlMut(self.0.cast())
     }
 
-    pub fn into_base(self) -> T {
-        self.0.into_base()
+    pub fn into_owner(self) -> T {
+        self.0.into_owner()
     }
 
     pub fn into_view<S>(self) -> S
@@ -208,7 +208,7 @@ where
     }
 }
 
-// SAFETY: We do not provide access to `&*base` since it can be stored in `derived`.
+// SAFETY: We do not provide access to `&*owner` since it can be stored in `view`.
 // That gives us the flexibility to omit `T: Sync`.
 unsafe impl<'a, T, F> Sync for BowlMut<'a, T, F>
 where
@@ -244,7 +244,7 @@ where
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("BowlMut")
-            .field("derived", self.get())
+            .field("view", self.get())
             .finish_non_exhaustive()
     }
 }

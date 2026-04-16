@@ -10,7 +10,7 @@ fn readme_basic() {
     view.get_mut()[2] = "bar";
     assert_eq!(*view.get(), vec!["hello", "world", "bar"]);
 
-    assert_eq!(view.into_base(), "hello world foo");
+    assert_eq!(view.into_owner(), "hello world foo");
 }
 
 #[test]

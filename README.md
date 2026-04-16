@@ -20,7 +20,7 @@ let mut view = BowlBox::new("hello world foo".to_owned(), parse_words);
 view.get_mut()[2] = "bar";
 assert_eq!(*view.get(), vec!["hello", "world", "bar"]);
 
-assert_eq!(view.into_base(), "hello world foo");
+assert_eq!(view.into_owner(), "hello world foo");
 ```
 
 The container is a monadic type that you can play around like [`Option`].
@@ -94,7 +94,7 @@ assert_eq!(*view.get(), "world");
 
 </details>
 
-If the base value is behind a shared pointer, use [`BowlRef`] to receive a pointer instead:
+If the `owner` value is behind a shared pointer, use [`BowlRef`] to receive a pointer instead:
 
 ```rust
 use oyakodon::BowlRef;
@@ -114,7 +114,7 @@ We also created [`BowlMut`] to support other owned containers like [`String`] or
 You can create your own container as well,
 but that requires an unsafe implementation of [`StableDeref`].
 
-Due to technical reasons, two [`Bowl`]s with exactly same base and view types might not be of the same type.
+Due to technical reasons, two [`Bowl`]s with exactly same owner and view types might not be of the same type.
 But you can [`cast()`] between them.
 
 ```rust

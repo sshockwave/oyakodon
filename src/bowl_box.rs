@@ -14,8 +14,8 @@ impl<'a, T, F> BowlBox<'a, T, F>
 where
     F: for<'b> Derive<&'b mut T>,
 {
-    pub fn new(base: T, derive: F) -> Self {
-        Self(BowlMut::new(Box::new(base), derive))
+    pub fn new(owner: T, derive: F) -> Self {
+        Self(BowlMut::new(Box::new(owner), derive))
     }
 }
 
@@ -24,49 +24,49 @@ where
     F: ?Sized + for<'b> View<&'b mut T>,
 {
     pub fn from_derive(
-        base: T,
+        owner: T,
         derive: impl for<'b> Derive<&'b mut T, Output = <F as View<&'b mut T>>::Output>,
     ) -> Self {
-        Self(BowlMut::from_derive(Box::new(base), derive))
+        Self(BowlMut::from_derive(Box::new(owner), derive))
     }
 
-    pub fn into_base(self) -> T {
-        *self.0.into_base()
+    pub fn into_owner(self) -> T {
+        *self.0.into_owner()
     }
 
     pub fn from_fn<'b>(
-        base: T,
+        owner: T,
         derive: &'b dyn for<'c> Fn(&'c mut T) -> <F as View<&'c mut T>>::Output,
     ) -> Self
     where
         F: 'b,
     {
-        Self(BowlMut::from_derive(Box::new(base), derive))
+        Self(BowlMut::from_derive(Box::new(owner), derive))
     }
 
     pub fn from_fn_mut<'b>(
-        base: T,
+        owner: T,
         derive: &'b mut dyn for<'c> FnMut(&'c mut T) -> <F as View<&'c mut T>>::Output,
     ) -> Self
     where
         F: 'b,
     {
-        Self(BowlMut::from_derive(Box::new(base), derive))
+        Self(BowlMut::from_derive(Box::new(owner), derive))
     }
 
     pub fn from_fn_once(
-        base: T,
+        owner: T,
         derive: Box<dyn for<'c> FnOnce(&'c mut T) -> <F as View<&'c mut T>>::Output>,
     ) -> Self {
-        Self(BowlMut::from_derive(Box::new(base), derive))
+        Self(BowlMut::from_derive(Box::new(owner), derive))
     }
 
     pub fn into_parts<S>(self) -> (T, S)
     where
         for<'c> F: View<&'c mut T, Output = S>,
     {
-        let (base, view) = self.0.into_parts();
-        (*base, view)
+        let (owner, view) = self.0.into_parts();
+        (*owner, view)
     }
 }
 
@@ -225,7 +225,7 @@ where
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("BowlBox")
-            .field("derived", self.get())
+            .field("view", self.get())
             .finish_non_exhaustive()
     }
 }

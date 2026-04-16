@@ -68,7 +68,7 @@ fn async_bowl_try_new_or_recover() {
 }
 
 // --- async_self_cell_recover ----------------------------------------------------
-// Note: recovering the base is not possible in oyakodon (no into_base() after into_result()).
+// Note: recovering the owner is not possible in oyakodon (no into_owner() after into_result()).
 // We verify that the Err branch contains the expected error value.
 
 fn view_err(s: &mut String) -> Result<std::future::Ready<&str>, usize> {
