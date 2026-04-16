@@ -165,10 +165,10 @@ where
         self.0.into_result().map(BowlBox).map_err(BowlBox)
     }
 
-    pub fn get(&self) -> &<F as View<&'_ mut T>>::Output {
+    pub fn get(&self) -> &<F as View<&mut T>>::Output {
         self.0.get()
     }
-    pub fn get_mut(&mut self) -> &mut <F as View<&'_ mut T>>::Output {
+    pub fn get_mut(&mut self) -> &mut <F as View<&mut T>>::Output {
         self.0.get_mut()
     }
 }
