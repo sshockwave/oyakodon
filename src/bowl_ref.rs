@@ -373,8 +373,12 @@ where
         let owner = self.owner.clone();
         // SAFETY: `StableDeref` should guarantee that `*owner` outlives `owner`,
         // so the new `view` will be valid as long as we hold the new `owner`.
-        let view = self.view.clone();
-        Self { owner, view }
+        let view = self.get().clone();
+        BowlRef {
+            owner,
+            view: MaybeDangling::new(view),
+        }
+        .cast_life()
     }
 }
 
