@@ -80,3 +80,9 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - run: cargo test --verbose --locked --features stable_deref
+
+  doc:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - run: cargo doc --verbose --locked --no-deps --all-features
