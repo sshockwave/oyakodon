@@ -46,6 +46,7 @@ fn identity_usize(x: usize) -> usize {
 
 // --- from_derive ----------------------------------------------------------------
 // `new` delegates here; test the method directly to cover its own code path.
+#[rustversion::since(1.78)]
 #[test]
 fn bowl_ref_from_derive() {
     let bowl: BowlRef<'_, Box<String>, fn(&String) -> usize> =
@@ -322,6 +323,7 @@ fn bowl_mut_bowl_trait() {
 // ================================================================================
 
 // --- from_derive ----------------------------------------------------------------
+#[rustversion::since(1.78)]
 #[test]
 fn bowl_box_from_derive() {
     let bowl: BowlBox<'_, String, fn(&mut String) -> usize> =
