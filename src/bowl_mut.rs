@@ -283,3 +283,18 @@ where
             .finish_non_exhaustive()
     }
 }
+
+impl<'a, 'b, T, F, G> From<BowlRef<'a, T, F>> for BowlMut<'b, T, G>
+where
+    T: Deref,
+    F: for<'c> View<&'c T::Target> + ?Sized,
+    G: for<'c> View<&'c mut T::Target, Output = <F as View<&'c T::Target>>::Output> + ?Sized,
+{
+    fn from(bowl_ref: BowlRef<'a, T, F>) -> Self {
+        // SAFETY: The difference of `BowlMut` and `BowlRef` is
+        // only the mutability of the owner when deriving the view.
+        // If we only had `&T::Target` when deriving the view,
+        // we can certainly derive the same view with `&mut T::Target`.
+        BowlMut(bowl_ref.cast())
+    }
+}
