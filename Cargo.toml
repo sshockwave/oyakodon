@@ -1,6 +1,15 @@
 [package]
 name = "oyakodon"
 version = "0.1.0"
+description = "Correctly typed self-referential structs without unsafe code or macros"
+keywords = ["self-referential", "sibling", "no_std", "lifetime", "borrowing"]
+categories = [
+  "rust-patterns",
+  "memory-management",
+  "no-std::no-alloc",
+  "data-structures",
+]
+repository = "https://github.com/sshockwave/oyakodon"
 edition = "2021"
 # Rust version required by sparse registry support
 rust-version = "1.68"
