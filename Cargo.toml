@@ -1,7 +1,9 @@
 [package]
 name = "oyakodon"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+# Rust version required by sparse registry support
+rust-version = "1.68"
 license = "MIT OR Apache-2.0"
 
 [features]

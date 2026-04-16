@@ -15,7 +15,7 @@ mod tests_extra;
 
 use oyakodon::{BowlMut, BowlRef, Derive, View};
 use std::cell::{Cell, RefCell};
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 
 // ================================================================================
