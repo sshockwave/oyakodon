@@ -1,16 +1,19 @@
-/// SAFETY: In addition to the requirements in [`stable_deref_trait::StableDeref`],
+/// # SAFETY
+/// In addition to the requirements in [`stable_deref_trait::StableDeref`],
 /// implementors must also guarantee that
 /// the `noalias` attribute can be erased by [`MaybeDangling`]
 /// if it's used by the pointer.
 ///
 /// [`MaybeDangling`]: std::mem::MaybeDangling
 pub unsafe trait StableDeref: ::core::ops::Deref {}
+/// # SAFETY
+/// See [`stable_deref_trait::CloneStableDeref`].
 pub unsafe trait CloneStableDeref: StableDeref + Clone {}
 
-unsafe impl<'a, T: ?Sized> StableDeref for &'a T {}
-unsafe impl<'a, T: ?Sized> CloneStableDeref for &'a T {}
+unsafe impl<T: ?Sized> StableDeref for &T {}
+unsafe impl<T: ?Sized> CloneStableDeref for &T {}
 
-unsafe impl<'a, T: ?Sized> StableDeref for &'a mut T {}
+unsafe impl<T: ?Sized> StableDeref for &mut T {}
 
 unsafe impl<'a, T: ?Sized> StableDeref for ::core::cell::Ref<'a, T> {}
 unsafe impl<'a, T: ?Sized> StableDeref for ::core::cell::RefMut<'a, T> {}

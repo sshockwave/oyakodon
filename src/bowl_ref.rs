@@ -97,7 +97,7 @@ where
         // and the safety of reading `view` is handed off to getters.
         // We ensure that the owner is never accessed until `view` is dropped
         // to satisfy the possible LLVM `noalias` attribute on `owner`.
-        let view = derive.call(unsafe { transmute(&**owner) });
+        let view = derive.call(unsafe { transmute::<&T::Target, &'a T::Target>(&**owner) });
         BowlRef {
             owner,
             view: MaybeDangling::new(view),
@@ -151,12 +151,18 @@ where
     /// Unlike [`map`][Self::map], the target view marker type `G` is specified explicitly
     /// rather than being inferred as [`Map<T::Target, F, H>`][Map].
     /// Use this when you need the output type to match a specific existing marker.
-    pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlRef<'b, T, G>
-    where
-        for<'c> H: Derive<<F as View<&'c T::Target>>::Output>,
-        for<'c> G:
-            View<&'c T::Target, Output = <H as View<<F as View<&'c T::Target>>::Output>>::Output>,
-    {
+    pub fn map_into<
+        'b,
+        G: ?Sized
+            + for<'c> View<
+                &'c T::Target,
+                Output = <H as View<<F as View<&'c T::Target>>::Output>>::Output,
+            >,
+        H: for<'c> Derive<<F as View<&'c T::Target>>::Output>,
+    >(
+        self,
+        f: H,
+    ) -> BowlRef<'b, T, G> {
         let Self { owner, view } = self;
         // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
         BowlRef::<'_, T, G> {
@@ -225,19 +231,22 @@ where
     ///
     /// Two bowls with different view markers but the same `Output` for all lifetimes
     /// have identical representations at runtime and can be freely interconverted.
-    pub fn cast_view<G: ?Sized>(self) -> BowlRef<'a, T, G>
-    where
-        for<'b> G: View<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
-    {
+    pub fn cast_view<
+        G: ?Sized + for<'b> View<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
+    >(
+        self,
+    ) -> BowlRef<'a, T, G> {
         let Self { owner, view } = self;
         BowlRef { owner, view }
     }
 
     /// Combines [`cast_life`][Self::cast_life] and [`cast_view`][Self::cast_view].
-    pub fn cast<'b, G: ?Sized>(self) -> BowlRef<'b, T, G>
-    where
-        for<'c> G: View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output>,
-    {
+    pub fn cast<
+        'b,
+        G: ?Sized + for<'c> View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output>,
+    >(
+        self,
+    ) -> BowlRef<'b, T, G> {
         self.cast_life().cast_view()
     }
 
@@ -346,6 +355,7 @@ where
         }
     }
 
+    #[allow(clippy::useless_asref, clippy::explicit_auto_deref)]
     pub fn get(&self) -> &<F as View<&T::Target>>::Output {
         // SAFETY: Reading `view` is safe only if
         // the lifetime passed to `derive()` is shorter than that of `*owner`.
@@ -355,6 +365,7 @@ where
         // so using `'b` is the best we can do.
         &*self.as_ref().view
     }
+    #[allow(clippy::useless_asref, clippy::explicit_auto_deref)]
     pub fn get_mut(&mut self) -> &mut <F as View<&T::Target>>::Output {
         // SAFETY: Same as `get()`, but for mutable references.
         &mut *self.as_mut().view
