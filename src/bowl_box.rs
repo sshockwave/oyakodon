@@ -4,6 +4,26 @@ use ::{
     core::{fmt::Debug, future::Future, mem::transmute, result::Result},
 };
 
+/// Stores a value into the heap and a derived mutable reference into it.
+///
+/// This is a thin wrapper around [`BowlMut<Box<T>, F>`][BowlMut].
+/// Conversions between `BowlBox<T, F>` and `BowlMut<Box<T>, F>` are provided via [`From`].
+///
+/// # Examples
+///
+/// ```
+/// use oyakodon::BowlBox;
+///
+/// fn parse_words(s: &mut String) -> Vec<&str> {
+///     s.split_whitespace().collect()
+/// }
+///
+/// let mut bowl = BowlBox::new("hello world foo".to_owned(), parse_words);
+/// bowl.get_mut()[2] = "bar";
+/// assert_eq!(*bowl.get(), vec!["hello", "world", "bar"]);
+///
+/// assert_eq!(bowl.into_owner(), "hello world foo");
+/// ```
 #[repr(transparent)]
 pub struct BowlBox<'a, T, F>(BowlMut<'a, Box<T>, F>)
 where
@@ -23,6 +43,7 @@ impl<'a, T, F> BowlBox<'a, T, F>
 where
     F: ?Sized + for<'b> View<&'b mut T>,
 {
+    /// See [`BowlMut::from_derive`]. Boxes the owner automatically.
     pub fn from_derive(
         owner: T,
         derive: impl for<'b> Derive<&'b mut T, Output = <F as View<&'b mut T>>::Output>,
@@ -30,10 +51,14 @@ where
         Self(BowlMut::from_derive(Box::new(owner), derive))
     }
 
+    /// Drops the view and returns the unboxed owner.
+    ///
+    /// Unlike [`BowlMut::into_owner`], the [`Box`] is dereferenced so the value is returned by value.
     pub fn into_owner(self) -> T {
         *self.0.into_owner()
     }
 
+    /// See [`BowlMut::from_fn`].
     pub fn from_fn<'b>(
         owner: T,
         derive: &'b dyn for<'c> Fn(&'c mut T) -> <F as View<&'c mut T>>::Output,
@@ -44,6 +69,7 @@ where
         Self(BowlMut::from_derive(Box::new(owner), derive))
     }
 
+    /// See [`BowlMut::from_fn_mut`].
     pub fn from_fn_mut<'b>(
         owner: T,
         derive: &'b mut dyn for<'c> FnMut(&'c mut T) -> <F as View<&'c mut T>>::Output,
@@ -54,6 +80,7 @@ where
         Self(BowlMut::from_derive(Box::new(owner), derive))
     }
 
+    /// See [`BowlMut::from_fn_once`].
     pub fn from_fn_once(
         owner: T,
         derive: Box<dyn for<'c> FnOnce(&'c mut T) -> <F as View<&'c mut T>>::Output>,
@@ -61,6 +88,7 @@ where
         Self(BowlMut::from_derive(Box::new(owner), derive))
     }
 
+    /// See [`BowlMut::into_parts`]. The owner is unboxed.
     pub fn into_parts<S>(self) -> (T, S)
     where
         for<'c> F: View<&'c mut T, Output = S>,
@@ -75,6 +103,7 @@ where
     T: ?Sized,
     F: for<'b> View<&'b mut T> + ?Sized,
 {
+    /// See [`BowlMut::map_into`].
     pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlBox<'b, T, G>
     where
         for<'c> H: Derive<<F as View<&'c mut T>>::Output>,
@@ -83,6 +112,7 @@ where
         BowlBox(self.0.map_into(f))
     }
 
+    /// See [`BowlMut::map`].
     pub fn map<G>(self, f: G) -> BowlBox<'a, T, Map<T, F, G>>
     where
         G: for<'b> Derive<<F as View<&'b mut T>>::Output>,
@@ -90,10 +120,12 @@ where
         self.map_into(f)
     }
 
+    /// See [`BowlMut::cast_life`].
     pub fn cast_life<'b>(self) -> BowlBox<'b, T, F> {
         BowlBox(self.0.cast_life())
     }
 
+    /// See [`BowlMut::cast_view`].
     pub fn cast_view<'b, G: ?Sized>(self) -> BowlBox<'a, T, G>
     where
         for<'c> G: View<&'c mut T, Output = <F as View<&'c mut T>>::Output>,
@@ -101,6 +133,7 @@ where
         BowlBox(self.0.cast_view())
     }
 
+    /// See [`BowlMut::cast`].
     pub fn cast<'b, G: ?Sized>(self) -> BowlBox<'b, T, G>
     where
         for<'c> G: View<&'c mut T, Output = <F as View<&'c mut T>>::Output>,
@@ -108,6 +141,7 @@ where
         BowlBox(self.0.cast())
     }
 
+    /// See [`BowlMut::into_view`].
     pub fn into_view<S>(self) -> S
     where
         for<'c> F: View<&'c mut T, Output = S>,
@@ -115,6 +149,7 @@ where
         self.0.into_view()
     }
 
+    /// See [`BowlMut::into_async`].
     pub async fn into_async(self) -> BowlBox<'a, T, Async<T, F>>
     where
         for<'c> <F as View<&'c mut T>>::Output: Future,
@@ -122,6 +157,7 @@ where
         BowlBox(self.0.into_async().await)
     }
 
+    /// See [`BowlMut::into_result`].
     pub fn into_result(self) -> Result<BowlBox<'a, T, Success<T, F>>, BowlBox<'a, T, Failure<T, F>>>
     where
         for<'b> <F as View<&'b mut T>>::Output: Outcome,
