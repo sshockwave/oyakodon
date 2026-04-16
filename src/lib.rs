@@ -6,17 +6,17 @@ extern crate alloc;
 mod bowl_box;
 mod bowl_mut;
 mod bowl_ref;
-#[cfg(not(feature = "stable_deref"))]
+#[cfg(any(not(feature = "stable_deref"), doc))]
 mod stable_deref;
 
 use ::core::{future::Future, marker::PhantomData, option::Option, result::Result};
-#[cfg(feature = "stable_deref")]
+#[cfg(all(feature = "stable_deref", not(doc)))]
 pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
 #[cfg(feature = "alloc")]
 pub use bowl_box::BowlBox;
 pub use bowl_mut::BowlMut;
 pub use bowl_ref::BowlRef;
-#[cfg(not(feature = "stable_deref"))]
+#[cfg(any(not(feature = "stable_deref"), doc))]
 pub use stable_deref::{CloneStableDeref, StableDeref};
 
 /// Unified interface for all bowl types.
