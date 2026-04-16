@@ -235,10 +235,10 @@ where
         }
     }
 
-    pub fn get(&self) -> &<F as View<&'_ mut T::Target>>::Output {
+    pub fn get(&self) -> &<F as View<&mut T::Target>>::Output {
         self.0.get()
     }
-    pub fn get_mut(&mut self) -> &mut <F as View<&'_ mut T::Target>>::Output {
+    pub fn get_mut(&mut self) -> &mut <F as View<&mut T::Target>>::Output {
         self.0.get_mut()
     }
 }

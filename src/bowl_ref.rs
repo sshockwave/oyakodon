@@ -346,20 +346,18 @@ where
         }
     }
 
-    pub fn get(&self) -> &<F as View<&'_ T::Target>>::Output {
+    pub fn get(&self) -> &<F as View<&T::Target>>::Output {
         // SAFETY: Reading `view` is safe only if
         // the lifetime passed to `derive()` is shorter than that of `*owner`.
         // Ideally we would like to use the lifetime of the `self` instance
         // because that's the actual lifetime of `*owner`,
         // but we don't know about that yet,
         // so using `'b` is the best we can do.
-        let other: &BowlRef<_, F> = self.as_ref();
-        &*other.view
+        &*self.as_ref().view
     }
-    pub fn get_mut(&mut self) -> &mut <F as View<&'_ T::Target>>::Output {
+    pub fn get_mut(&mut self) -> &mut <F as View<&T::Target>>::Output {
         // SAFETY: Same as `get()`, but for mutable references.
-        let other: &mut BowlRef<_, F> = self.as_mut();
-        &mut *other.view
+        &mut *self.as_mut().view
     }
 }
 
