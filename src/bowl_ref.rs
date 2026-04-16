@@ -13,6 +13,32 @@ use ::{
     maybe_dangling::MaybeDangling,
 };
 
+/// Stores an owner and a derived shared reference into it.
+///
+/// The `T` parameter is the owner container (e.g., [`Box<String>`][Box] or [`Rc<String>`][std::rc::Rc]),
+/// and `F` is the view marker type that describes the derivation function.
+/// The `'a` parameter is a placeholder lifetime that is deduced automatically.
+/// If you need to specify it explicitly,
+/// perfer choosing the longest possible lifetime satisfying `T: 'a`
+/// to minimize the number of distinct types.
+/// For owned heap containers, this is usually `'static`.
+///
+/// # Examples
+///
+/// ```
+/// use oyakodon::BowlRef;
+/// use std::rc::Rc;
+///
+/// fn first_word(s: &String) -> &str {
+///     s.split_whitespace().next().unwrap_or("")
+/// }
+///
+/// let bowl = BowlRef::new(Rc::new("hello world".to_owned()), first_word);
+/// assert_eq!(*bowl.get(), "hello");
+///
+/// let bowl2 = bowl.clone(); // works because Rc is cloneable
+/// assert_eq!(*bowl.get(), *bowl2.get());
+/// ```
 pub struct BowlRef<'a, T: Deref, F: for<'b> View<&'b T::Target> + ?Sized> {
     // `owner` will be dropped after `view`.
     // Rust guarantees that fields are dropped in the order of declaration.
@@ -54,7 +80,10 @@ where
     T: StableDeref,
     F: for<'b> View<&'b T::Target> + ?Sized,
 {
-    /// The primary constructor. All other constructors are convenience wrappers around this.
+    /// The primary constructor. All other constructors delegate here.
+    ///
+    /// `derive` is called exactly once during construction.
+    /// The resulting view is stored alongside the owner.
     pub fn from_derive(
         owner: T,
         derive: impl for<'b> Derive<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
@@ -74,6 +103,13 @@ where
             view: MaybeDangling::new(view),
         }
     }
+    /// Constructs a bowl from a closure, accepting a [`&dyn Fn`][Fn] reference.
+    ///
+    /// Closures on stable Rust cannot express a return type
+    /// whose lifetime is derived from an argument lifetime.
+    /// Passing the closure through `&dyn Fn` coerces it into a form
+    /// that is generic over the borrow lifetime.
+    /// See [`Derive`] for an alternative without `dyn` overhead.
     pub fn from_fn<'b>(
         owner: T,
         derive: &'b dyn for<'c> Fn(&'c T::Target) -> <F as View<&'c T::Target>>::Output,
@@ -84,6 +120,9 @@ where
         Self::from_derive(owner, derive)
     }
 
+    /// Constructs a bowl from a closure, accepting a [`&mut dyn FnMut`][FnMut] reference.
+    ///
+    /// Analogous to [`from_fn`][Self::from_fn] but accepts a mutable closure.
     pub fn from_fn_mut<'b>(
         owner: T,
         derive: &'b mut dyn for<'c> FnMut(&'c T::Target) -> <F as View<&'c T::Target>>::Output,
@@ -94,6 +133,9 @@ where
         Self::from_derive(owner, derive)
     }
 
+    /// Constructs a bowl from a closure, accepting a [`Box<dyn FnOnce>`][FnOnce].
+    ///
+    /// Analogous to [`from_fn`][Self::from_fn] but the closure is consumed on construction.
     #[cfg(feature = "alloc")]
     pub fn from_fn_once(
         owner: T,
@@ -104,6 +146,11 @@ where
         Self::from_derive(owner, derive)
     }
 
+    /// Transforms the current view using `f` and changes the view type to an explicit `G`.
+    ///
+    /// Unlike [`map`][Self::map], the target view marker type `G` is specified explicitly
+    /// rather than being inferred as [`Map<T::Target, F, H>`][Map].
+    /// Use this when you need the output type to match a specific existing marker.
     pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlRef<'b, T, G>
     where
         for<'c> H: Derive<<F as View<&'c T::Target>>::Output>,
@@ -119,6 +166,9 @@ where
         .cast()
     }
 
+    /// Transforms the current view using `f`, encoding the composition as [`Map<T::Target, F, G>`][Map].
+    ///
+    /// Use [`map_into`][Self::map_into] if you need to specify an explicit target view type.
     pub fn map<G>(self, f: G) -> BowlRef<'a, T, Map<T::Target, F, G>>
     where
         G: for<'b> Derive<<F as View<&'b T::Target>>::Output>,
@@ -162,11 +212,19 @@ where
     T: Deref,
     F: for<'b> View<&'b T::Target> + ?Sized,
 {
+    /// Changes the lifetime placeholder `'a` without modifying the value.
+    ///
+    /// Because `'a` is only a placeholder, any valid lifetime can be substituted freely.
+    /// See the struct documentation for guidance on choosing `'a`.
     pub fn cast_life<'b>(self) -> BowlRef<'b, T, F> {
         // SAFETY: Same as `as_ref()`.
         unsafe { transmute(self) }
     }
 
+    /// Changes the view marker type `F` to any `G` that produces identical output types.
+    ///
+    /// Two bowls with different view markers but the same `Output` for all lifetimes
+    /// have identical representations at runtime and can be freely interconverted.
     pub fn cast_view<G: ?Sized>(self) -> BowlRef<'a, T, G>
     where
         for<'b> G: View<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
@@ -175,6 +233,7 @@ where
         BowlRef { owner, view }
     }
 
+    /// Combines [`cast_life`][Self::cast_life] and [`cast_view`][Self::cast_view].
     pub fn cast<'b, G: ?Sized>(self) -> BowlRef<'b, T, G>
     where
         for<'c> G: View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output>,
@@ -182,6 +241,10 @@ where
         self.cast_life().cast_view()
     }
 
+    /// Drops the view and returns the owner.
+    ///
+    /// The view is explicitly dropped before the owner is extracted,
+    /// preserving the correct destruction order even when the view's destructor panics.
     pub fn into_owner(self) -> T {
         let Self { owner, view } = self;
         // `owner` must be dropped even if `view`'s drop panics.
@@ -192,6 +255,10 @@ where
         MaybeDangling::into_inner(owner)
     }
 
+    /// Drops the owner and returns the view.
+    ///
+    /// The bound of this function requires the view cannot borrow from `*owner`.
+    /// When the view does borrow from the owner, use [`get`][Self::get] instead.
     pub fn into_view<S>(self) -> S
     where
         for<'c> F: View<&'c T::Target, Output = S>,
@@ -203,6 +270,10 @@ where
         MaybeDangling::into_inner(view)
     }
 
+    /// Returns both the owner and the view as a tuple.
+    ///
+    /// Carries the same `for<'c>` constraint as [`into_view`][Self::into_view]:
+    /// the view type must be lifetime-independent of the owner.
     pub fn into_parts<S>(self) -> (T, S)
     where
         for<'c> F: View<&'c T::Target, Output = S>,
@@ -215,6 +286,11 @@ where
         )
     }
 
+    /// Awaits the current view future and replaces it with the resolved value.
+    ///
+    /// The owner remains alive for the entire duration of the await,
+    /// so the future may safely hold a reference into `*owner`.
+    /// The resulting bowl has a view type of [`Async<T::Target, F>`][Async].
     pub async fn into_async(self) -> BowlRef<'a, T, Async<T::Target, F>>
     where
         for<'b> <F as View<&'b T::Target>>::Output: Future,
@@ -226,6 +302,30 @@ where
         }
     }
 
+    /// Unwraps an [`Outcome`] view, branching into `Ok` or `Err`.
+    /// Both branches retain the owner.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use oyakodon::BowlRef;
+    /// use std::rc::Rc;
+    ///
+    /// fn try_parse(s: &String) -> Result<i32, std::num::ParseIntError> {
+    ///     s.parse()
+    /// }
+    ///
+    /// let ok = BowlRef::new(Rc::new("42".to_owned()), try_parse)
+    ///     .into_result()
+    ///     .unwrap();
+    /// assert_eq!(*ok.get(), 42);
+    ///
+    /// let err = BowlRef::new(Rc::new("abc".to_owned()), try_parse)
+    ///     .into_result()
+    ///     .unwrap_err();
+    /// // The owner is still accessible from the Err branch.
+    /// assert_eq!(err.into_owner(), Rc::new("abc".to_owned()));
+    /// ```
     pub fn into_result(
         self,
     ) -> Result<BowlRef<'a, T, Success<T::Target, F>>, BowlRef<'a, T, Failure<T::Target, F>>>
