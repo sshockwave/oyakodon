@@ -16,11 +16,10 @@ rust-version = "1.68"
 license = "MIT OR Apache-2.0"
 
 [features]
-default = ["std", "gat"]
+default = ["std"]
 std = ["alloc", "stable_deref_trait?/std"]
 alloc = ["stable_deref_trait?/alloc"]
 stable_deref = ["dep:stable_deref_trait"]
-gat = []
 
 [dev-dependencies]
 smol = "2"

@@ -243,7 +243,6 @@ where
     }
 }
 
-#[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlBox<'a, T, F>
 where
     T: ?Sized,

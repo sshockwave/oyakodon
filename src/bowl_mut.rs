@@ -262,7 +262,6 @@ where
 {
 }
 
-#[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlMut<'a, T, F>
 where
     T: Deref,

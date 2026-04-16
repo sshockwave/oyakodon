@@ -23,7 +23,6 @@ pub use stable_deref::{CloneStableDeref, StableDeref};
 
 /// Unified interface for all bowl types.
 /// [`BowlRef`], [`BowlMut`], and [`BowlBox`] all implement this trait.
-#[cfg(feature = "gat")]
 pub trait Bowl {
     type Value<'a>
     where

@@ -391,7 +391,6 @@ where
     }
 }
 
-#[cfg(feature = "gat")]
 impl<'a, T, F> super::Bowl for BowlRef<'a, T, F>
 where
     T: Deref,

@@ -139,17 +139,14 @@ fn bowl_ref_as_ref_as_mut() {
 }
 
 // --- Bowl trait ----------------------------------------------------------------
-#[cfg(feature = "gat")]
 fn bowl_get_value<B: oyakodon::Bowl>(b: &B) -> &B::Value<'_> {
     b.get()
 }
 
-#[cfg(feature = "gat")]
 fn bowl_get_mut_value<B: oyakodon::Bowl>(b: &mut B) -> &mut B::Value<'_> {
     b.get_mut()
 }
 
-#[cfg(feature = "gat")]
 #[test]
 fn bowl_ref_bowl_trait() {
     let bowl = BowlRef::new(Box::new("hello".to_owned()), to_len);
@@ -307,7 +304,6 @@ fn bowl_mut_as_ref_as_mut() {
 }
 
 // --- Bowl trait ----------------------------------------------------------------
-#[cfg(feature = "gat")]
 #[test]
 fn bowl_mut_bowl_trait() {
     let mut bowl = BowlMut::new(Box::new("hello".to_owned()), str_len_mut);
@@ -478,7 +474,6 @@ fn bowl_box_as_ref_as_mut() {
 }
 
 // --- Bowl trait ----------------------------------------------------------------
-#[cfg(feature = "gat")]
 #[test]
 fn bowl_box_bowl_trait() {
     let mut bowl = BowlBox::new("hello".to_owned(), str_len_mut);
