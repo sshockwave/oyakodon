@@ -15,6 +15,7 @@ gat = []
 
 [dev-dependencies]
 smol = "2"
+rustversion = "1"
 
 [dependencies]
 maybe-dangling = "0.1.2"
