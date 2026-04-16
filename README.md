@@ -1,5 +1,9 @@
 # oyakodon
 
+[![crates.io](https://img.shields.io/crates/v/oyakodon)](https://crates.io/crates/oyakodon)
+[![docs.rs](https://docs.rs/oyakodon/badge.svg)](https://docs.rs/oyakodon)
+[![CI](https://github.com/sshockwave/oyakodon/actions/workflows/test.yml/badge.svg)](https://github.com/sshockwave/oyakodon/actions/workflows/test.yml)
+
 [`oyakodon`] lets you store a value together with a derived view of it.
 This pattern is known as self-referential structs in Rust,
 which currently can't be written without the help of unsafe code.
