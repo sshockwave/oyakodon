@@ -1,4 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::type_complexity)]
+
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
@@ -37,7 +39,7 @@ pub trait Bowl {
 ///
 /// The purpose of type parameter `T` instead of a simple lifetime `'a` is twofold:
 /// 1. It allows us to define the `View` trait for all functions
-/// without triggering [E0207](https://doc.rust-lang.org/error_codes/E0207.html).
+///    without triggering [E0207](https://doc.rust-lang.org/error_codes/E0207.html).
 /// 2. Writing `&'a T` constrains the lifetime variable in HRTB to at most as long as `T`.
 pub trait View<T: ?Sized> {
     type Output;

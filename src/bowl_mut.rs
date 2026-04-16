@@ -81,7 +81,8 @@ where
         // only the mutability of the owner when deriving the view.
         // That restricts access to the owner after the view is alive,
         // but it does not change anything here.
-        let view = derive.call(unsafe { transmute(&mut **owner) });
+        let view =
+            derive.call(unsafe { transmute::<&mut T::Target, &'a mut T::Target>(&mut **owner) });
         Self(BowlRef {
             owner,
             view: MaybeDangling::new(view),
@@ -124,14 +125,19 @@ where
     }
 
     /// See [`BowlRef::map_into`].
-    pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlMut<'b, T, G>
-    where
-        for<'c> H: Derive<<F as View<&'c mut T::Target>>::Output>,
-        for<'c> G: View<
-            &'c mut T::Target,
-            Output = <H as View<<F as View<&'c mut T::Target>>::Output>>::Output,
-        >,
-    {
+    pub fn map_into<
+        'b,
+        G: ?Sized
+            + for<'c> View<
+                &'c mut T::Target,
+                Output = <H as View<<F as View<&'c mut T::Target>>::Output>>::Output,
+            >,
+        H: for<'c> Derive<<F as View<&'c mut T::Target>>::Output>,
+    >(
+        self,
+        f: H,
+    ) -> BowlMut<'b, T, G>
+where {
         BowlMut(self.0.map_into(f))
     }
 
@@ -177,18 +183,21 @@ where
     }
 
     /// See [`BowlRef::cast_view`].
-    pub fn cast_view<G: ?Sized>(self) -> BowlMut<'a, T, G>
-    where
-        for<'b> G: View<&'b mut T::Target, Output = <F as View<&'b mut T::Target>>::Output>,
-    {
+    pub fn cast_view<
+        G: ?Sized + for<'b> View<&'b mut T::Target, Output = <F as View<&'b mut T::Target>>::Output>,
+    >(
+        self,
+    ) -> BowlMut<'a, T, G> {
         BowlMut(self.0.cast_view())
     }
 
     /// See [`BowlRef::cast`].
-    pub fn cast<'b, G: ?Sized>(self) -> BowlMut<'b, T, G>
-    where
-        for<'c> G: View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output>,
-    {
+    pub fn cast<
+        'b,
+        G: ?Sized + for<'c> View<&'c mut T::Target, Output = <F as View<&'c mut T::Target>>::Output>,
+    >(
+        self,
+    ) -> BowlMut<'b, T, G> {
         BowlMut(self.0.cast())
     }
 

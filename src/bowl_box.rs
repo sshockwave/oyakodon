@@ -104,11 +104,15 @@ where
     F: for<'b> View<&'b mut T> + ?Sized,
 {
     /// See [`BowlMut::map_into`].
-    pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlBox<'b, T, G>
-    where
-        for<'c> H: Derive<<F as View<&'c mut T>>::Output>,
-        for<'c> G: View<&'c mut T, Output = <H as View<<F as View<&'c mut T>>::Output>>::Output>,
-    {
+    pub fn map_into<
+        'b,
+        G: ?Sized
+            + for<'c> View<&'c mut T, Output = <H as View<<F as View<&'c mut T>>::Output>>::Output>,
+        H: for<'c> Derive<<F as View<&'c mut T>>::Output>,
+    >(
+        self,
+        f: H,
+    ) -> BowlBox<'b, T, G> {
         BowlBox(self.0.map_into(f))
     }
 
@@ -126,18 +130,22 @@ where
     }
 
     /// See [`BowlMut::cast_view`].
-    pub fn cast_view<'b, G: ?Sized>(self) -> BowlBox<'a, T, G>
-    where
-        for<'c> G: View<&'c mut T, Output = <F as View<&'c mut T>>::Output>,
-    {
+    pub fn cast_view<
+        'b,
+        G: ?Sized + for<'c> View<&'c mut T, Output = <F as View<&'c mut T>>::Output>,
+    >(
+        self,
+    ) -> BowlBox<'a, T, G> {
         BowlBox(self.0.cast_view())
     }
 
     /// See [`BowlMut::cast`].
-    pub fn cast<'b, G: ?Sized>(self) -> BowlBox<'b, T, G>
-    where
-        for<'c> G: View<&'c mut T, Output = <F as View<&'c mut T>>::Output>,
-    {
+    pub fn cast<
+        'b,
+        G: ?Sized + for<'c> View<&'c mut T, Output = <F as View<&'c mut T>>::Output>,
+    >(
+        self,
+    ) -> BowlBox<'b, T, G> {
         BowlBox(self.0.cast())
     }
 
