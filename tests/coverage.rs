@@ -57,18 +57,16 @@ fn bowl_ref_from_derive() {
 // --- from_fn_mut ----------------------------------------------------------------
 #[test]
 fn bowl_ref_from_fn_mut() {
-    let mut f = to_len;
     let bowl: BowlRef<'_, Box<String>, fn(&String) -> usize> =
-        BowlRef::from_fn_mut(Box::new("hello".to_owned()), &mut f);
+        BowlRef::from_fn_mut(Box::new("hello".to_owned()), &mut |s: &String| s.len());
     assert_eq!(*bowl.get(), 5);
 }
 
 // --- from_fn_once ---------------------------------------------------------------
 #[test]
 fn bowl_ref_from_fn_once() {
-    let f: Box<dyn for<'c> FnOnce(&'c String) -> usize> = Box::new(to_len);
     let bowl: BowlRef<'_, Box<String>, fn(&String) -> usize> =
-        BowlRef::from_fn_once(Box::new("hello".to_owned()), f);
+        BowlRef::from_fn_once(Box::new("hello".to_owned()), Box::new(|s: &String| s.len()));
     assert_eq!(*bowl.get(), 5);
 }
 
@@ -166,25 +164,25 @@ fn bowl_ref_bowl_trait() {
 #[test]
 fn bowl_mut_from_fn() {
     let bowl: BowlMut<'_, Box<String>, fn(&mut String) -> usize> =
-        BowlMut::from_fn(Box::new("hello".to_owned()), &str_len_mut);
+        BowlMut::from_fn(Box::new("hello".to_owned()), &|s: &mut String| s.len());
     assert_eq!(*bowl.get(), 5);
 }
 
 // --- from_fn_mut ---------------------------------------------------------------
 #[test]
 fn bowl_mut_from_fn_mut() {
-    let mut f = str_len_mut;
     let bowl: BowlMut<'_, Box<String>, fn(&mut String) -> usize> =
-        BowlMut::from_fn_mut(Box::new("hello".to_owned()), &mut f);
+        BowlMut::from_fn_mut(Box::new("hello".to_owned()), &mut |s: &mut String| s.len());
     assert_eq!(*bowl.get(), 5);
 }
 
 // --- from_fn_once --------------------------------------------------------------
 #[test]
 fn bowl_mut_from_fn_once() {
-    let f: Box<dyn for<'c> FnOnce(&'c mut String) -> usize> = Box::new(str_len_mut);
-    let bowl: BowlMut<'_, Box<String>, fn(&mut String) -> usize> =
-        BowlMut::from_fn_once(Box::new("hello".to_owned()), f);
+    let bowl: BowlMut<'_, Box<String>, fn(&mut String) -> usize> = BowlMut::from_fn_once(
+        Box::new("hello".to_owned()),
+        Box::new(|s: &mut String| s.len()),
+    );
     assert_eq!(*bowl.get(), 5);
 }
 
@@ -335,25 +333,23 @@ fn bowl_box_from_derive() {
 #[test]
 fn bowl_box_from_fn() {
     let bowl: BowlBox<'_, String, fn(&mut String) -> usize> =
-        BowlBox::from_fn("hello".to_owned(), &str_len_mut);
+        BowlBox::from_fn("hello".to_owned(), &|s: &mut String| s.len());
     assert_eq!(*bowl.get(), 5);
 }
 
 // --- from_fn_mut ---------------------------------------------------------------
 #[test]
 fn bowl_box_from_fn_mut() {
-    let mut f = str_len_mut;
     let bowl: BowlBox<'_, String, fn(&mut String) -> usize> =
-        BowlBox::from_fn_mut("hello".to_owned(), &mut f);
+        BowlBox::from_fn_mut("hello".to_owned(), &mut |s: &mut String| s.len());
     assert_eq!(*bowl.get(), 5);
 }
 
 // --- from_fn_once --------------------------------------------------------------
 #[test]
 fn bowl_box_from_fn_once() {
-    let f: Box<dyn for<'c> FnOnce(&'c mut String) -> usize> = Box::new(str_len_mut);
     let bowl: BowlBox<'_, String, fn(&mut String) -> usize> =
-        BowlBox::from_fn_once("hello".to_owned(), f);
+        BowlBox::from_fn_once("hello".to_owned(), Box::new(|s: &mut String| s.len()));
     assert_eq!(*bowl.get(), 5);
 }
 
