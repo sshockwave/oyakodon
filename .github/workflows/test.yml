@@ -19,6 +19,17 @@ jobs:
     - uses: actions/checkout@v6
     - run: cargo test --verbose --locked
 
+  minimal-versions:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: nightly
+    - run: cargo update -Z direct-minimal-versions
+    - uses: dtolnay/rust-toolchain@stable
+    - run: cargo test --verbose --locked
+
   miri:
     runs-on: ubuntu-latest
     steps:
