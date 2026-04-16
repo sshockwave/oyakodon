@@ -146,40 +146,17 @@ where
         Self::from_derive(owner, derive)
     }
 
-    /// Transforms the current view using `f` and changes the view type to an explicit `G`.
-    ///
-    /// Unlike [`map`][Self::map], the target view marker type `G` is specified explicitly
-    /// rather than being inferred as [`Map<T::Target, F, H>`][Map].
-    /// Use this when you need the output type to match a specific existing marker.
-    pub fn map_into<
-        'b,
-        G: ?Sized
-            + for<'c> View<
-                &'c T::Target,
-                Output = <H as View<<F as View<&'c T::Target>>::Output>>::Output,
-            >,
-        H: for<'c> Derive<<F as View<&'c T::Target>>::Output>,
-    >(
-        self,
-        f: H,
-    ) -> BowlRef<'b, T, G> {
-        let Self { owner, view } = self;
-        // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
-        BowlRef::<'_, T, G> {
-            owner,
-            view: MaybeDangling::new(f.call(MaybeDangling::into_inner(view))),
-        }
-        .cast()
-    }
-
     /// Transforms the current view using `f`, encoding the composition as [`Map<T::Target, F, G>`][Map].
-    ///
-    /// Use [`map_into`][Self::map_into] if you need to specify an explicit target view type.
     pub fn map<G>(self, f: G) -> BowlRef<'a, T, Map<T::Target, F, G>>
     where
         G: for<'b> Derive<<F as View<&'b T::Target>>::Output>,
     {
-        self.map_into(f)
+        let Self { owner, view } = self;
+        // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
+        BowlRef {
+            owner,
+            view: MaybeDangling::new(f.call(MaybeDangling::into_inner(view))),
+        }
     }
 }
 

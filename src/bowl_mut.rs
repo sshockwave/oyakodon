@@ -124,29 +124,12 @@ where
         Self::from_derive(owner, derive)
     }
 
-    /// See [`BowlRef::map_into`].
-    pub fn map_into<
-        'b,
-        G: ?Sized
-            + for<'c> View<
-                &'c mut T::Target,
-                Output = <H as View<<F as View<&'c mut T::Target>>::Output>>::Output,
-            >,
-        H: for<'c> Derive<<F as View<&'c mut T::Target>>::Output>,
-    >(
-        self,
-        f: H,
-    ) -> BowlMut<'b, T, G>
-where {
-        BowlMut(self.0.map_into(f))
-    }
-
     /// See [`BowlRef::map`].
     pub fn map<G>(self, f: G) -> BowlMut<'a, T, Map<T::Target, F, G>>
     where
         G: for<'b> Derive<<F as View<&'b mut T::Target>>::Output>,
     {
-        self.map_into(f)
+        BowlMut(self.0.map(f).cast())
     }
 }
 

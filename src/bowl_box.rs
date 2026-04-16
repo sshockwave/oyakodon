@@ -103,25 +103,12 @@ where
     T: ?Sized,
     F: for<'b> View<&'b mut T> + ?Sized,
 {
-    /// See [`BowlMut::map_into`].
-    pub fn map_into<
-        'b,
-        G: ?Sized
-            + for<'c> View<&'c mut T, Output = <H as View<<F as View<&'c mut T>>::Output>>::Output>,
-        H: for<'c> Derive<<F as View<&'c mut T>>::Output>,
-    >(
-        self,
-        f: H,
-    ) -> BowlBox<'b, T, G> {
-        BowlBox(self.0.map_into(f))
-    }
-
     /// See [`BowlMut::map`].
     pub fn map<G>(self, f: G) -> BowlBox<'a, T, Map<T, F, G>>
     where
         G: for<'b> Derive<<F as View<&'b mut T>>::Output>,
     {
-        self.map_into(f)
+        BowlBox(self.0.map(f))
     }
 
     /// See [`BowlMut::cast_life`].

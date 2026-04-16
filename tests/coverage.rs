@@ -78,15 +78,6 @@ fn bowl_ref_map() {
     assert_eq!(*mapped.get(), 5);
 }
 
-// --- map_into ------------------------------------------------------------------
-#[test]
-fn bowl_ref_map_into() {
-    let bowl: BowlRef<'_, Box<String>, fn(&String) -> &str> =
-        BowlRef::new(Box::new("hello".to_owned()), to_str);
-    let mapped: BowlRef<'_, Box<String>, fn(&String) -> usize> = bowl.map_into(len_of_str);
-    assert_eq!(*mapped.get(), 5);
-}
-
 // --- cast -----------------------------------------------------------------------
 // Combines cast_life and cast_view; here only the lifetime changes.
 #[test]
@@ -188,14 +179,6 @@ fn bowl_mut_from_fn_once() {
 fn bowl_mut_map() {
     let bowl = BowlMut::new(Box::new(21i32), deref_i32);
     let mapped = bowl.map(double_i32);
-    assert_eq!(*mapped.get(), 42);
-}
-
-// --- map_into ------------------------------------------------------------------
-#[test]
-fn bowl_mut_map_into() {
-    let bowl: BowlMut<'_, Box<i32>, fn(&mut i32) -> i32> = BowlMut::new(Box::new(21i32), deref_i32);
-    let mapped: BowlMut<'_, Box<i32>, fn(&mut i32) -> i32> = bowl.map_into(double_i32);
     assert_eq!(*mapped.get(), 42);
 }
 
@@ -354,14 +337,6 @@ fn bowl_box_from_fn_once() {
 fn bowl_box_map() {
     let bowl = BowlBox::new(21i32, deref_i32);
     let mapped = bowl.map(double_i32);
-    assert_eq!(*mapped.get(), 42);
-}
-
-// --- map_into ------------------------------------------------------------------
-#[test]
-fn bowl_box_map_into() {
-    let bowl: BowlBox<'_, i32, fn(&mut i32) -> i32> = BowlBox::new(21i32, deref_i32);
-    let mapped: BowlBox<'_, i32, fn(&mut i32) -> i32> = bowl.map_into(double_i32);
     assert_eq!(*mapped.get(), 42);
 }
 
