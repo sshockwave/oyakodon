@@ -1,37 +1,37 @@
 use oyakodon::{Bowl, BowlMut, BowlRef, View};
 
-/// Regression: [`into_base()`] must drop `base` even when `derived`'s drop panics.
-/// Previously, `derived: _` in the destructure produced an unnamed temporary
+/// Regression: [`into_owner()`] must drop `owner` even when `view`'s drop panics.
+/// Previously, `view: _` in the destructure produced an unnamed temporary
 /// that Rust's unwind machinery did not track,
-/// causing `base` to leak when `derived`'s drop panicked.
-/// Fixed by using a named binding so `base` is a proper tracked local.
+/// causing `owner` to leak when `view`'s drop panicked.
+/// Fixed by using a named binding so `owner` is a proper tracked local.
 ///
 /// [`into_base()`]: BowlRef::into_base
 #[test]
 #[should_panic]
-fn into_base_drops_base_on_derived_panic() {
+fn into_owner_drops_owner_on_view_panic() {
     #[allow(dead_code)]
     struct PanicOnDrop<'a>(&'a String);
     impl Drop for PanicOnDrop<'_> {
         fn drop(&mut self) {
-            panic!("derived drop panic");
+            panic!("view drop panic");
         }
     }
     fn make(s: &String) -> PanicOnDrop<'_> {
         PanicOnDrop(s)
     }
     // Miri detects the leak if `Box<String>` is not freed after the panic.
-    BowlRef::new(Box::new(String::from("hello")), make).into_base();
+    BowlRef::new(Box::new(String::from("hello")), make).into_owner();
 }
 
-/// The same as [`into_base_drops_base_on_derived_panic`] but for [`BowlRef::into_view()`]
+/// The same as [`into_owner_drops_owner_on_view_panic`] but for [`BowlRef::into_view()`]
 #[test]
 #[should_panic]
-fn into_view_drops_view_on_base_panic() {
+fn into_view_drops_view_on_owner_panic() {
     struct PanicOnDrop(String);
     impl Drop for PanicOnDrop {
         fn drop(&mut self) {
-            panic!("base drop panic");
+            panic!("owner drop panic");
         }
     }
     fn make_view(owner: &PanicOnDrop) -> Box<String> {
@@ -90,7 +90,7 @@ fn owning_ref_49() {
     let res = helper(&owning_ref);
     assert_eq!(res, 20);
 
-    // Extra test to ensure that the base value is correct
-    let base = owning_ref.into_base();
-    assert_eq!(base.get(), 20);
+    // Extra test to ensure that the owner value is correct
+    let owner = owning_ref.into_owner();
+    assert_eq!(owner.get(), 20);
 }

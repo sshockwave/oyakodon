@@ -2,9 +2,9 @@
 // Kept in the same order as the originals so missing entries are easy to spot.
 //
 // API mapping:
-//   self_cell::new(owner, |o| dep)          → BowlRef::new(base, derive)
+//   self_cell::new(owner, |o| dep)          → BowlRef::new(owner, derive)
 //   self_cell::borrow_dependent()           → BowlRef::get()
-//   self_cell::borrow_owner()               → no equivalent; oyakodon does not expose the base
+//   self_cell::borrow_owner()               → no equivalent; oyakodon does not expose the owner
 //   self_cell::with_dependent(|owner, dep|) → no equivalent; requires simultaneous owner + dep access
 //   self_cell::into_owner()                 → BowlRef::into_base()
 //   self_cell::with_dependent_mut()         → BowlMut::get_mut()
@@ -68,7 +68,7 @@ fn return_self_ref_struct() {
 }
 
 // --- failable_constructor_success -----------------------------------------------
-// Semantic difference: into_result() always runs the derive fn and stores the base;
+// Semantic difference: into_result() always runs the derive fn and stores the owner;
 // try_new() skips storage on Err. The Ok-path outcome is equivalent.
 
 fn make_ast_ok(s: &String) -> Result<Ast<'_>, i32> {
@@ -157,9 +157,9 @@ fn custom_drop() {
 }
 
 // --- drop_order -----------------------------------------------------------------
-// The derived view must be dropped before the base.
+// The derived view must be dropped before the owner.
 // Rust drops struct fields in declaration order;
-// BowlRef declares `derived` before `base` for exactly this reason.
+// BowlRef declares `view` before `owner` for exactly this reason.
 
 #[test]
 fn drop_order() {
@@ -200,7 +200,7 @@ fn drop_order() {
 }
 
 // --- into_owner_drop_dependent_without_panic ------------------------------------
-// into_base() drops derived first, then returns base.
+// into_owner() drops view first, then returns owner.
 
 #[test]
 fn into_owner_drop_dependent_without_panic() {
@@ -224,8 +224,8 @@ fn into_owner_drop_dependent_without_panic() {
     }
 
     let bowl = BowlRef::new(Rc::new(Cell::new(Some(Box::new(42u8)))), MakeD);
-    let base = bowl.into_base(); // drops D first (takes from Cell), then returns Rc
-    let cell = Rc::try_unwrap(base).ok().expect("Rc has multiple owners");
+    let owner = bowl.into_owner(); // drops D first (takes from Cell), then returns Rc
+    let cell = Rc::try_unwrap(owner).ok().expect("Rc has multiple owners");
     assert!(cell.into_inner().is_none());
 }
 
@@ -255,7 +255,7 @@ fn into_owner_drop_dependent_with_panic() {
     }
 
     let bowl = BowlRef::new(Rc::new(Cell::new(Some(Box::new(42u8)))), MakeD);
-    bowl.into_base();
+    bowl.into_owner();
 }
 
 // --- drop_panic_owner -----------------------------------------------------------
@@ -312,10 +312,10 @@ fn dependent_mutate() {
 // --- dependent_replace ----------------------------------------------------------
 // NOT MIGRATABLE: self_cell::with_dependent_mut(|owner, dep| { *dep = f(owner); })
 // gives simultaneous &owner and &mut dep access.
-// oyakodon exposes only &mut Output via get_mut(); the base is inaccessible.
+// oyakodon exposes only &mut Output via get_mut(); the owner is inaccessible.
 
 // --- try_new_or_recover ---------------------------------------------------------
-// For Copy error types: borrow the error via get(), then consume with into_base().
+// For Copy error types: borrow the error via get(), then consume with into_owner().
 
 fn make_fail(_s: &String) -> Result<Ast<'_>, i32> {
     Err(-1)
@@ -325,13 +325,13 @@ fn make_fail(_s: &String) -> Result<Ast<'_>, i32> {
 fn try_new_or_recover() {
     let original_input = String::from("Ein See aus Schweiß ..");
 
-    // bad path: recover both the error and the base
+    // bad path: recover both the error and the owner
     let err_bowl = BowlRef::new(Box::new(original_input.clone()), make_fail)
         .into_result()
         .unwrap_err();
     let err = *err_bowl.get();
-    let base = err_bowl.into_base();
-    assert_eq!(*base, original_input);
+    let owner = err_bowl.into_owner();
+    assert_eq!(*owner, original_input);
     assert_eq!(err, -1);
 
     // happy path
@@ -350,7 +350,7 @@ fn into_owner() {
         BowlRef::<Rc<String>, fn(&String) -> &str>::new(Rc::clone(&expected), String::as_str);
     assert_eq!(*bowl.get(), expected.as_str());
 
-    let recovered: Rc<String> = bowl.into_base();
+    let recovered: Rc<String> = bowl.into_owner();
     assert_eq!(recovered, expected);
     assert_eq!(Rc::strong_count(&expected), 2);
 }
@@ -370,7 +370,7 @@ fn zero_size_cell() {
 }
 
 // --- nested_cells ---------------------------------------------------------------
-// The child cell owns &'a String (a reference into the parent's base),
+// The child cell owns &'a String (a reference into the parent's owner),
 // so its lifetime is tied to the parent's.
 
 #[test]
@@ -393,7 +393,7 @@ fn nested_cells() {
 }
 
 // --- panic_in_from_owner --------------------------------------------------------
-// A panic inside the derive function must not leak the base allocation.
+// A panic inside the derive function must not leak the owner allocation.
 // (Verified by running under Miri.)
 
 #[test]

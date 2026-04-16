@@ -14,29 +14,29 @@ use ::{
 };
 
 pub struct BowlRef<'a, T: Deref, F: for<'b> View<&'b T::Target> + ?Sized> {
-    // `base` will be dropped after `derived`.
+    // `owner` will be dropped after `view`.
     // Rust guarantees that fields are dropped in the order of declaration.
     // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
     //
     // Both fields are wrapped in `MaybeDangling` for distinct reasons:
     //
-    // `derived: MaybeDangling<_>` suppresses Tree Borrows reference protection.
+    // `view: MaybeDangling<_>` suppresses Tree Borrows reference protection.
     // When `BowlRef` is passed by value to a function,
     // Tree Borrows would normally "protect" any references inside it for the entire call duration,
     // asserting that the memory they point to remains valid.
-    // But `BowlRef` owns both `derived` (the borrow) and `base` (the allocation),
-    // so dropping `BowlRef` inside the callee frees `base` while `derived` is still considered live.
+    // But `BowlRef` owns both `view` (the borrow) and `owner` (the allocation),
+    // so dropping `BowlRef` inside the callee frees `owner` while `view` is still considered live.
     // `MaybeDangling` opts out of the `dereferenceable` assumption, suppressing the protector.
     //
-    // `base: MaybeDangling<_>` suppresses Stacked Borrows Unique retag.
+    // `owner: MaybeDangling<_>` suppresses Stacked Borrows Unique retag.
     // Box-like types assert Unique ownership over their allocation whenever they are moved
     // (e.g., as a function argument).
-    // If `base` were moved after `derived` was computed,
-    // the resulting Unique retag would invalidate `derived`'s SharedReadWrite tag on the same allocation.
-    // Wrapping `base` in `MaybeDangling` (a union) before calling `derive`
-    // means no further Box move occurs after `derived` is created.
-    pub(crate) derived: MaybeDangling<<F as View<&'a T::Target>>::Output>,
-    pub(crate) base: MaybeDangling<T>,
+    // If `owner` were moved after `view` was computed,
+    // the resulting Unique retag would invalidate `view`'s SharedReadWrite tag on the same allocation.
+    // Wrapping `owner` in `MaybeDangling` (a union) before calling `derive`
+    // means no further Box move occurs after `view` is created.
+    pub(crate) view: MaybeDangling<<F as View<&'a T::Target>>::Output>,
+    pub(crate) owner: MaybeDangling<T>,
 }
 
 impl<'a, T, F> BowlRef<'a, T, F>
@@ -44,8 +44,8 @@ where
     T: StableDeref,
     F: for<'b> Derive<&'b T::Target>,
 {
-    pub fn new(base: T, derive: F) -> Self {
-        Self::from_derive(base, derive)
+    pub fn new(owner: T, derive: F) -> Self {
+        Self::from_derive(owner, derive)
     }
 }
 
@@ -56,52 +56,52 @@ where
 {
     /// The primary constructor. All other constructors are convenience wrappers around this.
     pub fn from_derive(
-        base: T,
+        owner: T,
         derive: impl for<'b> Derive<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
     ) -> Self {
-        let base = MaybeDangling::new(base);
+        let owner = MaybeDangling::new(owner);
         // SAFETY: The lifetime `'a` passed to `derive()` might differ from the actual borrow,
         // but the HRTB requires `derive()` to work uniformly for any lifetime,
         // so `derive()` cannot exploit the length of `'a`.
-        // Thus we can assume that `derive()` had received the real lifetime of `*base`.
-        // Now `derived` is annotated with a fake lifetime `'a`
-        // and the safety of reading `derived` is handed off to getters.
-        // We ensure that the base is never accessed until `derived` is dropped
-        // to satisfy the possible LLVM `noalias` attribute on `base`.
-        let derived = derive.call(unsafe { transmute(&**base) });
+        // Thus we can assume that `derive()` had received the real lifetime of `*owner`.
+        // Now `view` is annotated with a fake lifetime `'a`
+        // and the safety of reading `view` is handed off to getters.
+        // We ensure that the owner is never accessed until `view` is dropped
+        // to satisfy the possible LLVM `noalias` attribute on `owner`.
+        let view = derive.call(unsafe { transmute(&**owner) });
         BowlRef {
-            base,
-            derived: MaybeDangling::new(derived),
+            owner,
+            view: MaybeDangling::new(view),
         }
     }
     pub fn from_fn<'b>(
-        base: T,
+        owner: T,
         derive: &'b dyn for<'c> Fn(&'c T::Target) -> <F as View<&'c T::Target>>::Output,
     ) -> Self
     where
         F: 'b,
     {
-        Self::from_derive(base, derive)
+        Self::from_derive(owner, derive)
     }
 
     pub fn from_fn_mut<'b>(
-        base: T,
+        owner: T,
         derive: &'b mut dyn for<'c> FnMut(&'c T::Target) -> <F as View<&'c T::Target>>::Output,
     ) -> Self
     where
         F: 'b,
     {
-        Self::from_derive(base, derive)
+        Self::from_derive(owner, derive)
     }
 
     #[cfg(feature = "alloc")]
     pub fn from_fn_once(
-        base: T,
+        owner: T,
         derive: ::alloc::boxed::Box<
             dyn for<'c> FnOnce(&'c T::Target) -> <F as View<&'c T::Target>>::Output,
         >,
     ) -> Self {
-        Self::from_derive(base, derive)
+        Self::from_derive(owner, derive)
     }
 
     pub fn map_into<'b, G: ?Sized, H>(self, f: H) -> BowlRef<'b, T, G>
@@ -110,11 +110,11 @@ where
         for<'c> G:
             View<&'c T::Target, Output = <H as View<<F as View<&'c T::Target>>::Output>>::Output>,
     {
-        let Self { base, derived } = self;
+        let Self { owner, view } = self;
         // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
         BowlRef::<'_, T, G> {
-            base,
-            derived: MaybeDangling::new(f.call(MaybeDangling::into_inner(derived))),
+            owner,
+            view: MaybeDangling::new(f.call(MaybeDangling::into_inner(view))),
         }
         .cast()
     }
@@ -134,9 +134,9 @@ where
 {
     fn as_ref(&self) -> &BowlRef<'b, T, F> {
         // SAFETY: We maintain an HRTB invariant on `derive()`
-        // to make sure any `'c` that does not outlive `*base`
+        // to make sure any `'c` that does not outlive `*owner`
         // corresponds to a valid `F::Output<'c>`.
-        // Since `*base` is heap-allocated and outlives `self`
+        // Since `*owner` is heap-allocated and outlives `self`
         // any borrow `'b` of `self` satisfies the HRTB.
         // This is not a contradiction to the possible invariance of `F::Output`.
         // Think of it as if `derive()` was called with the lifetime of the borrow,
@@ -171,8 +171,8 @@ where
     where
         for<'b> G: View<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
     {
-        let Self { base, derived } = self;
-        BowlRef { base, derived }
+        let Self { owner, view } = self;
+        BowlRef { owner, view }
     }
 
     pub fn cast<'b, G: ?Sized>(self) -> BowlRef<'b, T, G>
@@ -182,36 +182,36 @@ where
         self.cast_life().cast_view()
     }
 
-    pub fn into_base(self) -> T {
-        let Self { base, derived } = self;
-        // `base` must be dropped even if `derived`'s drop panics.
+    pub fn into_owner(self) -> T {
+        let Self { owner, view } = self;
+        // `owner` must be dropped even if `view`'s drop panics.
         // Miri reports that this is not guaranteed
-        // if `derived` is dropped implicitly at the end of the function.
-        drop(derived);
-        // SAFETY: `*base` is not used elsewhere after `derived` is dropped.
-        MaybeDangling::into_inner(base)
+        // if `view` is dropped implicitly at the end of the function.
+        drop(view);
+        // SAFETY: `*owner` is not used elsewhere after `view` is dropped.
+        MaybeDangling::into_inner(owner)
     }
 
     pub fn into_view<S>(self) -> S
     where
         for<'c> F: View<&'c T::Target, Output = S>,
     {
-        let Self { base, derived } = self;
-        // Same reason as `into_base()`
-        drop(base);
-        // SAFETY: The HRTB requires `F::Output` to not depend on `base`.
-        MaybeDangling::into_inner(derived)
+        let Self { owner, view } = self;
+        // Same reason as `into_owner()`
+        drop(owner);
+        // SAFETY: The HRTB requires `F::Output` to not depend on `owner`.
+        MaybeDangling::into_inner(view)
     }
 
     pub fn into_parts<S>(self) -> (T, S)
     where
         for<'c> F: View<&'c T::Target, Output = S>,
     {
-        let Self { base, derived } = self;
+        let Self { owner, view } = self;
         // SAFETY: Same as `into_view()`
         (
-            MaybeDangling::into_inner(base),
-            MaybeDangling::into_inner(derived),
+            MaybeDangling::into_inner(owner),
+            MaybeDangling::into_inner(view),
         )
     }
 
@@ -219,10 +219,10 @@ where
     where
         for<'b> <F as View<&'b T::Target>>::Output: Future,
     {
-        let Self { base, derived } = self;
+        let Self { owner, view } = self;
         BowlRef {
-            base,
-            derived: MaybeDangling::new(MaybeDangling::into_inner(derived).await),
+            owner,
+            view: MaybeDangling::new(MaybeDangling::into_inner(view).await),
         }
     }
 
@@ -232,34 +232,34 @@ where
     where
         for<'b> <F as View<&'b T::Target>>::Output: Outcome,
     {
-        let Self { base, derived } = self;
+        let Self { owner, view } = self;
         use Result::{Err, Ok};
-        match MaybeDangling::into_inner(derived).get() {
+        match MaybeDangling::into_inner(view).get() {
             Ok(v) => Ok(BowlRef {
-                base,
-                derived: MaybeDangling::new(v),
+                owner,
+                view: MaybeDangling::new(v),
             }),
             Err(e) => Err(BowlRef {
-                base,
-                derived: MaybeDangling::new(e),
+                owner,
+                view: MaybeDangling::new(e),
             }),
         }
     }
 
     pub fn get(&self) -> &<F as View<&'_ T::Target>>::Output {
-        // SAFETY: Reading `derived` is safe only if
-        // the lifetime passed to `derive()` is shorter than that of `*base`.
+        // SAFETY: Reading `view` is safe only if
+        // the lifetime passed to `derive()` is shorter than that of `*owner`.
         // Ideally we would like to use the lifetime of the `self` instance
-        // because that's the actual lifetime of `*base`,
+        // because that's the actual lifetime of `*owner`,
         // but we don't know about that yet,
         // so using `'b` is the best we can do.
         let other: &BowlRef<_, F> = self.as_ref();
-        &*other.derived
+        &*other.view
     }
     pub fn get_mut(&mut self) -> &mut <F as View<&'_ T::Target>>::Output {
         // SAFETY: Same as `get()`, but for mutable references.
         let other: &mut BowlRef<_, F> = self.as_mut();
-        &mut *other.derived
+        &mut *other.view
     }
 }
 
@@ -270,11 +270,11 @@ where
     for<'b> <F as View<&'b T::Target>>::Output: Clone,
 {
     fn clone(&self) -> Self {
-        let base = self.base.clone();
-        // SAFETY: `StableDeref` should guarantee that `*base` outlives `base`,
-        // so the new `derived` will be valid as long as we hold the new `base`.
-        let derived = self.derived.clone();
-        Self { base, derived }
+        let owner = self.owner.clone();
+        // SAFETY: `StableDeref` should guarantee that `*owner` outlives `owner`,
+        // so the new `view` will be valid as long as we hold the new `owner`.
+        let view = self.view.clone();
+        Self { owner, view }
     }
 }
 
@@ -297,7 +297,7 @@ where
 }
 
 // These traits are specific to `BowlRef`
-// because they require access to `base`,
+// because they require access to `owner`,
 // which is not available in `BowlMut`.
 impl<'a, 'b, T, F, G> PartialEq<BowlRef<'b, T, G>> for BowlRef<'a, T, F>
 where
@@ -307,8 +307,8 @@ where
     for<'c> <F as View<&'c T::Target>>::Output: PartialEq<<G as View<&'c T::Target>>::Output>,
 {
     fn eq(&self, other: &BowlRef<'b, T, G>) -> bool {
-        // SAFETY: Accessing `base` is safe because `derived` does not have exlusive access to `base`.
-        (*self.base).eq(&*other.base) && self.get().eq(other.get())
+        // SAFETY: Accessing `owner` is safe because `view` does not have exlusive access to `owner`.
+        (*self.owner).eq(&*other.owner) && self.get().eq(other.get())
     }
 }
 
@@ -328,7 +328,7 @@ where
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // SAFETY: Same as `PartialEq::eq()`.
-        self.base.hash(state);
+        self.owner.hash(state);
         self.get().hash(state);
     }
 }
@@ -342,8 +342,8 @@ where
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // SAFETY: Same as `PartialEq::eq()`.
         f.debug_struct("BowlRef")
-            .field("base", &*self.base)
-            .field("derived", self.get())
+            .field("owner", &*self.owner)
+            .field("view", self.get())
             .finish()
     }
 }
