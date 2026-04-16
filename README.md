@@ -162,6 +162,7 @@ We have used the test suites and experiences from them to create our tests.
 - [`yoke`](https://docs.rs/yoke) - similar concept, provides macro to implement unsafe traits
 - [`self_cell`](https://docs.rs/self_cell) - macro-based struct generation
 - [`rel_ptr`](https://docs.rs/rel-ptr) - uses unsafe code for relative pointers
+- [`nolife`](https://docs.rs/nolife/) - uses async functions
 
 ## License
 
