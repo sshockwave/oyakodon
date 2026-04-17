@@ -1,4 +1,4 @@
-use oyakodon::{Bowl, BowlMut, BowlRef, View};
+use oyakodon::{BowlMut, BowlRef, View};
 
 /// Regression: [`into_owner()`] must drop `owner` even when `view`'s drop panics.
 /// Previously, `view: _` in the destructure produced an unnamed temporary
@@ -38,11 +38,8 @@ fn into_view_drops_view_on_owner_panic() {
         Box::new(owner.0.clone())
     }
     // Miri detects the leak if Box<String> (the view) is not freed after the panic.
-    let _: Box<String> = BowlRef::<Box<PanicOnDrop>, fn(&PanicOnDrop) -> Box<String>>::new(
-        Box::new(PanicOnDrop("hello".to_string())),
-        make_view,
-    )
-    .into_view();
+    let _: Box<String> =
+        BowlRef::new(Box::new(PanicOnDrop("hello".to_string())), make_view).into_view();
 }
 
 /// https://github.com/someguynamedjosh/ouroboros/issues/88
@@ -79,15 +76,12 @@ fn owning_ref_49() {
         &*cell
     }
 
-    fn helper(owning_ref: &impl for<'a> Bowl<Value<'a> = &'a Cell<u8>>) -> u8 {
-        owning_ref.get().set(10);
-        owning_ref.get().set(20);
-        owning_ref.get().get() // should return 20
-    }
-
-    let val: Box<Cell<u8>> = Box::new(Cell::new(25));
-    let owning_ref = BowlMut::new(val, derive);
-    let res = helper(&owning_ref);
+    let owning_ref = BowlMut::new(Box::new(Cell::new(25u8)), derive);
+    let res = owning_ref.spawn(|v: &&Cell<_>| {
+        (*v).set(10);
+        (*v).set(20);
+        (*v).get()
+    });
     assert_eq!(res, 20);
 
     // Extra test to ensure that the owner value is correct

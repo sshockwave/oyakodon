@@ -47,5 +47,8 @@ fn self_cell_works_in_no_std_env() {
 
     let ast_cell =
         BowlRef::<Box<StaticString>, MakeAst>::new(Box::new(pre_processed_code), MakeAst);
-    assert_eq!(ast_cell.get().0.iter().filter(|v| v.is_some()).count(), 2);
+    assert_eq!(
+        ast_cell.spawn(|v: &Ast<'_>| v.0.iter().filter(|v| v.is_some()).count()),
+        2
+    );
 }

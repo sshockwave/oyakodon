@@ -3,11 +3,11 @@
 //
 // API mapping:
 //   self_cell::new(owner, |o| dep)          → BowlRef::new(owner, derive)
-//   self_cell::borrow_dependent()           → BowlRef::get()
+//   self_cell::borrow_dependent()           → bowl.spawn(|v| v)
 //   self_cell::borrow_owner()               → no equivalent; oyakodon does not expose the owner
 //   self_cell::with_dependent(|owner, dep|) → no equivalent; requires simultaneous owner + dep access
 //   self_cell::into_owner()                 → BowlRef::into_base()
-//   self_cell::with_dependent_mut()         → BowlMut::get_mut()
+//   self_cell::with_dependent_mut()         → bowl.spawn_mut(|v| ...)
 
 mod no_std_lib;
 mod rust_1_85_or_newer;
@@ -45,14 +45,14 @@ fn parse_ast() {
     let expected_ast = MakeAst.call(&body);
 
     let bowl = BowlRef::<Rc<String>, MakeAst>::new(Rc::new(body.clone()), MakeAst);
-    assert_eq!(*bowl.get(), expected_ast);
+    bowl.spawn(|v: &Ast<'_>| assert_eq!(*v, expected_ast));
 
     let moved = bowl;
-    assert_eq!(*moved.get(), expected_ast);
+    moved.spawn(|v: &Ast<'_>| assert_eq!(*v, expected_ast));
 
     let cloned = moved.clone();
     drop(moved);
-    assert_eq!(*cloned.get(), expected_ast);
+    cloned.spawn(|v: &Ast<'_>| assert_eq!(*v, expected_ast));
 }
 
 // --- return_self_ref_struct -----------------------------------------------------
@@ -64,7 +64,7 @@ fn make_ast_stripped(body: &str) -> BowlRef<'_, Box<String>, fn(&String) -> &str
 #[test]
 fn return_self_ref_struct() {
     let bowl = make_ast_stripped("a\nb\nc\ndef");
-    assert_eq!(*bowl.get(), "abcdef");
+    bowl.spawn(|v: &&_| assert_eq!(*v, "abcdef"));
 }
 
 // --- failable_constructor_success -----------------------------------------------
@@ -82,7 +82,9 @@ fn failable_constructor_success() {
 
     let result = BowlRef::new(Box::new(owner.clone()), make_ast_ok).into_result();
     assert!(result.is_ok());
-    assert_eq!(*result.unwrap().get(), expected_ast);
+    result
+        .unwrap()
+        .spawn(|v: &Ast<'_>| assert_eq!(*v, expected_ast));
 }
 
 // --- failable_constructor_fail --------------------------------------------------
@@ -112,8 +114,8 @@ fn from_fn() {
         s.len()
     });
     assert_eq!(call_count.get(), 1);
-    assert_eq!(*bowl.get(), 5);
-    assert_eq!(call_count.get(), 1); // get() does not re-invoke the derive function
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
+    assert_eq!(call_count.get(), 1); // spawn() does not re-invoke the derive function
 }
 
 // --- catch_panic_in_from --------------------------------------------------------
@@ -132,7 +134,7 @@ fn no_derive_owner_type() {
         &o.0
     }
     let bowl = BowlRef::new(Box::new(NoDerive(22)), get_field);
-    assert_eq!(*bowl.get(), &22);
+    bowl.spawn(|v: &&_| assert_eq!(*v, &22));
 }
 
 // --- public_cell ----------------------------------------------------------------
@@ -304,9 +306,11 @@ fn get_slice(v: &mut Vec<u8>) -> &mut [u8] {
 #[test]
 fn dependent_mutate() {
     let mut bowl = BowlMut::new(Box::new(vec![1u8, 2, 3]), get_slice);
-    assert_eq!(*bowl.get(), [1, 2, 3]);
-    bowl.get_mut()[0] = 99;
-    assert_eq!(*bowl.get(), [99, 2, 3]);
+    bowl.spawn(|v: &&mut _| assert_eq!(*v, [1, 2, 3]));
+    bowl.spawn_mut(|v: &mut &mut [u8]| {
+        v[0] = 99;
+    });
+    bowl.spawn(|v: &&mut _| assert_eq!(*v, [99, 2, 3]));
 }
 
 // --- dependent_replace ----------------------------------------------------------
@@ -329,7 +333,7 @@ fn try_new_or_recover() {
     let err_bowl = BowlRef::new(Box::new(original_input.clone()), make_fail)
         .into_result()
         .unwrap_err();
-    let err = *err_bowl.get();
+    let err = err_bowl.spawn(|v: &_| *v);
     let owner = err_bowl.into_owner();
     assert_eq!(*owner, original_input);
     assert_eq!(err, -1);
@@ -338,7 +342,7 @@ fn try_new_or_recover() {
     let bowl = BowlRef::new(Box::new(original_input.clone()), make_ast_ok)
         .into_result()
         .unwrap();
-    assert_eq!(*bowl.get(), MakeAst.call(&original_input));
+    bowl.spawn(|v: &Ast<'_>| assert_eq!(*v, MakeAst.call(&original_input)));
 }
 
 // --- into_owner -----------------------------------------------------------------
@@ -348,7 +352,7 @@ fn into_owner() {
     let expected = Rc::new(String::from("Endless joy for you never 2"));
     let bowl =
         BowlRef::<Rc<String>, fn(&String) -> &str>::new(Rc::clone(&expected), String::as_str);
-    assert_eq!(*bowl.get(), expected.as_str());
+    bowl.spawn(|v: &&_| assert_eq!(*v, expected.as_str()));
 
     let recovered: Rc<String> = bowl.into_owner();
     assert_eq!(recovered, expected);
@@ -366,7 +370,7 @@ fn zero_size_cell() {
         ZeroSizeRef(PhantomData)
     }
     let bowl = BowlRef::new(Box::new(()), make_zsr);
-    let _ = bowl.get();
+    bowl.spawn(|_: &ZeroSizeRef| ());
 }
 
 // --- nested_cells ---------------------------------------------------------------
@@ -388,8 +392,9 @@ fn nested_cells() {
     let parent_str = String::from("some string it is");
     let parent = BowlRef::<Box<String>, MakeChild>::new(Box::new(parent_str.clone()), MakeChild);
 
-    let child = parent.get();
-    assert_eq!(*child.get(), parent_str.as_str());
+    parent.spawn(|child: &BowlRef<'_, &String, fn(&String) -> &str>| {
+        child.spawn(|v: &&_| assert_eq!(*v, parent_str.as_str()))
+    });
 }
 
 // --- panic_in_from_owner --------------------------------------------------------
@@ -441,7 +446,7 @@ fn lazy_ast() {
     }
 
     let bowl = BowlRef::<Box<String>, MakeLazy>::new(Box::new(String::from("hello")), MakeLazy);
-    assert_eq!(*bowl.get().0.get().unwrap(), "hello");
+    bowl.spawn(|v: &LazyAst<'_>| assert_eq!(*v.0.get().unwrap(), "hello"));
 }
 
 // --- cell_mem_size --------------------------------------------------------------

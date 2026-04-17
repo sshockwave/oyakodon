@@ -9,8 +9,8 @@
 //     → BowlRef::new(cart, derive)
 //   Yoke::<Y, C>::attach_to_zero_copy_cart(cart)
 //     → BowlRef::new(cart, identity_derive)
-//   yoke.get()                       → bowl.get()
-//   yoke.with_mut(|y| ...)           → *bowl.get_mut() = ...  /  bowl.get_mut().method()
+//   yoke.get()                       → bowl.spawn(|v| ...)
+//   yoke.with_mut(|y| ...)           → bowl.spawn_mut(|v| ...)
 //
 // miri.rs::run_test is also covered by tests/soundness.rs::yoke_3696 (using BowlMut).
 // It is included here for completeness using BowlRef to match the original Yoke semantics.
@@ -128,21 +128,21 @@ fn test_clone() {
     let y1 = BowlRef::new(Rc::new("foo".to_owned()), BorrowCow).cast_life::<'static>();
 
     let y2 = y1.clone();
-    assert_eq!(y1.get().as_ref(), "foo");
-    assert_eq!(y2.get().as_ref(), "foo");
+    y1.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "foo"));
+    y2.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "foo"));
 
     let mut y3 = y1.clone();
-    y3.get_mut().to_mut().push_str("bar");
-    assert_eq!(y1.get().as_ref(), "foo");
-    assert_eq!(y2.get().as_ref(), "foo");
-    assert_eq!(y3.get().as_ref(), "foobar");
+    y3.spawn_mut(|v: &mut Cow<'_, str>| v.to_mut().push_str("bar"));
+    y1.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "foo"));
+    y2.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "foo"));
+    y3.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "foobar"));
 
     let y4 = y3.clone();
-    y3.get_mut().to_mut().push_str("baz");
-    assert_eq!(y1.get().as_ref(), "foo");
-    assert_eq!(y2.get().as_ref(), "foo");
-    assert_eq!(y3.get().as_ref(), "foobarbaz");
-    assert_eq!(y4.get().as_ref(), "foobar");
+    y3.spawn_mut(|v: &mut Cow<'_, str>| v.to_mut().push_str("baz"));
+    y1.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "foo"));
+    y2.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "foo"));
+    y3.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "foobarbaz"));
+    y4.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "foobar"));
 }
 
 // ================================================================================
@@ -175,10 +175,10 @@ fn borrowed_then_mutated() {
     }
 
     let mut bowl = BowlMut::new(Box::new("hello".to_owned()), make_cow);
-    assert!(matches!(*bowl.get(), Cow::Borrowed(_)));
-    assert_eq!(bowl.get().as_ref(), "hello");
+    bowl.spawn(|v: &Cow<'_, str>| assert!(matches!(*v, Cow::Borrowed(_))));
+    bowl.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "hello"));
 
-    bowl.get_mut().to_mut().push_str(" world");
-    assert!(matches!(*bowl.get(), Cow::Owned(_)));
-    assert_eq!(bowl.get().as_ref(), "hello world");
+    bowl.spawn_mut(|v: &mut Cow<'_, str>| v.to_mut().push_str(" world"));
+    bowl.spawn(|v: &Cow<'_, str>| assert!(matches!(*v, Cow::Owned(_))));
+    bowl.spawn(|v: &Cow<'_, str>| assert_eq!(v.as_ref(), "hello world"));
 }

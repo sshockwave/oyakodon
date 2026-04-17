@@ -5,8 +5,8 @@
 //   Builder { data, dref_builder: |data| data }.build()
 //     → BowlRef::new(owner, derive)  /  BowlBox::new(owner, derive)
 //   bar.with_dref(|dref| *dref)      → *bowl.get()
-//   bar.borrow_dref()                → bowl.get()
-//   bar.with_dref_mut(|dref| ...)    → *bowl.get_mut() = ...
+//   bar.borrow_dref()                → bowl.spawn(|v| v)
+//   bar.with_dref_mut(|dref| ...)    → bowl.spawn_mut(|v| { *v = ...; })
 //   bar.into_heads().data            → bowl.into_owner()
 //   TryBuilder { ... }.try_build()   → BowlRef::new(...).into_result()
 //   .try_build_or_recover()          → .into_result() then .unwrap_err().into_parts()
@@ -29,7 +29,7 @@ fn try_get_ref_err(_data: &i32) -> Result<&i32, i32> {
 #[test]
 fn box_and_ref() {
     let bowl = BowlRef::new(Box::new(12i32), get_ref);
-    assert_eq!(**bowl.get(), 12);
+    assert_eq!(bowl.spawn(|v: &&_| **v), 12);
     drop(bowl);
 }
 
@@ -45,7 +45,7 @@ fn async_new() {
         std::future::ready(data)
     }
     let bowl = smol::block_on(BowlRef::new(Box::new(12i32), get_ready).into_async());
-    assert_eq!(**bowl.get(), 12);
+    assert_eq!(bowl.spawn(|v: &&_| **v), 12);
 }
 
 // --- async_try_new --------------------------------------------------------------
@@ -59,7 +59,7 @@ fn async_try_new() {
     let bowl = smol::block_on(BowlRef::new(Box::new(12i32), get_ready_ok).into_async())
         .into_result()
         .unwrap();
-    assert_eq!(**bowl.get(), 12);
+    assert_eq!(bowl.spawn(|v: &&_| **v), 12);
 }
 
 // --- async_try_new_err ----------------------------------------------------------
@@ -73,7 +73,7 @@ fn async_try_new_err() {
     let err_bowl = smol::block_on(BowlRef::new(Box::new(12i32), get_ready_err).into_async())
         .into_result()
         .unwrap_err();
-    assert_eq!(*err_bowl.get(), 56u64);
+    assert_eq!(err_bowl.spawn(|v: &_| *v), 56u64);
 }
 
 // --- try_new --------------------------------------------------------------------
@@ -87,7 +87,7 @@ fn try_new() {
     let bowl = BowlRef::new(Box::new(12i32), try_get_ref_ok)
         .into_result()
         .unwrap();
-    assert_eq!(**bowl.get(), 12);
+    assert_eq!(bowl.spawn(|v: &&_| **v), 12);
 }
 
 // --- try_new_err ----------------------------------------------------------------
@@ -97,7 +97,7 @@ fn try_new_err() {
     let err_bowl = BowlRef::new(Box::new(12i32), try_get_ref_err)
         .into_result()
         .unwrap_err();
-    assert_eq!(*err_bowl.get(), 56);
+    assert_eq!(err_bowl.spawn(|v: &_| *v), 56);
 }
 
 // --- try_new_recover_heads ------------------------------------------------------
@@ -129,9 +129,11 @@ fn into_heads() {
 #[test]
 fn box_and_mut_ref() {
     let mut bowl = BowlMut::new(Box::new(12i32), get_mut_ref);
-    assert_eq!(**bowl.get(), 12);
-    **bowl.get_mut() = 34;
-    assert_eq!(**bowl.get(), 34);
+    assert_eq!(bowl.spawn(|v: &&mut _| **v), 12);
+    bowl.spawn_mut(|v: &mut &mut _| {
+        **v = 34;
+    });
+    assert_eq!(bowl.spawn(|v: &&mut _| **v), 34);
 }
 
 // --- self_reference_with --------------------------------------------------------
@@ -152,7 +154,7 @@ fn single_lifetime() {
         s
     }
     let bowl = BowlRef::new(&external[..], identity);
-    let _ = bowl.get();
+    bowl.spawn(|_: &&_| ());
     drop(bowl);
 }
 
@@ -183,7 +185,7 @@ fn make_phrase_ref(data: &mut String) -> PhraseRef<'_> {
 #[test]
 fn custom_ref() {
     let mut bowl = BowlBox::new("Hello world!".to_owned(), make_phrase_ref);
-    bowl.get_mut().change_phrase();
+    bowl.spawn_mut(|v: &mut PhraseRef<'_>| v.change_phrase());
     assert_eq!(bowl.into_owner(), "Goodbye world!");
 }
 
