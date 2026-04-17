@@ -411,57 +411,11 @@ where
         Compare<<F as View<&'c T::Target>>::Output, <G as View<&'d T::Target>>::Output>,
 {
     fn eq(&self, other: &BowlRef<'b, T, G>) -> bool {
-        struct SpawnEq1<'a, 'b, T, F, G>(&'a BowlRef<'b, T, G>, PhantomData<F>)
-        where
-            T: Deref,
-            F: ?Sized,
-            G: for<'c> View<&'c T::Target> + ?Sized;
-        impl<T, F, G> View<&<F as View<&T::Target>>::Output> for SpawnEq1<'_, '_, T, F, G>
-        where
-            T: Deref,
-            F: for<'a> View<&'a T::Target> + ?Sized,
-            G: for<'a> View<&'a T::Target> + ?Sized,
-        {
-            type Output = bool;
-        }
-        impl<T, F, G> Derive<&<F as View<&T::Target>>::Output> for SpawnEq1<'_, '_, T, F, G>
-        where
-            T: Deref,
-            F: for<'a> View<&'a T::Target> + ?Sized,
-            G: for<'a> View<&'a T::Target> + ?Sized,
-            for<'a, 'b> CompareViews:
-                Compare<<F as View<&'a T::Target>>::Output, <G as View<&'b T::Target>>::Output>,
-        {
-            fn call(self, f_view: &<F as View<&T::Target>>::Output) -> Self::Output {
-                self.0.spawn(SpawnEq2(f_view, PhantomData, PhantomData))
-            }
-        }
-        struct SpawnEq2<'a, T, S, G>(&'a T, PhantomData<S>, PhantomData<G>)
-        where
-            T: ?Sized,
-            S: ?Sized,
-            G: ?Sized;
-        impl<T, S, G> View<&<G as View<&S>>::Output> for SpawnEq2<'_, T, S, G>
-        where
-            T: ?Sized,
-            S: ?Sized,
-            G: for<'a> View<&'a S> + ?Sized,
-        {
-            type Output = bool;
-        }
-        impl<T, S, G> Derive<&<G as View<&S>>::Output> for SpawnEq2<'_, T, S, G>
-        where
-            T: ?Sized,
-            S: ?Sized,
-            G: for<'c> View<&'c S> + ?Sized,
-            for<'c, 'd> CompareViews: Compare<T, <G as View<&'d S>>::Output>,
-        {
-            fn call(self, g_view: &<G as View<&S>>::Output) -> Self::Output {
-                CompareViews::eq(self.0, g_view)
-            }
-        }
         // SAFETY: Accessing `owner` is safe because `view` does not have exlusive access to `owner`.
-        *self.owner == *other.owner && self.spawn(SpawnEq1(other, PhantomData))
+        *self.owner == *other.owner
+            && self.spawn(|a: &<F as View<&T::Target>>::Output| {
+                other.spawn(|b: &<G as View<&T::Target>>::Output| CompareViews::eq(a, b))
+            })
     }
 }
 
@@ -484,17 +438,7 @@ where
     fn hash<H: Hasher>(&self, state: &mut H) {
         // SAFETY: Same as `PartialEq::eq()`.
         self.owner.hash(state);
-
-        struct SpawnHash<'a, H>(&'a mut H);
-        impl<H, T: ?Sized> View<&T> for SpawnHash<'_, H> {
-            type Output = ();
-        }
-        impl<H: Hasher, T: ?Sized + Hash> Derive<&T> for SpawnHash<'_, H> {
-            fn call(self, t: &T) -> Self::Output {
-                t.hash(self.0);
-            }
-        }
-        self.spawn(SpawnHash(state));
+        self.spawn(|view: &<F as View<&T::Target>>::Output| view.hash(state));
     }
 }
 
@@ -508,17 +452,9 @@ where
         let mut dbg_struct = f.debug_struct("BowlRef");
         // SAFETY: Same as `PartialEq::eq()`.
         dbg_struct.field("owner", &*self.owner);
-
-        struct SpawnDebug<'a, 'b, 'c>(&'a mut core::fmt::DebugStruct<'b, 'c>);
-        impl<T: ?Sized> View<&T> for SpawnDebug<'_, '_, '_> {
-            type Output = ();
-        }
-        impl<T: Debug> Derive<&T> for SpawnDebug<'_, '_, '_> {
-            fn call(self, t: &T) -> Self::Output {
-                self.0.field("view", t);
-            }
-        }
-        self.spawn(SpawnDebug(&mut dbg_struct));
+        self.spawn(|view: &<F as View<&T::Target>>::Output| {
+            dbg_struct.field("view", view);
+        });
         dbg_struct.finish()
     }
 }

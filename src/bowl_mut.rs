@@ -257,19 +257,11 @@ where
     for<'b> <F as View<&'b mut T::Target>>::Output: Debug,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        struct SpawnDebug<'a, 'b>(&'a mut core::fmt::Formatter<'b>);
-        impl<T: ?Sized> View<&T> for SpawnDebug<'_, '_> {
-            type Output = core::fmt::Result;
-        }
-        impl<'a, T: Debug> Derive<&'a T> for SpawnDebug<'_, '_> {
-            fn call(self, input: &'a T) -> Self::Output {
-                self.0
-                    .debug_struct("BowlMut")
-                    .field("view", input)
-                    .finish_non_exhaustive()
-            }
-        }
-        self.spawn(SpawnDebug(f))
+        self.spawn(|view: &<F as View<&mut T::Target>>::Output| {
+            f.debug_struct("BowlMut")
+                .field("view", view)
+                .finish_non_exhaustive()
+        })
     }
 }
 
