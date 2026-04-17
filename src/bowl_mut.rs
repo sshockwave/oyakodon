@@ -227,11 +227,18 @@ where
         }
     }
 
-    pub fn get(&self) -> &<F as View<&mut T::Target>>::Output {
-        self.0.get()
+    pub fn spawn<'b, S>(
+        &'b self,
+        spawn: impl for<'c> Derive<&'b <F as View<&'c mut T::Target>>::Output, Output = S>,
+    ) -> S {
+        self.0.spawn(spawn)
     }
-    pub fn get_mut(&mut self) -> &mut <F as View<&mut T::Target>>::Output {
-        self.0.get_mut()
+
+    pub fn spawn_mut<'b, S>(
+        &'b mut self,
+        spawn: impl for<'c> Derive<&'b mut <F as View<&'c mut T::Target>>::Output, Output = S>,
+    ) -> S {
+        self.0.spawn_mut(spawn)
     }
 }
 
@@ -245,23 +252,6 @@ where
 {
 }
 
-impl<'a, T, F> super::Bowl for BowlMut<'a, T, F>
-where
-    T: Deref,
-    F: for<'b> View<&'b mut T::Target> + ?Sized,
-{
-    type Value<'b>
-        = <F as View<&'b mut T::Target>>::Output
-    where
-        Self: 'b;
-    fn get(&self) -> &Self::Value<'_> {
-        self.0.get()
-    }
-    fn get_mut(&mut self) -> &mut Self::Value<'_> {
-        self.0.get_mut()
-    }
-}
-
 impl<'a, T, F> Debug for BowlMut<'a, T, F>
 where
     T: Deref,
@@ -269,9 +259,19 @@ where
     for<'b> <F as View<&'b mut T::Target>>::Output: Debug,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("BowlMut")
-            .field("view", self.get())
-            .finish_non_exhaustive()
+        struct SpawnDebug<'a, 'b>(&'a mut core::fmt::Formatter<'b>);
+        impl<T: ?Sized> View<&T> for SpawnDebug<'_, '_> {
+            type Output = core::fmt::Result;
+        }
+        impl<'a, T: Debug> Derive<&'a T> for SpawnDebug<'_, '_> {
+            fn call(self, input: &'a T) -> Self::Output {
+                self.0
+                    .debug_struct("BowlMut")
+                    .field("view", input)
+                    .finish_non_exhaustive()
+            }
+        }
+        self.spawn(SpawnDebug(f))
     }
 }
 
