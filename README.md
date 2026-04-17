@@ -21,8 +21,18 @@ fn parse_words(s: &mut String) -> Vec<&str> {
 }
 
 let mut view = BowlBox::new("hello world foo".to_owned(), parse_words);
-view.get_mut()[2] = "bar";
-assert_eq!(*view.get(), vec!["hello", "world", "bar"]);
+
+// Get a reference to the derived value via `spawn` and `spawn_mut`
+view.spawn_mut(|v: &mut Vec<&_>| {
+    v[2] = "bar";
+});
+let new_sentence = view.spawn(|v: &Vec<&str>| {
+    v.iter()
+        .map(|x| (*x).to_owned())
+        .collect::<Vec<_>>()
+        .join(" ")
+});
+assert_eq!(new_sentence, "hello world bar");
 
 assert_eq!(view.into_owner(), "hello world foo");
 ```
@@ -41,7 +51,7 @@ fn parse_and_double(
 let result = smol::block_on(async {
     BowlBox::new("21".to_owned(), parse_and_double)
         .into_result() // Result<BowlBox<...>, BowlBox<...>>
-        .unwrap()      // BowlBox<Ready<i32>>
+        .unwrap()      // BowlBox<impl Future<Output = i32>>
         .into_async()  // impl Future<Output = BowlBox<i32>>
         .await         // BowlBox<i32>
         .into_view()   // i32
@@ -50,7 +60,7 @@ assert_eq!(result, 42);
 ```
 
 Named functions are recommended,
-but closures can be used when the target type is specified.
+but closures can be used to create a [`BowlBox`] when the target type is specified.
 Choose a function from [`from_fn`]/[`from_fn_mut`]/[`from_fn_once`]:
 
 ```rust
@@ -65,7 +75,7 @@ let nth_word = 1;
 let view = BowlBox::<_, Word>::from_fn("hello world foo".to_owned(), &|s| {
     s.split_whitespace().nth(nth_word).unwrap_or("")
 });
-assert_eq!(*view.get(), "world");
+view.spawn(|v: &&_| assert_eq!(*v, "world"));
 ```
 
 <details>
@@ -77,7 +87,8 @@ to return a reference depending on an argument.
 In comparison, named functions are automatically generic over the lifetimes of their inputs.
 
 We use a `dyn` function trick to coerce the closure into a generic one.
-You can also define your own [`Derive`] implementation to avoid this performance cost:
+You can use the [`higher_order_closure`] crate to use the unstable feature today,
+or you can define your own [`Derive`] implementation to avoid this performance cost:
 
 ```rust
 use oyakodon::{BowlBox, Derive, View};
@@ -93,7 +104,7 @@ impl<'a> Derive<&'a mut String> for NthWord {
 }
 
 let view = BowlBox::new("hello world foo".to_owned(), NthWord(1));
-assert_eq!(*view.get(), "world");
+view.spawn(|v: &&_| assert_eq!(*v, "world"));
 ```
 
 </details>
@@ -109,9 +120,9 @@ fn parse_words(s: &String) -> Vec<&str> {
 }
 
 let view = BowlRef::new(Rc::new("hello world foo".to_owned()), parse_words);
-assert_eq!(*view.get(), vec!["hello", "world", "foo"]);
+view.spawn(|v: &Vec<&_>| assert_eq!(v, &["hello", "world", "foo"]));
 
-let _view = view.clone(); // You can clone the bowl because Rc is clonable!
+let _view = view.clone();
 ```
 
 We also created [`BowlMut`] to support other owned containers like [`String`] or [`Vec`].
@@ -136,7 +147,7 @@ impl<'a> View<&'a mut String> for Len {
 
 let a = BowlBox::new("hello".to_owned(), str_len);
 let b: BowlBox<_, Len> = a.cast();
-assert_eq!(*b.get(), 5);
+assert_eq!(b.spawn(|v: &_| *v), 5);
 ```
 
 See [docs.rs](https://docs.rs/oyakodon) for full API documentation.
@@ -191,6 +202,7 @@ dual licensed as above, without any additional terms or conditions.
 [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
 [`Vec`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
 [`MaybeDangling`]: https://docs.rs/maybe-dangling/latest/maybe_dangling/struct.MaybeDangling.html
+[`higher_order_closure`]: https://docs.rs/higher-order-closure/
 [closure_lifetime_binder]: https://rust-lang.github.io/rfcs/3216-closure-lifetime-binder.html
 [`oyakodon`]: https://docs.rs/oyakodon
 [`Bowl`]: https://docs.rs/oyakodon/latest/oyakodon/trait.Bowl.html

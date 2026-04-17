@@ -7,10 +7,18 @@ fn readme_basic() {
     }
 
     let mut view = BowlBox::new("hello world foo".to_owned(), parse_words);
+
+    // Get a reference to the derived value via `spawn` and `spawn_mut`
     view.spawn_mut(|v: &mut Vec<&_>| {
         v[2] = "bar";
     });
-    view.spawn(|v: &Vec<&_>| assert_eq!(v, &["hello", "world", "bar"]));
+    let new_sentence = view.spawn(|v: &Vec<&str>| {
+        v.iter()
+            .map(|x| (*x).to_owned())
+            .collect::<Vec<_>>()
+            .join(" ")
+    });
+    assert_eq!(new_sentence, "hello world bar");
 
     assert_eq!(view.into_owner(), "hello world foo");
 }
