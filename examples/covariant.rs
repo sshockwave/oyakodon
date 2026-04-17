@@ -4,39 +4,40 @@
 use oyakodon::{BowlRef, Derive, View};
 use std::marker::PhantomData;
 
-trait Covariant {
+trait Covariant<'ub> {
     type Value<'a>;
     fn as_ref<'a, 'b, 'c>(value: &'c Self::Value<'a>) -> &'c Self::Value<'b>
     where
         'a: 'b;
 }
 
-struct CovariantView<F>(PhantomData<F>);
-impl<'a, T: ?Sized, F> View<&'a T> for CovariantView<F>
+struct CovariantView<'ub, F>(PhantomData<&'ub ()>, PhantomData<F>);
+impl<'a, 'ub, T: ?Sized, F> View<&'a T> for CovariantView<'ub, F>
 where
-    F: Covariant,
+    F: Covariant<'ub>,
 {
     type Output = F::Value<'a>;
 }
 
-struct SelfRef<T, F>(BowlRef<'static, Box<T>, CovariantView<F>>)
+struct SelfRef<'ub, T, F>(BowlRef<'ub, Box<T>, CovariantView<'ub, F>>)
 where
-    T: ?Sized + 'static,
-    F: Covariant;
+    T: ?Sized,
+    F: Covariant<'ub>;
 
-impl<T: ?Sized, F: Covariant> SelfRef<T, F> {
+impl<'ub, T: ?Sized, F: Covariant<'ub>> SelfRef<'ub, T, F> {
     fn get<'a>(&'a self) -> &'a F::Value<'a>
     where
         F::Value<'a>: 'a,
     {
-        struct Shorten<F, T: ?Sized>(PhantomData<F>, PhantomData<T>);
-        impl<'a, T: ?Sized, F: Covariant> View<&'a F::Value<'_>> for Shorten<F, T>
+        struct Shorten<'ub, F, T: ?Sized>(PhantomData<&'ub ()>, PhantomData<F>, PhantomData<T>);
+        impl<'a, 'ub, T: ?Sized, F: Covariant<'ub>> View<&'a F::Value<'_>> for Shorten<'ub, F, T>
         where
             F::Value<'a>: 'a,
         {
             type Output = &'a F::Value<'a>;
         }
-        impl<'a, 'b, T: ?Sized, F: Covariant> Derive<&'a F::Value<'b>, &'a &'b ()> for Shorten<F, T>
+        impl<'a, 'b, 'ub, T: ?Sized, F: Covariant<'ub>> Derive<&'a F::Value<'b>, &'a &'b ()>
+            for Shorten<'ub, F, T>
         where
             F::Value<'a>: 'a,
         {
@@ -45,12 +46,13 @@ impl<T: ?Sized, F: Covariant> SelfRef<T, F> {
             }
         }
 
-        self.0.spawn(Shorten::<F, T>(PhantomData, PhantomData))
+        self.0
+            .spawn(Shorten::<'ub, F, T>(PhantomData, PhantomData, PhantomData))
     }
 }
 
 struct StrRef;
-impl Covariant for StrRef {
+impl Covariant<'static> for StrRef {
     type Value<'a> = &'a str;
     fn as_ref<'a, 'b, 'c>(value: &'c &'a str) -> &'c &'b str
     where
