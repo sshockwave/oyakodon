@@ -78,7 +78,7 @@ jobs:
         cargo update -p async-io --precise 2.5.0
       env:
         CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-    - run: cargo test --verbose --locked
+    - run: cargo test --verbose --locked --lib --tests
 
   no-default-features:
     runs-on: ubuntu-latest
