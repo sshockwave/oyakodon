@@ -83,10 +83,8 @@ where
         // but it does not change anything here.
         let view =
             derive.call(unsafe { transmute::<&mut T::Target, &'a mut T::Target>(&mut **owner) });
-        Self(BowlRef {
-            owner,
-            view: MaybeDangling::new(view),
-        })
+        // SAFETY: Same as `BowlRef::from_derive()`.
+        Self(unsafe { BowlRef::new_unchecked(owner, MaybeDangling::new(view)) })
     }
 
     /// See [`BowlRef::from_fn`].

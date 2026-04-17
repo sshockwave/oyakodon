@@ -61,8 +61,8 @@ pub struct BowlRef<'a, T: Deref, F: for<'b> View<&'b T::Target> + ?Sized> {
     // the resulting Unique retag would invalidate `view`'s SharedReadWrite tag on the same allocation.
     // Wrapping `owner` in `MaybeDangling` (a union) before calling `derive`
     // means no further Box move occurs after `view` is created.
-    pub(crate) view: MaybeDangling<<F as View<&'a T::Target>>::Output>,
-    pub(crate) owner: MaybeDangling<T>,
+    view: MaybeDangling<<F as View<&'a T::Target>>::Output>,
+    owner: MaybeDangling<T>,
 }
 
 impl<'a, T, F> BowlRef<'a, T, F>
@@ -80,6 +80,13 @@ where
     T: StableDeref,
     F: for<'b> View<&'b T::Target> + ?Sized,
 {
+    pub(crate) unsafe fn new_unchecked(
+        owner: MaybeDangling<T>,
+        view: MaybeDangling<<F as View<&'a T::Target>>::Output>,
+    ) -> Self {
+        Self { owner, view }
+    }
+
     /// The primary constructor. All other constructors delegate here.
     ///
     /// `derive` is called exactly once during construction.
