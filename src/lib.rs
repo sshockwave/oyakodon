@@ -41,7 +41,10 @@ pub trait View<T: ?Sized> {
 /// since closures cannot express a generic return lifetime on stable Rust.
 /// Alternatively, define a custom type and implement [`View`] and [`Derive`] manually
 /// for zero-cost dispatch without the `dyn` indirection.
-pub trait Derive<T>: View<T> {
+///
+/// The `X` type parameter is a hack for adding bounds in HRTB,
+/// e.g. in [`BowlRef::spawn`].
+pub trait Derive<T, X = ()>: View<T> {
     fn call(self, input: T) -> Self::Output;
 }
 
@@ -52,7 +55,7 @@ where
     type Output = R;
 }
 
-impl<T, F, R> Derive<T> for F
+impl<T, F, R, X> Derive<T, X> for F
 where
     F: FnOnce(T) -> R,
 {

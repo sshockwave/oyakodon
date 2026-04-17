@@ -162,14 +162,14 @@ where
 
     pub fn spawn<'b, S>(
         &'b self,
-        spawn: impl for<'c> Derive<&'b <F as View<&'c mut T>>::Output, Output = S>,
+        spawn: impl for<'c> Derive<&'b <F as View<&'c mut T>>::Output, &'b &'c (), Output = S>,
     ) -> S {
         self.0.spawn(spawn)
     }
 
     pub fn spawn_mut<'b, S>(
         &'b mut self,
-        spawn: impl for<'c> Derive<&'b mut <F as View<&'c mut T>>::Output, Output = S>,
+        spawn: impl for<'c> Derive<&'b mut <F as View<&'c mut T>>::Output, &'b &'c (), Output = S>,
     ) -> S {
         self.0.spawn_mut(spawn)
     }
