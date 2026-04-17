@@ -160,11 +160,18 @@ where
         self.0.into_result().map(BowlBox).map_err(BowlBox)
     }
 
-    pub fn get(&self) -> &<F as View<&mut T>>::Output {
-        self.0.get()
+    pub fn spawn<'b, S>(
+        &'b self,
+        spawn: impl for<'c> Derive<&'b <F as View<&'c mut T>>::Output, Output = S>,
+    ) -> S {
+        self.0.spawn(spawn)
     }
-    pub fn get_mut(&mut self) -> &mut <F as View<&mut T>>::Output {
-        self.0.get_mut()
+
+    pub fn spawn_mut<'b, S>(
+        &'b mut self,
+        spawn: impl for<'c> Derive<&'b mut <F as View<&'c mut T>>::Output, Output = S>,
+    ) -> S {
+        self.0.spawn_mut(spawn)
     }
 }
 
@@ -230,23 +237,6 @@ where
     }
 }
 
-impl<'a, T, F> super::Bowl for BowlBox<'a, T, F>
-where
-    T: ?Sized,
-    F: for<'b> View<&'b mut T> + ?Sized,
-{
-    type Value<'b>
-        = <F as View<&'b mut T>>::Output
-    where
-        Self: 'b;
-    fn get(&self) -> &Self::Value<'_> {
-        self.0.get()
-    }
-    fn get_mut(&mut self) -> &mut Self::Value<'_> {
-        self.0.get_mut()
-    }
-}
-
 impl<'a, T, F> Debug for BowlBox<'a, T, F>
 where
     T: ?Sized,
@@ -254,8 +244,18 @@ where
     for<'b> <F as View<&'b mut T>>::Output: Debug,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("BowlBox")
-            .field("view", self.get())
-            .finish_non_exhaustive()
+        struct SpawnDebug<'a, 'b>(&'a mut core::fmt::Formatter<'b>);
+        impl<T: ?Sized> View<&T> for SpawnDebug<'_, '_> {
+            type Output = core::fmt::Result;
+        }
+        impl<'a, T: Debug> Derive<&'a T> for SpawnDebug<'_, '_> {
+            fn call(self, input: &'a T) -> Self::Output {
+                self.0
+                    .debug_struct("BowlBox")
+                    .field("view", input)
+                    .finish_non_exhaustive()
+            }
+        }
+        self.spawn(SpawnDebug(f))
     }
 }

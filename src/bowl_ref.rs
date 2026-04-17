@@ -332,20 +332,22 @@ where
         }
     }
 
-    #[allow(clippy::useless_asref, clippy::explicit_auto_deref)]
-    pub fn get(&self) -> &<F as View<&T::Target>>::Output {
-        // SAFETY: Reading `view` is safe only if
-        // the lifetime passed to `derive()` is shorter than that of `*owner`.
-        // Ideally we would like to use the lifetime of the `self` instance
-        // because that's the actual lifetime of `*owner`,
-        // but we don't know about that yet,
-        // so using `'b` is the best we can do.
-        &*self.as_ref().view
+    pub fn spawn<'b, S>(
+        &'b self,
+        // The implicit bound on this HRTB limits the lifetime of `'c`
+        // to be between `T::Target` and `'b`.
+        spawn: impl for<'c> Derive<&'b <F as View<&'c T::Target>>::Output, Output = S>,
+    ) -> S {
+        // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
+        spawn.call(&*self.view)
     }
-    #[allow(clippy::useless_asref, clippy::explicit_auto_deref)]
-    pub fn get_mut(&mut self) -> &mut <F as View<&T::Target>>::Output {
-        // SAFETY: Same as `get()`, but for mutable references.
-        &mut *self.as_mut().view
+
+    pub fn spawn_mut<'b, S>(
+        &'b mut self,
+        spawn: impl for<'c> Derive<&'b mut <F as View<&'c T::Target>>::Output, Output = S>,
+    ) -> S {
+        // SAFETY: Same as `self.spawn()`.
+        spawn.call(&mut *self.view)
     }
 }
 
@@ -356,32 +358,17 @@ where
     for<'b> <F as View<&'b T::Target>>::Output: Clone,
 {
     fn clone(&self) -> Self {
+        // SAFETY: Same as `PartialEq::eq()`.
         let owner = self.owner.clone();
         // SAFETY: `StableDeref` should guarantee that `*owner` outlives `owner`,
         // so the new `view` will be valid as long as we hold the new `owner`.
-        let view = self.get().clone();
-        BowlRef {
-            owner,
-            view: MaybeDangling::new(view),
-        }
-        .cast_life()
-    }
-}
-
-impl<'a, T, F> super::Bowl for BowlRef<'a, T, F>
-where
-    T: Deref,
-    F: for<'b> View<&'b T::Target> + ?Sized,
-{
-    type Value<'b>
-        = <F as View<&'b T::Target>>::Output
-    where
-        Self: 'b;
-    fn get(&self) -> &Self::Value<'_> {
-        BowlRef::get(self)
-    }
-    fn get_mut(&mut self) -> &mut Self::Value<'_> {
-        BowlRef::get_mut(self)
+        // The HRTB invariant is maintained
+        // because `Clone` is implemented for all `<F as View<&'b T::Target>>::Output`
+        // and does not expose the lifetime.
+        // We are not able to use `self.spawn()` to create the clone here
+        // because the new clone would depend on the local lifetime of `self`.
+        let view = self.view.clone();
+        Self { owner, view }
     }
 }
 
@@ -413,12 +400,61 @@ where
     T: Deref + PartialEq,
     F: for<'c> View<&'c T::Target> + ?Sized,
     G: for<'c> View<&'c T::Target> + ?Sized,
-    for<'c> CompareViews:
-        Compare<<F as View<&'c T::Target>>::Output, <G as View<&'c T::Target>>::Output>,
+    for<'c, 'd> CompareViews:
+        Compare<<F as View<&'c T::Target>>::Output, <G as View<&'d T::Target>>::Output>,
 {
     fn eq(&self, other: &BowlRef<'b, T, G>) -> bool {
+        struct SpawnEq1<'a, 'b, T, F, G>(&'a BowlRef<'b, T, G>, PhantomData<F>)
+        where
+            T: Deref,
+            F: ?Sized,
+            G: for<'c> View<&'c T::Target> + ?Sized;
+        impl<T, F, G> View<&<F as View<&T::Target>>::Output> for SpawnEq1<'_, '_, T, F, G>
+        where
+            T: Deref,
+            F: for<'a> View<&'a T::Target> + ?Sized,
+            G: for<'a> View<&'a T::Target> + ?Sized,
+        {
+            type Output = bool;
+        }
+        impl<T, F, G> Derive<&<F as View<&T::Target>>::Output> for SpawnEq1<'_, '_, T, F, G>
+        where
+            T: Deref,
+            F: for<'a> View<&'a T::Target> + ?Sized,
+            G: for<'a> View<&'a T::Target> + ?Sized,
+            for<'a, 'b> CompareViews:
+                Compare<<F as View<&'a T::Target>>::Output, <G as View<&'b T::Target>>::Output>,
+        {
+            fn call(self, f_view: &<F as View<&T::Target>>::Output) -> Self::Output {
+                self.0.spawn(SpawnEq2(f_view, PhantomData, PhantomData))
+            }
+        }
+        struct SpawnEq2<'a, T, S, G>(&'a T, PhantomData<S>, PhantomData<G>)
+        where
+            T: ?Sized,
+            S: ?Sized,
+            G: ?Sized;
+        impl<T, S, G> View<&<G as View<&S>>::Output> for SpawnEq2<'_, T, S, G>
+        where
+            T: ?Sized,
+            S: ?Sized,
+            G: for<'a> View<&'a S> + ?Sized,
+        {
+            type Output = bool;
+        }
+        impl<T, S, G> Derive<&<G as View<&S>>::Output> for SpawnEq2<'_, T, S, G>
+        where
+            T: ?Sized,
+            S: ?Sized,
+            G: for<'c> View<&'c S> + ?Sized,
+            for<'c, 'd> CompareViews: Compare<T, <G as View<&'d S>>::Output>,
+        {
+            fn call(self, g_view: &<G as View<&S>>::Output) -> Self::Output {
+                CompareViews::eq(self.0, g_view)
+            }
+        }
         // SAFETY: Accessing `owner` is safe because `view` does not have exlusive access to `owner`.
-        *self.owner == *other.owner && CompareViews::eq(self.get(), other.get())
+        *self.owner == *other.owner && self.spawn(SpawnEq1(other, PhantomData))
     }
 }
 
@@ -427,6 +463,8 @@ where
     T: Deref + Eq,
     F: for<'b> View<&'b T::Target> + ?Sized,
     for<'b> <F as View<&'b T::Target>>::Output: Eq,
+    for<'b, 'c> CompareViews:
+        Compare<<F as View<&'b T::Target>>::Output, <F as View<&'c T::Target>>::Output>,
 {
 }
 
@@ -439,7 +477,17 @@ where
     fn hash<H: Hasher>(&self, state: &mut H) {
         // SAFETY: Same as `PartialEq::eq()`.
         self.owner.hash(state);
-        self.get().hash(state);
+
+        struct SpawnHash<'a, H>(&'a mut H);
+        impl<H, T: ?Sized> View<&T> for SpawnHash<'_, H> {
+            type Output = ();
+        }
+        impl<H: Hasher, T: ?Sized + Hash> Derive<&T> for SpawnHash<'_, H> {
+            fn call(self, t: &T) -> Self::Output {
+                t.hash(self.0);
+            }
+        }
+        self.spawn(SpawnHash(state));
     }
 }
 
@@ -450,10 +498,20 @@ where
     for<'b> <F as View<&'b T::Target>>::Output: Debug,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut dbg_struct = f.debug_struct("BowlRef");
         // SAFETY: Same as `PartialEq::eq()`.
-        f.debug_struct("BowlRef")
-            .field("owner", &*self.owner)
-            .field("view", self.get())
-            .finish()
+        dbg_struct.field("owner", &*self.owner);
+
+        struct SpawnDebug<'a, 'b, 'c>(&'a mut core::fmt::DebugStruct<'b, 'c>);
+        impl<T: ?Sized> View<&T> for SpawnDebug<'_, '_, '_> {
+            type Output = ();
+        }
+        impl<T: Debug> Derive<&T> for SpawnDebug<'_, '_, '_> {
+            fn call(self, t: &T) -> Self::Output {
+                self.0.field("view", t);
+            }
+        }
+        self.spawn(SpawnDebug(&mut dbg_struct));
+        dbg_struct.finish()
     }
 }

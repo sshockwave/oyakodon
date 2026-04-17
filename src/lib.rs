@@ -21,16 +21,6 @@ pub use bowl_ref::BowlRef;
 #[cfg(any(not(feature = "stable_deref"), doc))]
 pub use stable_deref::{CloneStableDeref, StableDeref};
 
-/// Unified interface for all bowl types.
-/// [`BowlRef`], [`BowlMut`], and [`BowlBox`] all implement this trait.
-pub trait Bowl {
-    type Value<'a>
-    where
-        Self: 'a;
-    fn get(&self) -> &Self::Value<'_>;
-    fn get_mut(&mut self) -> &mut Self::Value<'_>;
-}
-
 /// Marker trait for indicating the type of view.
 /// Its lifetime is dependent on the owner type,
 /// so it is actually a higher-kinded type
