@@ -176,10 +176,8 @@ where
         // SAFETY: We maintain an HRTB invariant on `derive()`
         // to make sure any `'c` that does not outlive `*owner`
         // corresponds to a valid `F::Output<'c>`.
-        // Since `*owner` is heap-allocated and outlives `self`
-        // any borrow `'b` of `self` satisfies the HRTB.
         // This is not a contradiction to the possible invariance of `F::Output`.
-        // Think of it as if `derive()` was called with the lifetime of the borrow,
+        // Think of it as if `derive()` was called with the lifetime of `self`,
         // and we merely used `'a` as a placeholder.
         // The memory layout is the same because lifetime information is erased in runtime.
         unsafe { transmute(self) }
