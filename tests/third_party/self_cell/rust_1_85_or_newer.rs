@@ -30,7 +30,7 @@ fn async_bowl() {
             .into_async()
             .await
     });
-    assert_eq!(*bowl.get(), "more chars");
+    bowl.spawn(|v: &&_| assert_eq!(*v, "more chars"));
 }
 
 // --- async_self_cell_try_new ----------------------------------------------------
@@ -49,7 +49,7 @@ fn async_bowl_try_new() {
             .into_async()
             .await
     });
-    assert_eq!(*bowl.get(), "more chars");
+    bowl.spawn(|v: &&_| assert_eq!(*v, "more chars"));
 }
 
 // --- async_self_cell_try_new_or_recover -----------------------------------------
@@ -64,7 +64,7 @@ fn async_bowl_try_new_or_recover() {
             .into_async()
             .await
     });
-    assert_eq!(*bowl.get(), "more chars");
+    bowl.spawn(|v: &&_| assert_eq!(*v, "more chars"));
 }
 
 // --- async_self_cell_recover ----------------------------------------------------
@@ -105,7 +105,7 @@ fn async_bowl_with_sleep() {
             .into_async()
             .await
     });
-    assert_eq!(*bowl.get(), "more chars");
+    bowl.spawn(|v: &&_| assert_eq!(*v, "more chars"));
 }
 
 // --- async_self_cell_with_mut_borrow --------------------------------------------
@@ -122,6 +122,8 @@ fn async_bowl_with_mut_borrow() {
             .into_async()
             .await
     });
-    *bowl.get_mut() += 1;
-    assert_eq!(*bowl.get(), OWNER_STR.len() + 1);
+    bowl.spawn_mut(|v: &mut _| {
+        *v += 1;
+    });
+    bowl.spawn(|v: &_| assert_eq!(*v, OWNER_STR.len() + 1));
 }

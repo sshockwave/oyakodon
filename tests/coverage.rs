@@ -51,7 +51,7 @@ fn identity_usize(x: usize) -> usize {
 fn bowl_ref_from_derive() {
     let bowl: BowlRef<'_, Box<String>, fn(&String) -> usize> =
         BowlRef::from_derive(Box::new("hello".to_owned()), to_len);
-    assert_eq!(*bowl.get(), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- from_fn_mut ----------------------------------------------------------------
@@ -59,7 +59,7 @@ fn bowl_ref_from_derive() {
 fn bowl_ref_from_fn_mut() {
     let bowl: BowlRef<'_, Box<String>, fn(&String) -> usize> =
         BowlRef::from_fn_mut(Box::new("hello".to_owned()), &mut |s: &String| s.len());
-    assert_eq!(*bowl.get(), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- from_fn_once ---------------------------------------------------------------
@@ -67,7 +67,7 @@ fn bowl_ref_from_fn_mut() {
 fn bowl_ref_from_fn_once() {
     let bowl: BowlRef<'_, Box<String>, fn(&String) -> usize> =
         BowlRef::from_fn_once(Box::new("hello".to_owned()), Box::new(|s: &String| s.len()));
-    assert_eq!(*bowl.get(), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- map -----------------------------------------------------------------------
@@ -75,7 +75,7 @@ fn bowl_ref_from_fn_once() {
 fn bowl_ref_map() {
     let bowl = BowlRef::new(Box::new("hello".to_owned()), to_str);
     let mapped = bowl.map(len_of_str);
-    assert_eq!(*mapped.get(), 5);
+    assert_eq!(mapped.spawn(|v: &_| *v), 5);
 }
 
 // --- cast -----------------------------------------------------------------------
@@ -85,7 +85,7 @@ fn bowl_ref_cast() {
     let bowl: BowlRef<'_, Box<String>, fn(&String) -> usize> =
         BowlRef::new(Box::new("hello".to_owned()), to_len);
     let casted: BowlRef<'static, Box<String>, fn(&String) -> usize> = bowl.cast();
-    assert_eq!(*casted.get(), 5);
+    assert_eq!(casted.spawn(|v: &_| *v), 5);
 }
 
 // --- into_view -----------------------------------------------------------------
@@ -124,24 +124,16 @@ fn bowl_ref_as_ref_as_mut() {
     let mut bowl: BowlRef<'_, Box<String>, fn(&String) -> usize> =
         BowlRef::new(Box::new("hello".to_owned()), to_len);
     let r: &BowlRef<'static, Box<String>, fn(&String) -> usize> = bowl.as_ref();
-    assert_eq!(*r.get(), 5);
+    assert_eq!(r.spawn(|v: &_| *v), 5);
     let m: &mut BowlRef<'static, Box<String>, fn(&String) -> usize> = bowl.as_mut();
-    assert_eq!(*m.get(), 5);
+    assert_eq!(m.spawn(|v: &_| *v), 5);
 }
 
 // --- Bowl trait ----------------------------------------------------------------
-fn bowl_get_value<B: oyakodon::Bowl>(b: &B) -> &B::Value<'_> {
-    b.get()
-}
-
-fn bowl_get_mut_value<B: oyakodon::Bowl>(b: &mut B) -> &mut B::Value<'_> {
-    b.get_mut()
-}
-
 #[test]
 fn bowl_ref_bowl_trait() {
     let bowl = BowlRef::new(Box::new("hello".to_owned()), to_len);
-    assert_eq!(*bowl_get_value(&bowl), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // ================================================================================
@@ -153,7 +145,7 @@ fn bowl_ref_bowl_trait() {
 fn bowl_mut_from_fn() {
     let bowl: BowlMut<'_, Box<String>, fn(&mut String) -> usize> =
         BowlMut::from_fn(Box::new("hello".to_owned()), &|s: &mut String| s.len());
-    assert_eq!(*bowl.get(), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- from_fn_mut ---------------------------------------------------------------
@@ -161,7 +153,7 @@ fn bowl_mut_from_fn() {
 fn bowl_mut_from_fn_mut() {
     let bowl: BowlMut<'_, Box<String>, fn(&mut String) -> usize> =
         BowlMut::from_fn_mut(Box::new("hello".to_owned()), &mut |s: &mut String| s.len());
-    assert_eq!(*bowl.get(), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- from_fn_once --------------------------------------------------------------
@@ -171,7 +163,7 @@ fn bowl_mut_from_fn_once() {
         Box::new("hello".to_owned()),
         Box::new(|s: &mut String| s.len()),
     );
-    assert_eq!(*bowl.get(), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- map -----------------------------------------------------------------------
@@ -179,7 +171,7 @@ fn bowl_mut_from_fn_once() {
 fn bowl_mut_map() {
     let bowl = BowlMut::new(Box::new(21i32), deref_i32);
     let mapped = bowl.map(double_i32);
-    assert_eq!(*mapped.get(), 42);
+    assert_eq!(mapped.spawn(|v: &_| *v), 42);
 }
 
 // --- cast_life -----------------------------------------------------------------
@@ -188,7 +180,7 @@ fn bowl_mut_cast_life() {
     let bowl: BowlMut<'_, Box<String>, fn(&mut String) -> usize> =
         BowlMut::new(Box::new("hello".to_owned()), str_len_mut);
     let casted: BowlMut<'static, Box<String>, fn(&mut String) -> usize> = bowl.cast_life();
-    assert_eq!(*casted.get(), 5);
+    assert_eq!(casted.spawn(|v: &_| *v), 5);
 }
 
 // --- cast_view -----------------------------------------------------------------
@@ -199,7 +191,7 @@ fn bowl_mut_cast_view() {
     let bowl = BowlMut::new(Box::new("hello".to_owned()), str_len_mut);
     let mapped = bowl.map(identity_usize);
     let casted: BowlMut<'_, Box<String>, fn(&mut String) -> usize> = mapped.cast_view();
-    assert_eq!(*casted.get(), 5);
+    assert_eq!(casted.spawn(|v: &_| *v), 5);
     drop(casted); // suppress unused-variable warning
 }
 
@@ -228,7 +220,7 @@ fn bowl_mut_into_async() {
         std::future::ready(*x)
     }
     let bowl = smol::block_on(BowlMut::new(Box::new(42i32), get_ready).into_async());
-    assert_eq!(*bowl.get(), 42);
+    assert_eq!(bowl.spawn(|v: &_| *v), 42);
 }
 
 // --- into_result ---------------------------------------------------------------
@@ -240,12 +232,12 @@ fn bowl_mut_into_result() {
     let ok = BowlMut::new(Box::new("42".to_owned()), try_parse)
         .into_result()
         .unwrap();
-    assert_eq!(*ok.get(), 42);
+    assert_eq!(ok.spawn(|v: &_| *v), 42);
 
     let err = BowlMut::new(Box::new("bad".to_owned()), try_parse)
         .into_result()
         .unwrap_err();
-    assert_eq!(*err.get(), ());
+    assert_eq!(err.spawn(|v: &_| *v), ());
 }
 
 // --- Debug ---------------------------------------------------------------------
@@ -272,7 +264,7 @@ fn bowl_mut_from_bowl_ref() {
     let ref_bowl: BowlRef<'_, Box<String>, fn(&String) -> usize> =
         BowlRef::new(Box::new("hello".to_owned()), to_len);
     let mut_bowl: BowlMut<'_, Box<String>, fn(&mut String) -> usize> = BowlMut::from(ref_bowl);
-    assert_eq!(*mut_bowl.get(), 5);
+    assert_eq!(mut_bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- AsRef / AsMut -------------------------------------------------------------
@@ -281,18 +273,20 @@ fn bowl_mut_as_ref_as_mut() {
     let mut bowl: BowlMut<'_, Box<String>, fn(&mut String) -> usize> =
         BowlMut::new(Box::new("hello".to_owned()), str_len_mut);
     let r: &BowlMut<'static, Box<String>, fn(&mut String) -> usize> = bowl.as_ref();
-    assert_eq!(*r.get(), 5);
+    assert_eq!(r.spawn(|v: &_| *v), 5);
     let m: &mut BowlMut<'static, Box<String>, fn(&mut String) -> usize> = bowl.as_mut();
-    assert_eq!(*m.get(), 5);
+    assert_eq!(m.spawn(|v: &_| *v), 5);
 }
 
 // --- Bowl trait ----------------------------------------------------------------
 #[test]
 fn bowl_mut_bowl_trait() {
     let mut bowl = BowlMut::new(Box::new("hello".to_owned()), str_len_mut);
-    assert_eq!(*bowl_get_value(&bowl), 5);
-    *bowl_get_mut_value(&mut bowl) = 99;
-    assert_eq!(*bowl.get(), 99);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
+    bowl.spawn_mut(|v: &mut _| {
+        *v = 99;
+    });
+    assert_eq!(bowl.spawn(|v: &_| *v), 99);
 }
 
 // ================================================================================
@@ -305,7 +299,7 @@ fn bowl_mut_bowl_trait() {
 fn bowl_box_from_derive() {
     let bowl: BowlBox<'_, String, fn(&mut String) -> usize> =
         BowlBox::from_derive("hello".to_owned(), str_len_mut);
-    assert_eq!(*bowl.get(), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- from_fn -------------------------------------------------------------------
@@ -313,7 +307,7 @@ fn bowl_box_from_derive() {
 fn bowl_box_from_fn() {
     let bowl: BowlBox<'_, String, fn(&mut String) -> usize> =
         BowlBox::from_fn("hello".to_owned(), &|s: &mut String| s.len());
-    assert_eq!(*bowl.get(), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- from_fn_mut ---------------------------------------------------------------
@@ -321,7 +315,7 @@ fn bowl_box_from_fn() {
 fn bowl_box_from_fn_mut() {
     let bowl: BowlBox<'_, String, fn(&mut String) -> usize> =
         BowlBox::from_fn_mut("hello".to_owned(), &mut |s: &mut String| s.len());
-    assert_eq!(*bowl.get(), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- from_fn_once --------------------------------------------------------------
@@ -329,7 +323,7 @@ fn bowl_box_from_fn_mut() {
 fn bowl_box_from_fn_once() {
     let bowl: BowlBox<'_, String, fn(&mut String) -> usize> =
         BowlBox::from_fn_once("hello".to_owned(), Box::new(|s: &mut String| s.len()));
-    assert_eq!(*bowl.get(), 5);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
 }
 
 // --- map -----------------------------------------------------------------------
@@ -337,7 +331,7 @@ fn bowl_box_from_fn_once() {
 fn bowl_box_map() {
     let bowl = BowlBox::new(21i32, deref_i32);
     let mapped = bowl.map(double_i32);
-    assert_eq!(*mapped.get(), 42);
+    assert_eq!(mapped.spawn(|v: &_| *v), 42);
 }
 
 // --- cast_life -----------------------------------------------------------------
@@ -346,7 +340,7 @@ fn bowl_box_cast_life() {
     let bowl: BowlBox<'_, String, fn(&mut String) -> usize> =
         BowlBox::new("hello".to_owned(), str_len_mut);
     let casted: BowlBox<'static, String, fn(&mut String) -> usize> = bowl.cast_life();
-    assert_eq!(*casted.get(), 5);
+    assert_eq!(casted.spawn(|v: &_| *v), 5);
 }
 
 // --- cast_view -----------------------------------------------------------------
@@ -355,7 +349,7 @@ fn bowl_box_cast_view() {
     let bowl = BowlBox::new("hello".to_owned(), str_len_mut);
     let mapped = bowl.map(identity_usize);
     let casted: BowlBox<'_, String, fn(&mut String) -> usize> = mapped.cast_view();
-    assert_eq!(*casted.get(), 5);
+    assert_eq!(casted.spawn(|v: &_| *v), 5);
     drop(casted);
 }
 
@@ -385,7 +379,7 @@ fn bowl_box_into_async() {
         std::future::ready(*x)
     }
     let bowl = smol::block_on(BowlBox::new(42i32, get_ready).into_async());
-    assert_eq!(*bowl.get(), 42);
+    assert_eq!(bowl.spawn(|v: &_| *v), 42);
 }
 
 // --- into_result ---------------------------------------------------------------
@@ -397,12 +391,12 @@ fn bowl_box_into_result() {
     let ok = BowlBox::new("42".to_owned(), try_parse)
         .into_result()
         .unwrap();
-    assert_eq!(*ok.get(), 42);
+    assert_eq!(ok.spawn(|v: &_| *v), 42);
 
     let err = BowlBox::new("bad".to_owned(), try_parse)
         .into_result()
         .unwrap_err();
-    assert_eq!(*err.get(), ());
+    assert_eq!(err.spawn(|v: &_| *v), ());
 }
 
 // --- Debug ---------------------------------------------------------------------
@@ -420,9 +414,9 @@ fn bowl_box_from_into_bowl_mut() {
     let box_bowl: BowlBox<'_, String, fn(&mut String) -> usize> =
         BowlBox::new("hello".to_owned(), str_len_mut);
     let mut_bowl: BowlMut<'_, Box<String>, fn(&mut String) -> usize> = BowlMut::from(box_bowl);
-    assert_eq!(*mut_bowl.get(), 5);
+    assert_eq!(mut_bowl.spawn(|v: &_| *v), 5);
     let box_bowl2: BowlBox<'_, String, fn(&mut String) -> usize> = BowlBox::from(mut_bowl);
-    assert_eq!(*box_bowl2.get(), 5);
+    assert_eq!(box_bowl2.spawn(|v: &_| *v), 5);
 }
 
 // --- AsRef / AsMut (self and underlying BowlMut) -------------------------------
@@ -433,26 +427,28 @@ fn bowl_box_as_ref_as_mut() {
 
     // AsRef<BowlBox<'b, T, F>>
     let r: &BowlBox<'static, String, fn(&mut String) -> usize> = bowl.as_ref();
-    assert_eq!(*r.get(), 5);
+    assert_eq!(r.spawn(|v: &_| *v), 5);
 
     // AsRef<BowlMut<'b, Box<T>, F>>
     let rm: &BowlMut<'static, Box<String>, fn(&mut String) -> usize> = bowl.as_ref();
-    assert_eq!(*rm.get(), 5);
+    assert_eq!(rm.spawn(|v: &_| *v), 5);
 
     // AsMut<BowlBox<'b, T, F>>
     let m: &mut BowlBox<'static, String, fn(&mut String) -> usize> = bowl.as_mut();
-    assert_eq!(*m.get(), 5);
+    assert_eq!(m.spawn(|v: &_| *v), 5);
 
     // AsMut<BowlMut<'b, Box<T>, F>>
     let mm: &mut BowlMut<'static, Box<String>, fn(&mut String) -> usize> = bowl.as_mut();
-    assert_eq!(*mm.get(), 5);
+    assert_eq!(mm.spawn(|v: &_| *v), 5);
 }
 
 // --- Bowl trait ----------------------------------------------------------------
 #[test]
 fn bowl_box_bowl_trait() {
     let mut bowl = BowlBox::new("hello".to_owned(), str_len_mut);
-    assert_eq!(*bowl_get_value(&bowl), 5);
-    *bowl_get_mut_value(&mut bowl) = 99;
-    assert_eq!(*bowl.get(), 99);
+    assert_eq!(bowl.spawn(|v: &_| *v), 5);
+    bowl.spawn_mut(|v: &mut _| {
+        *v = 99;
+    });
+    assert_eq!(bowl.spawn(|v: &_| *v), 99);
 }

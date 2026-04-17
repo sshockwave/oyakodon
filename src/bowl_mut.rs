@@ -49,8 +49,8 @@ where
 /// }
 ///
 /// let mut bowl = BowlMut::new(Box::new("hello world".to_owned()), parse_words);
-/// bowl.get_mut()[0] = "hi";
-/// assert_eq!(*bowl.get(), vec!["hi", "world"]);
+/// bowl.spawn_mut(|v: &mut Vec<&_>| { v[0] = "hi"; });
+/// bowl.spawn(|v: &Vec<&_>| assert_eq!(v, &["hi", "world"]));
 /// ```
 pub struct BowlMut<'a, T: Deref, F: ?Sized>(BowlRef<'a, T, MutToRef<F>>)
 where

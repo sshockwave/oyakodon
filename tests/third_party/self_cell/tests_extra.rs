@@ -72,8 +72,8 @@ fn share_across_threads() {
     );
 
     std::thread::scope(|scope| {
-        scope.spawn(|| assert_eq!(*bowl.get(), "hy hyperspeed"));
-        scope.spawn(|| assert_eq!(*bowl.get(), "hy hyperspeed"));
-        assert_eq!(*bowl.get(), "hy hyperspeed");
+        scope.spawn(|| bowl.spawn(|v: &&_| assert_eq!(*v, "hy hyperspeed")));
+        scope.spawn(|| bowl.spawn(|v: &&_| assert_eq!(*v, "hy hyperspeed")));
+        bowl.spawn(|v: &&_| assert_eq!(*v, "hy hyperspeed"));
     });
 }

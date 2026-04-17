@@ -19,8 +19,8 @@ use ::{
 /// }
 ///
 /// let mut bowl = BowlBox::new("hello world foo".to_owned(), parse_words);
-/// bowl.get_mut()[2] = "bar";
-/// assert_eq!(*bowl.get(), vec!["hello", "world", "bar"]);
+/// bowl.spawn_mut(|v: &mut Vec<&_>| { v[2] = "bar"; });
+/// bowl.spawn(|v: &Vec<&_>| assert_eq!(v, &["hello", "world", "bar"]));
 ///
 /// assert_eq!(bowl.into_owner(), "hello world foo");
 /// ```

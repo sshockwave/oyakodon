@@ -7,8 +7,10 @@ fn readme_basic() {
     }
 
     let mut view = BowlBox::new("hello world foo".to_owned(), parse_words);
-    view.get_mut()[2] = "bar";
-    assert_eq!(*view.get(), vec!["hello", "world", "bar"]);
+    view.spawn_mut(|v: &mut Vec<&_>| {
+        v[2] = "bar";
+    });
+    view.spawn(|v: &Vec<&_>| assert_eq!(v, &["hello", "world", "bar"]));
 
     assert_eq!(view.into_owner(), "hello world foo");
 }
@@ -48,7 +50,7 @@ fn readme_closure() {
     let view = BowlBox::<_, Word>::from_fn("hello world foo".to_owned(), &|s| {
         s.split_whitespace().nth(nth_word).unwrap_or("")
     });
-    assert_eq!(*view.get(), "world");
+    view.spawn(|v: &&_| assert_eq!(*v, "world"));
 }
 
 #[test]
@@ -66,7 +68,7 @@ fn readme_derive() {
     }
 
     let view = BowlBox::new("hello world foo".to_owned(), NthWord(1));
-    assert_eq!(*view.get(), "world");
+    view.spawn(|v: &&_| assert_eq!(*v, "world"));
 }
 
 #[test]
@@ -79,7 +81,7 @@ fn readme_shared() {
     }
 
     let view = BowlRef::new(Rc::new("hello world foo".to_owned()), parse_words);
-    assert_eq!(*view.get(), vec!["hello", "world", "foo"]);
+    view.spawn(|v: &Vec<&_>| assert_eq!(v, &["hello", "world", "foo"]));
 
     let _view = view.clone();
 }
@@ -100,5 +102,5 @@ fn readme_cast() {
 
     let a = BowlBox::new("hello".to_owned(), str_len);
     let b: BowlBox<_, Len> = a.cast();
-    assert_eq!(*b.get(), 5);
+    assert_eq!(b.spawn(|v: &_| *v), 5);
 }

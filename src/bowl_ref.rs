@@ -34,10 +34,10 @@ use ::{
 /// }
 ///
 /// let bowl = BowlRef::new(Rc::new("hello world".to_owned()), first_word);
-/// assert_eq!(*bowl.get(), "hello");
+/// bowl.spawn(|v: &&_| assert_eq!(*v, "hello"));
 ///
 /// let bowl2 = bowl.clone(); // works because Rc is cloneable
-/// assert_eq!(*bowl.get(), *bowl2.get());
+/// bowl.spawn(|v: &&_| bowl2.spawn(|v2: &&_| assert_eq!(*v, *v2)));
 /// ```
 pub struct BowlRef<'a, T: Deref, F: for<'b> View<&'b T::Target> + ?Sized> {
     // `owner` will be dropped after `view`.
@@ -309,7 +309,7 @@ where
     /// let ok = BowlRef::new(Rc::new("42".to_owned()), try_parse)
     ///     .into_result()
     ///     .unwrap();
-    /// assert_eq!(*ok.get(), 42);
+    /// assert_eq!(ok.spawn(|v: &i32| *v), 42);
     ///
     /// let err = BowlRef::new(Rc::new("abc".to_owned()), try_parse)
     ///     .into_result()
