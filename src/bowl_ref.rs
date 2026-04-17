@@ -341,15 +341,18 @@ where
         &'b self,
         // The implicit bound on this HRTB limits the lifetime of `'c`
         // to be between `T::Target` and `'b`.
-        spawn: impl for<'c> Derive<&'b <F as View<&'c T::Target>>::Output, Output = S>,
+        spawn: impl for<'c> Derive<&'b <F as View<&'c T::Target>>::Output, &'b &'c (), Output = S>,
     ) -> S {
         // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
+        // We don't know `'self`, but we know it outlives `'b`.
+        // So the `spawn()` function only needs to handle the possible lifetimes
+        // that are longer than `'b` and shorter than `T::Target`.
         spawn.call(&*self.view)
     }
 
     pub fn spawn_mut<'b, S>(
         &'b mut self,
-        spawn: impl for<'c> Derive<&'b mut <F as View<&'c T::Target>>::Output, Output = S>,
+        spawn: impl for<'c> Derive<&'b mut <F as View<&'c T::Target>>::Output, &'b &'c (), Output = S>,
     ) -> S {
         // SAFETY: Same as `self.spawn()`.
         spawn.call(&mut *self.view)
