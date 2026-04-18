@@ -39,7 +39,7 @@ use ::{
 /// let bowl2 = bowl.clone(); // works because Rc is cloneable
 /// bowl.spawn(|v: &&_| bowl2.spawn(|v2: &&_| assert_eq!(*v, *v2)));
 /// ```
-pub struct BowlRef<'a, T: Deref, F: for<'b> View<&'b T::Target> + ?Sized> {
+pub struct BowlRef<'a, T: Deref, F: View<&'a T::Target> + ?Sized> {
     // `owner` will be dropped after `view`.
     // Rust guarantees that fields are dropped in the order of declaration.
     // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
