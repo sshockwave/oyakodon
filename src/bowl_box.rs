@@ -28,7 +28,7 @@ use ::{
 pub struct BowlBox<'a, T, F>(BowlMut<'a, Box<T>, F>)
 where
     T: ?Sized,
-    F: for<'b> View<&'b mut T> + ?Sized;
+    F: View<&'a mut T> + ?Sized;
 
 impl<'a, T, F> BowlBox<'a, T, F>
 where

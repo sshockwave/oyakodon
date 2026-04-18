@@ -26,7 +26,7 @@ struct MutToRef<F: ?Sized>(F);
 impl<'a, T, F> View<&'a T> for MutToRef<F>
 where
     T: ?Sized,
-    F: ?Sized + for<'b> View<&'b mut T>,
+    F: ?Sized + View<&'a mut T>,
 {
     type Output = <F as View<&'a mut T>>::Output;
 }
@@ -54,7 +54,7 @@ where
 /// ```
 pub struct BowlMut<'a, T: Deref, F: ?Sized>(BowlRef<'a, T, MutToRef<F>>)
 where
-    F: for<'b> View<&'b mut T::Target>;
+    F: View<&'a mut T::Target>;
 
 impl<'a, T, F> BowlMut<'a, T, F>
 where
