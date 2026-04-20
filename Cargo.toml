@@ -10,6 +10,7 @@ categories = [
   "data-structures",
 ]
 repository = "https://github.com/sshockwave/oyakodon"
+documentation = "https://docs.rs/oyakodon"
 edition = "2021"
 # Rust version required by sparse registry support
 rust-version = "1.68"

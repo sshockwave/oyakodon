@@ -19,7 +19,7 @@ use ::{
 /// and `F` is the view marker type that describes the derivation function.
 /// The `'a` parameter is a placeholder lifetime that is deduced automatically.
 /// If you need to specify it explicitly,
-/// perfer choosing the longest possible lifetime satisfying `T: 'a`
+/// perfer choosing the longest possible lifetime satisfying `T::Target: 'a`
 /// to minimize the number of distinct types.
 /// For owned heap containers, this is usually `'static`.
 ///
