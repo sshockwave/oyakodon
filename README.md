@@ -11,7 +11,7 @@ This crate provides simple primitives to eliminate the need for macros or unsafe
 
 The name comes from the Japanese dish where chicken (the parent) and egg (the child) are served together.
 
-## Usage
+## Getting Started
 
 ```rust
 use oyakodon::BowlBox;
@@ -61,7 +61,7 @@ assert_eq!(result, 42);
 
 Named functions are recommended,
 but closures can be used to create a [`BowlBox`] when the target type is specified.
-Choose a function from [`from_fn`]/[`from_fn_mut`]/[`from_fn_once`]:
+Choose a function from [`from_fn()`]/[`from_fn_mut()`]/[`from_fn_once()`]:
 
 ```rust
 use oyakodon::{BowlBox, View};
@@ -150,21 +150,7 @@ let b: BowlBox<_, Len> = a.cast();
 assert_eq!(b.spawn(|v: &_| *v), 5);
 ```
 
-See [docs.rs](https://docs.rs/oyakodon) for full API documentation.
-
-## Safety Overivew
-
-We use HRBT to make the constructor of the view prove that every lifetime is valid for the derived view.
-Hence it's safe to alter its lifetime to the latest known lifetime of `'self`.
-We employ the standard [Miri] tool to run tests for better memory checks.
-`unsafe` is avoided wherever possible to minimize the review surface.
-
-The issue related to LLVM `noalias` found in other solutions are mitigated using [`MaybeDangling`].
-[`BowlMut`] does not actually need that because we do not allow access to the pointer that marked `noalias`,
-but we still need that to remove the `dereferenceable` attribute and Miri `Unique` tagging errors.
-
-About AI: The tests are vibed while not the rest.
-AI-generated code are explicitly marked with `Co-Authored-By` in commit messages.
+See [docs.rs](https://docs.rs/oyakodon) for an in-depth overview and full API documentation.
 
 ## Alternatives
 
@@ -196,12 +182,10 @@ Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
 
-[Miri]: https://github.com/rust-lang/miri/
 [`no_std`]: https://doc.rust-lang.org/reference/names/preludes.html#the-no_std-attribute
 [`Option`]: https://doc.rust-lang.org/std/option/enum.Option.html
 [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
 [`Vec`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
-[`MaybeDangling`]: https://docs.rs/maybe-dangling/latest/maybe_dangling/struct.MaybeDangling.html
 [`higher_order_closure`]: https://docs.rs/higher-order-closure/
 [closure_lifetime_binder]: https://rust-lang.github.io/rfcs/3216-closure-lifetime-binder.html
 [`oyakodon`]: https://docs.rs/oyakodon
@@ -209,7 +193,9 @@ dual licensed as above, without any additional terms or conditions.
 [`BowlRef`]: https://docs.rs/oyakodon/latest/oyakodon/struct.BowlRef.html
 [`BowlMut`]: https://docs.rs/oyakodon/latest/oyakodon/struct.BowlMut.html
 [`BowlBox`]: https://docs.rs/oyakodon/latest/oyakodon/struct.BowlBox.html
+[`Derive`]: https://docs.rs/oyakodon/latest/oyakodon/trait.Derive.html
+[`StableDeref`]: https://docs.rs/oyakodon/latest/oyakodon/trait.StableDeref.html
 [`cast()`]: https://docs.rs/oyakodon/latest/oyakodon/struct.BowlRef.html#method.cast
 [`from_fn()`]: https://docs.rs/oyakodon/latest/oyakodon/struct.BowlRef.html#method.from_fn
-[`from_fn_ref()`]: https://docs.rs/oyakodon/latest/oyakodon/struct.BowlRef.html#method.from_fn_ref
 [`from_fn_mut()`]: https://docs.rs/oyakodon/latest/oyakodon/struct.BowlRef.html#method.from_fn_mut
+[`from_fn_once()`]: https://docs.rs/oyakodon/latest/oyakodon/struct.BowlRef.html#method.from_fn_once
