@@ -18,11 +18,11 @@
 //!     (s, parsed)
 //! }
 //! ```
-//! We get a [E0515] error saying a reference to a local variable was returned.
 //! String `s` is moved out of the function, too,
 //! so the reference in `parsed` is still valid,
-//! but Rust's borrow checker cannot verify that.
-//! Each reference must have a determined lifetime,
+//! but Rust's borrow checker cannot verify that
+//! and will report a [E0515] error.
+//! This is because each reference must have a determined lifetime,
 //! and the lifetime it assigns to `parsed` is only valid before `s` is moved.
 //!
 //! [`Cow`]: std::borrow::Cow
