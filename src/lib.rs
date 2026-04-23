@@ -76,6 +76,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+mod bowl;
 #[cfg(feature = "alloc")]
 mod bowl_box;
 mod bowl_mut;
