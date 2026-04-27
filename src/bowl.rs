@@ -40,16 +40,14 @@ impl<T> IsType<T> for T {
     }
 }
 
-pub struct Bowl<'ub, P, V, F: ?Sized>
+pub struct Bowl<'ub, P, F: ?Sized>
 where
     P: AliasableDeref,
     P::Target: 'ub,
-    F: for<'x> View<'x, 'ub>,
+    F: View<'ub, 'ub>,
 {
-    view: MaybeDangling<V>,
-    // Covariant over `'ub` is safe because it maintains the HRTB invariant.
+    view: MaybeDangling<F::Output>,
     owner: Token4<'ub, 'ub, P, &'ub &'ub ()>,
-    phantom: PhantomData<F>,
 }
 
 pub struct RefView<'ub, T: ?Sized>(PhantomData<&'ub T>);
@@ -62,7 +60,7 @@ impl<'a, 'ub, T: ?Sized> View<'a, 'ub> for MutView<'ub, T> {
     type Output = &'a mut T;
 }
 
-impl<'ub, P> Bowl<'ub, P, &'ub P::Target, RefView<'ub, P::Target>>
+impl<'ub, P> Bowl<'ub, P, RefView<'ub, P::Target>>
 where
     P: AliasableDeref,
 {
@@ -72,12 +70,11 @@ where
         Self {
             view: MaybeDangling::new(view),
             owner: Token4(owner, PhantomData),
-            phantom: PhantomData,
         }
     }
 }
 
-impl<'ub, P> Bowl<'ub, P, &'ub mut P::Target, MutView<'ub, P::Target>>
+impl<'ub, P> Bowl<'ub, P, MutView<'ub, P::Target>>
 where
     P: AliasableDerefMut,
 {
@@ -87,7 +84,6 @@ where
         Self {
             view: MaybeDangling::new(view),
             owner: Token4(owner, PhantomData),
-            phantom: PhantomData,
         }
     }
 }
@@ -118,17 +114,13 @@ impl<'brand, 'ub, P> Token3<'brand, 'ub, P>
 where
     P: AliasableDeref,
 {
-    pub fn consume<F>(
-        self,
-        view: Token2<'brand, 'ub, F>,
-    ) -> Bowl<'ub, P, <F as View<'ub, 'ub>>::Output, F>
+    pub fn consume<F>(self, view: Token2<'brand, 'ub, F>) -> Bowl<'ub, P, F>
     where
         F: for<'x> View<'x, 'ub>,
     {
         Bowl {
             view: MaybeDangling::new(view.0),
             owner: Token4(self.0, PhantomData),
-            phantom: PhantomData,
         }
     }
 }
@@ -169,10 +161,7 @@ impl<'life, 'ub, P, X> Token4<'life, 'ub, P, X>
 where
     P: AliasableDeref,
 {
-    pub fn consume<F>(
-        self,
-        view: <F as View<'life, 'ub>>::Output,
-    ) -> Bowl<'ub, P, <F as View<'ub, 'ub>>::Output, F>
+    pub fn consume<F>(self, view: <F as View<'life, 'ub>>::Output) -> Bowl<'ub, P, F>
     where
         F: for<'x> View<'x, 'ub>,
     {
@@ -182,7 +171,6 @@ where
         Bowl {
             view: MaybeDangling::new(view),
             owner: Token4(self.0, PhantomData),
-            phantom: PhantomData,
         }
     }
 }
@@ -193,12 +181,11 @@ type DeriveOut<G, T, S> = <G as Derive2<T, S>>::Output;
 type WithRet<'a, 'life, 'ub, P, F, G> =
     DeriveOut<G, &'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>;
 
-impl<'ub, P, V, F> Bowl<'ub, P, V, F>
+impl<'ub, P, F> Bowl<'ub, P, F>
 where
     P: AliasableDeref,
     P::Target: 'ub,
     F: for<'x> View<'x, 'ub>,
-    V: AsRef<<F as View<'ub, 'ub>>::Output>,
 {
     pub fn with<'a, G>(
         &'a self,
@@ -208,26 +195,25 @@ where
         G: for<'life> Derive2<&'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>,
         for<'life> WithRet<'a, 'life, 'ub, P, F, G>: IsType<WithRet<'a, 'ub, 'ub, P, F, G>>,
     {
-        g.derive(self.view.as_ref(), &self.owner)
+        g.derive(&*self.view, &self.owner)
     }
 }
 
 type WithMutRet<'a, 'life, 'ub, P, F, G> =
     DeriveOut<G, &'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>;
 
-impl<'ub, P, V, F> Bowl<'ub, P, V, F>
+impl<'ub, P, F> Bowl<'ub, P, F>
 where
     P: AliasableDeref,
     P::Target: 'ub,
     F: for<'x> View<'x, 'ub>,
-    V: AsMut<<F as View<'ub, 'ub>>::Output>,
 {
     pub fn with_mut<'a, G>(&'a mut self, g: G) -> WithMutRet<'a, 'ub, 'ub, P, F, G>
     where
         G: for<'life> Derive2<&'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>,
         for<'life> WithMutRet<'a, 'life, 'ub, P, F, G>: IsType<WithMutRet<'a, 'ub, 'ub, P, F, G>>,
     {
-        g.derive(self.view.as_mut(), &self.owner)
+        g.derive(&mut *self.view, &self.owner)
     }
 }
 
@@ -236,12 +222,11 @@ type MapGRet<'life, 'ub, 'brand, G, F> =
 type MapHRet<'ub, 'brand, P, F, G, H> =
     DeriveOut<H, MapGRet<'ub, 'ub, 'brand, G, F>, Token3<'brand, 'ub, P>>;
 
-impl<'ub, P, V, F> Bowl<'ub, P, V, F>
+impl<'ub, P, F> Bowl<'ub, P, F>
 where
     P: AliasableDeref,
     P::Target: 'ub,
     F: for<'x> View<'x, 'ub>,
-    V: IsType<<F as View<'ub, 'ub>>::Output>,
 {
     pub fn map<G, H>(self, g: G, h: H) -> MapHRet<'ub, 'static, P, F, G, H>
     where
@@ -252,10 +237,7 @@ where
         for<'brand> MapHRet<'ub, 'brand, P, F, G, H>: IsType<MapHRet<'ub, 'static, P, F, G, H>>,
     {
         h.derive(
-            g.derive(
-                MaybeDangling::into_inner(self.view).get(),
-                Token1(PhantomData),
-            ),
+            g.derive(MaybeDangling::into_inner(self.view), Token1(PhantomData)),
             Token3(self.owner.0, PhantomData),
         )
     }
