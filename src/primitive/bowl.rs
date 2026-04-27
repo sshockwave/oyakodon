@@ -5,18 +5,20 @@ use ::core::{
 };
 use maybe_dangling::MaybeDangling;
 
-pub trait View<'x, 'ub, __ImplyBound = &'x &'ub ()> {
+pub trait View<'x> {
+    type ImplyBound<X>;
     type Output;
 }
 
-impl<'x, 'ub, F: ?Sized, R> View<'x, 'ub> for F
+impl<'x, F: ?Sized, R> View<'x> for F
 where
     F: FnOnce(&'x ()) -> R,
 {
+    type ImplyBound<X> = ();
     type Output = R;
 }
 
-pub struct Bowl<'ub, P, F: View<'ub, 'ub> + ?Sized> {
+pub struct Bowl<'ub, P, F: View<'ub> + ?Sized> {
     view: MaybeDangling<F::Output>,
     owner: Handle<'ub, 'ub, P, &'ub &'ub ()>,
 }
@@ -44,21 +46,19 @@ where
 pub struct Stamp<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ())>);
 
 impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
-    pub fn stamp<F>(&self, view: <F as View<'life, 'ub>>::Output) -> Derived<'brand, 'ub, F>
+    pub fn stamp<F>(&self, view: <F as View<'life>>::Output) -> Derived<'brand, 'ub, F>
     where
-        F: ?Sized + for<'x> View<'x, 'ub>,
+        F: ?Sized + for<'x> View<'x, ImplyBound<&'x &'ub ()> = ()>,
     {
         let view = unsafe {
-            ::core::mem::transmute::<<F as View<'life, 'ub>>::Output, <F as View<'ub, 'ub>>::Output>(
-                view,
-            )
+            ::core::mem::transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view)
         };
         Derived(view, PhantomData)
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct Derived<'brand, 'ub, F: View<'ub, 'ub> + ?Sized>(
+pub struct Derived<'brand, 'ub, F: View<'ub> + ?Sized>(
     F::Output,
     PhantomData<(&'brand (), &'ub (), F)>,
 );
@@ -68,7 +68,7 @@ pub struct Slot<'brand, 'ub, P>(P, PhantomData<(&'brand (), &'ub ())>);
 impl<'brand, 'ub, P> Slot<'brand, 'ub, P> {
     pub fn fill<F>(self, view: Derived<'brand, 'ub, F>) -> Bowl<'ub, P, F>
     where
-        F: ?Sized + for<'x> View<'x, 'ub>,
+        F: ?Sized + for<'x> View<'x, ImplyBound<&'x &'ub ()> = ()>,
     {
         Bowl {
             view: MaybeDangling::new(view.0),
@@ -106,9 +106,9 @@ impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
         self.0
     }
 
-    pub fn fill<F>(self, view: <F as View<'life, 'ub>>::Output) -> Bowl<'ub, P, F>
+    pub fn fill<F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
     where
-        F: ?Sized + for<'x> View<'x, 'ub>,
+        F: ?Sized + for<'x> View<'x, ImplyBound<&'x &'ub ()> = ()>,
     {
         Slot(self.0, PhantomData).fill(Stamp(PhantomData).stamp(view))
     }
@@ -116,12 +116,12 @@ impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
 
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
-    F: ?Sized + for<'x> View<'x, 'ub>,
+    F: ?Sized + for<'x> View<'x, ImplyBound<&'x &'ub ()> = ()>,
 {
     pub fn with<'a, R>(
         &'a self,
         f: impl for<'life> FnOnce(
-            &'a <F as View<'life, 'ub>>::Output,
+            &'a <F as View<'life>>::Output,
             &'a Handle<'life, 'ub, P, &'a &'life ()>,
         ) -> R,
     ) -> R {
@@ -131,13 +131,18 @@ where
     pub fn with_mut<'a, R>(
         &'a mut self,
         f: impl for<'life> FnOnce(
-            &'a mut <F as View<'life, 'ub>>::Output,
+            &'a mut <F as View<'life>>::Output,
             &'a Handle<'life, 'ub, P, &'a &'life ()>,
         ) -> R,
     ) -> R {
         f(&mut *self.view, &self.owner)
     }
+}
 
+impl<'ub, P, F> Bowl<'ub, P, F>
+where
+    F: ?Sized + View<'ub>,
+{
     pub fn map<R>(self, f: impl for<'brand> FnOnce(Session<'brand, 'ub, P, F>) -> R) -> R {
         f(Session(self, PhantomData))
     }
@@ -145,15 +150,15 @@ where
 
 pub struct Session<'brand, 'ub, P, F>(Bowl<'ub, P, F>, PhantomData<&'brand ()>)
 where
-    F: View<'ub, 'ub> + ?Sized;
+    F: View<'ub> + ?Sized;
 
 impl<'brand, 'ub, P, F> Session<'brand, 'ub, P, F>
 where
-    F: ?Sized + for<'x> View<'x, 'ub>,
+    F: ?Sized + for<'x> View<'x, ImplyBound<&'x &'ub ()> = ()>,
 {
     pub fn open<R>(
         self,
-        f: impl for<'life> FnOnce(<F as View<'life, 'ub>>::Output, Stamp<'brand, 'life, 'ub>) -> R,
+        f: impl for<'life> FnOnce(<F as View<'life>>::Output, Stamp<'brand, 'life, 'ub>) -> R,
     ) -> (R, Slot<'brand, 'ub, P>) {
         (
             f(MaybeDangling::into_inner(self.0.view), Stamp(PhantomData)),
