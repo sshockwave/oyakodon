@@ -76,13 +76,14 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-mod bowl;
 #[cfg(feature = "alloc")]
 mod bowl_box;
 mod bowl_mut;
 mod bowl_ref;
-#[cfg(any(not(feature = "stable_deref"), doc))]
-mod stable_deref;
+mod primitive {
+    mod bowl;
+    pub mod stable_deref;
+}
 
 use ::core::{future::Future, marker::PhantomData, option::Option, result::Result};
 #[cfg(all(feature = "stable_deref", not(doc)))]
@@ -92,7 +93,7 @@ pub use bowl_box::BowlBox;
 pub use bowl_mut::BowlMut;
 pub use bowl_ref::BowlRef;
 #[cfg(any(not(feature = "stable_deref"), doc))]
-pub use stable_deref::{CloneStableDeref, StableDeref};
+pub use primitive::stable_deref::{CloneStableDeref, StableDeref};
 
 /// Marker trait for representing the type of view.
 /// Its lifetime is dependent on the owner type,
