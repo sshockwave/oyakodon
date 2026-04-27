@@ -1,7 +1,6 @@
 use super::{Aliasable, CloneStableDeref};
 use ::core::{
     marker::PhantomData,
-    mem::transmute,
     ops::{Deref, DerefMut},
 };
 use maybe_dangling::MaybeDangling;
@@ -25,30 +24,20 @@ pub struct Bowl<'ub, P, F: View<'ub, 'ub> + ?Sized> {
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> Fn(&'x ()) -> &'x P::Target>
 where
     P: Aliasable + Deref,
-    P::Target: 'ub,
 {
     pub fn new(owner: P) -> Self {
-        let view = owner.deref();
-        let view = unsafe { transmute::<&P::Target, &P::Target>(view) };
-        Self {
-            view: MaybeDangling::new(view),
-            owner: Handle(owner, PhantomData),
-        }
+        let derived = Stamp(PhantomData).stamp(owner.deref());
+        Slot(owner, PhantomData).fill(derived)
     }
 }
 
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> Fn(&'x ()) -> &'x mut P::Target>
 where
     P: Aliasable + DerefMut,
-    P::Target: 'ub,
 {
     pub fn new_mut(mut owner: P) -> Self {
-        let view = owner.deref_mut();
-        let view = unsafe { transmute::<&mut P::Target, &mut P::Target>(view) };
-        Self {
-            view: MaybeDangling::new(view),
-            owner: Handle(owner, PhantomData),
-        }
+        let derived = Stamp(PhantomData).stamp(owner.deref_mut());
+        Slot(owner, PhantomData).fill(derived)
     }
 }
 
@@ -60,7 +49,9 @@ impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
         F: ?Sized + for<'x> View<'x, 'ub>,
     {
         let view = unsafe {
-            transmute::<<F as View<'life, 'ub>>::Output, <F as View<'ub, 'ub>>::Output>(view)
+            ::core::mem::transmute::<<F as View<'life, 'ub>>::Output, <F as View<'ub, 'ub>>::Output>(
+                view,
+            )
         };
         Derived(view, PhantomData)
     }
