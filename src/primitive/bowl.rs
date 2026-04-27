@@ -1,6 +1,10 @@
-use super::aliasable::{AliasableDeref, AliasableDerefMut};
+use super::aliasable::Aliasable;
 use crate::CloneStableDeref;
-use core::{marker::PhantomData, mem::transmute};
+use ::core::{
+    marker::PhantomData,
+    mem::transmute,
+    ops::{Deref, DerefMut},
+};
 use maybe_dangling::MaybeDangling;
 
 pub trait View<'x, 'ub, __ImplyBound = &'x &'ub ()> {
@@ -48,7 +52,7 @@ impl<'a, 'ub, T: ?Sized> View<'a, 'ub> for MutView<'ub, T> {
 
 impl<'ub, P> Bowl<'ub, P, RefView<'ub, P::Target>>
 where
-    P: AliasableDeref,
+    P: Aliasable + Deref,
 {
     pub fn new(owner: P) -> Self {
         let view = owner.deref();
@@ -62,7 +66,7 @@ where
 
 impl<'ub, P> Bowl<'ub, P, MutView<'ub, P::Target>>
 where
-    P: AliasableDerefMut,
+    P: Aliasable + DerefMut,
 {
     pub fn new_mut(mut owner: P) -> Self {
         let view = owner.deref_mut();
