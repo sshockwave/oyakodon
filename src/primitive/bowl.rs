@@ -138,16 +138,16 @@ where
         f(&mut *self.view, &self.owner)
     }
 
-    pub fn map<R>(self, f: impl for<'brand> FnOnce(Session<'ub, 'brand, P, F>) -> R) -> R {
+    pub fn map<R>(self, f: impl for<'brand> FnOnce(Session<'brand, 'ub, P, F>) -> R) -> R {
         f(Session(self, PhantomData))
     }
 }
 
-pub struct Session<'ub, 'brand, P, F>(Bowl<'ub, P, F>, PhantomData<&'brand ()>)
+pub struct Session<'brand, 'ub, P, F>(Bowl<'ub, P, F>, PhantomData<&'brand ()>)
 where
     F: View<'ub, 'ub> + ?Sized;
 
-impl<'brand, 'ub, P, F> Session<'ub, 'brand, P, F>
+impl<'brand, 'ub, P, F> Session<'brand, 'ub, P, F>
 where
     F: ?Sized + for<'x> View<'x, 'ub>,
 {
