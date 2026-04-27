@@ -1,16 +1,7 @@
+use super::aliasable::{AliasableDeref, AliasableDerefMut};
+use crate::CloneStableDeref;
 use core::{marker::PhantomData, mem::transmute};
 use maybe_dangling::MaybeDangling;
-
-use crate::CloneStableDeref;
-
-pub unsafe trait AliasableDeref {
-    type Target: ?Sized;
-    fn deref(&self) -> &Self::Target;
-}
-
-pub unsafe trait AliasableDerefMut: AliasableDeref {
-    fn deref_mut(&mut self) -> &mut Self::Target;
-}
 
 pub trait View<'x, 'ub, __ImplyBound = &'x &'ub ()> {
     type Output;
