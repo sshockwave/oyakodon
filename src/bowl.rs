@@ -213,7 +213,7 @@ where
         G: for<'life> Derive2<&'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>,
         for<'life> WithRet<'a, 'life, 'ub, P, F, G>: IsType<WithRet<'a, 'ub, 'ub, P, F, G>>,
     {
-        g.derive(self.view.as_ref(), &self.owner).get()
+        g.derive(self.view.as_ref(), &self.owner)
     }
 
     pub fn with_mut<'a, G>(&'a mut self, g: G) -> WithMutRet<'a, 'ub, 'ub, P, F, G>
@@ -221,7 +221,7 @@ where
         G: for<'life> Derive2<&'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>,
         for<'life> WithMutRet<'a, 'life, 'ub, P, F, G>: IsType<WithMutRet<'a, 'ub, 'ub, P, F, G>>,
     {
-        g.derive(self.view.as_mut(), &self.owner).get()
+        g.derive(self.view.as_mut(), &self.owner)
     }
 
     pub fn map<G, H>(
@@ -254,10 +254,8 @@ where
             g.derive(
                 MaybeDangling::into_inner(self.view).get(),
                 Token1(PhantomData),
-            )
-            .get(),
+            ),
             Token3(self.owner.0, PhantomData),
         )
-        .get()
     }
 }
