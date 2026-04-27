@@ -151,11 +151,6 @@ impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
 type Token4Ref<'a, 'life, 'ub, P> = &'a Handle<'life, 'ub, P, &'a &'life ()>;
 type ViewOut<'life, 'ub, F> = <F as View<'life, 'ub>>::Output;
 type DeriveOut<G, T, S> = <G as Derive2<T, S>>::Output;
-type WithRet<'a, 'life, 'ub, P, F, G> =
-    DeriveOut<G, &'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>;
-
-type WithMutRet<'a, 'life, 'ub, P, F, G> =
-    DeriveOut<G, &'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>;
 
 type MapGRet<'life, 'ub, 'brand, G, F> =
     DeriveOut<G, ViewOut<'life, 'ub, F>, Stamp<'brand, 'life, 'ub>>;
@@ -166,23 +161,18 @@ impl<'ub, P, F> Bowl<'ub, P, F>
 where
     F: ?Sized + for<'x> View<'x, 'ub>,
 {
-    pub fn with<'a, G>(
+    pub fn with<'a, R>(
         &'a self,
-        g: G,
-    ) -> DeriveOut<G, &'a <F as View<'ub, 'ub>>::Output, Token4Ref<'a, 'ub, 'ub, P>>
-    where
-        G: for<'life> Derive2<&'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>,
-        for<'life> WithRet<'a, 'life, 'ub, P, F, G>: IsType<WithRet<'a, 'ub, 'ub, P, F, G>>,
-    {
-        g.derive(&*self.view, &self.owner)
+        g: impl for<'life> FnOnce(&'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>) -> R,
+    ) -> R {
+        g(&*self.view, &self.owner)
     }
 
-    pub fn with_mut<'a, G>(&'a mut self, g: G) -> WithMutRet<'a, 'ub, 'ub, P, F, G>
-    where
-        G: for<'life> Derive2<&'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>,
-        for<'life> WithMutRet<'a, 'life, 'ub, P, F, G>: IsType<WithMutRet<'a, 'ub, 'ub, P, F, G>>,
-    {
-        g.derive(&mut *self.view, &self.owner)
+    pub fn with_mut<'a, R>(
+        &'a mut self,
+        g: impl for<'life> FnOnce(&'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>) -> R,
+    ) -> R {
+        g(&mut *self.view, &self.owner)
     }
 
     pub fn map<G, H>(self, g: G, h: H) -> MapHRet<'ub, 'static, P, F, G, H>
