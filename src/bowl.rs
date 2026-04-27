@@ -45,7 +45,6 @@ where
     P: AliasableDeref,
     P::Target: 'ub,
     F: for<'x> View<'x, 'ub>,
-    V: IsType<<F as View<'ub, 'ub>>::Output>,
 {
     view: MaybeDangling<V>,
     // Covariant over `'ub` is safe because it maintains the HRTB invariant.
@@ -192,18 +191,14 @@ type Token4Ref<'a, 'life, 'ub, P> = &'a Token4<'life, 'ub, P, &'a &'life ()>;
 type ViewOut<'life, 'ub, F> = <F as View<'life, 'ub>>::Output;
 type DeriveOut<G, T, S> = <G as Derive2<T, S>>::Output;
 type WithRet<'a, 'life, 'ub, P, F, G> =
-    <G as Derive2<&'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>>::Output;
-type WithMutRet<'a, 'life, 'ub, P, F, G> =
-    <G as Derive2<&'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>>::Output;
+    DeriveOut<G, &'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>;
 
 impl<'ub, P, V, F> Bowl<'ub, P, V, F>
 where
     P: AliasableDeref,
     P::Target: 'ub,
     F: for<'x> View<'x, 'ub>,
-    V: IsType<<F as View<'ub, 'ub>>::Output>,
     V: AsRef<<F as View<'ub, 'ub>>::Output>,
-    V: AsMut<<F as View<'ub, 'ub>>::Output>,
 {
     pub fn with<'a, G>(
         &'a self,
@@ -215,7 +210,18 @@ where
     {
         g.derive(self.view.as_ref(), &self.owner)
     }
+}
 
+type WithMutRet<'a, 'life, 'ub, P, F, G> =
+    DeriveOut<G, &'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>;
+
+impl<'ub, P, V, F> Bowl<'ub, P, V, F>
+where
+    P: AliasableDeref,
+    P::Target: 'ub,
+    F: for<'x> View<'x, 'ub>,
+    V: AsMut<<F as View<'ub, 'ub>>::Output>,
+{
     pub fn with_mut<'a, G>(&'a mut self, g: G) -> WithMutRet<'a, 'ub, 'ub, P, F, G>
     where
         G: for<'life> Derive2<&'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>,
@@ -223,32 +229,27 @@ where
     {
         g.derive(self.view.as_mut(), &self.owner)
     }
+}
 
-    pub fn map<G, H>(
-        self,
-        g: G,
-        h: H,
-    ) -> <H as Derive2<
-        <G as Derive2<<F as View<'ub, 'ub>>::Output, Token1<'static, 'ub, 'ub>>>::Output,
-        Token3<'static, 'ub, P>,
-    >>::Output
+type MapGRet<'life, 'ub, 'brand, G, F> =
+    DeriveOut<G, ViewOut<'life, 'ub, F>, Token1<'brand, 'life, 'ub>>;
+type MapHRet<'ub, 'brand, P, F, G, H> =
+    DeriveOut<H, MapGRet<'ub, 'ub, 'brand, G, F>, Token3<'brand, 'ub, P>>;
+
+impl<'ub, P, V, F> Bowl<'ub, P, V, F>
+where
+    P: AliasableDeref,
+    P::Target: 'ub,
+    F: for<'x> View<'x, 'ub>,
+    V: IsType<<F as View<'ub, 'ub>>::Output>,
+{
+    pub fn map<G, H>(self, g: G, h: H) -> MapHRet<'ub, 'static, P, F, G, H>
     where
-        G: for<'life, 'brand> Derive2<<F as View<'life, 'ub>>::Output, Token1<'brand, 'life, 'ub>>,
-        for<'life, 'brand> <G as Derive2<<F as View<'life, 'ub>>::Output, Token1<'brand, 'life, 'ub>>>::Output:
-            IsType<<G as Derive2<<F as View<'ub, 'ub>>::Output, Token1<'brand, 'ub, 'ub>>>::Output>,
-        H: for<'brand> Derive2<
-            <G as Derive2<<F as View<'ub, 'ub>>::Output, Token1<'brand, 'ub, 'ub>>>::Output,
-            Token3<'brand, 'ub, P>,
-        >,
-        for<'brand> <H as Derive2<
-            <G as Derive2<<F as View<'ub, 'ub>>::Output, Token1<'brand, 'ub, 'ub>>>::Output,
-            Token3<'brand, 'ub, P>,
-        >>::Output: IsType<
-            <H as Derive2<
-                <G as Derive2<<F as View<'ub, 'ub>>::Output, Token1<'static, 'ub, 'ub>>>::Output,
-                Token3<'static, 'ub, P>,
-            >>::Output,
-        >,
+        G: for<'life, 'brand> Derive2<ViewOut<'life, 'ub, F>, Token1<'brand, 'life, 'ub>>,
+        for<'life, 'brand> MapGRet<'life, 'ub, 'brand, G, F>:
+            IsType<MapGRet<'ub, 'ub, 'brand, G, F>>,
+        H: for<'brand> Derive2<MapGRet<'ub, 'ub, 'brand, G, F>, Token3<'brand, 'ub, P>>,
+        for<'brand> MapHRet<'ub, 'brand, P, F, G, H>: IsType<MapHRet<'ub, 'static, P, F, G, H>>,
     {
         h.derive(
             g.derive(
