@@ -49,7 +49,7 @@ where
 {
     view: MaybeDangling<V>,
     // Covariant over `'ub` is safe because it maintains the HRTB invariant.
-    owner: Token4<'ub, 'ub, P>,
+    owner: Token4<'ub, 'ub, P, &'ub &'ub ()>,
     phantom: PhantomData<F>,
 }
 
@@ -149,15 +149,15 @@ where
     }
 }
 
-pub struct Token4<'life, 'ub, P>(P, PhantomData<(&'life (), &'ub ())>);
+pub struct Token4<'life, 'ub, P, X>(P, PhantomData<(&'life (), &'ub (), X)>);
 
-impl<'life, 'ub, P> Token4<'life, 'ub, P> {
+impl<'life, 'ub, P, X> Token4<'life, 'ub, P, X> {
     pub fn into_inner(self) -> P {
         self.0
     }
 }
 
-impl<'life, 'ub, P> Clone for Token4<'life, 'ub, P>
+impl<'life, 'ub, P, X> Clone for Token4<'life, 'ub, P, X>
 where
     P: CloneStableDeref,
 {
@@ -166,7 +166,7 @@ where
     }
 }
 
-impl<'life, 'ub, P> Token4<'life, 'ub, P>
+impl<'life, 'ub, P, X> Token4<'life, 'ub, P, X>
 where
     P: AliasableDeref,
 {
@@ -188,6 +188,14 @@ where
     }
 }
 
+type Token4Ref<'a, 'life, 'ub, P> = &'a Token4<'life, 'ub, P, &'a &'life ()>;
+type ViewOut<'life, 'ub, F> = <F as View<'life, 'ub>>::Output;
+type DeriveOut<G, T, S> = <G as Derive2<T, S>>::Output;
+type WithRet<'a, 'life, 'ub, P, F, G> =
+    <G as Derive2<&'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>>::Output;
+type WithMutRet<'a, 'life, 'ub, P, F, G> =
+    <G as Derive2<&'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>>::Output;
+
 impl<'ub, P, V, F> Bowl<'ub, P, V, F>
 where
     P: AliasableDeref,
@@ -200,30 +208,18 @@ where
     pub fn with<'a, G>(
         &'a self,
         g: G,
-    ) -> <G as Derive2<&'a <F as View<'ub, 'ub>>::Output, &'a Token4<'ub, 'ub, P>>>::Output
+    ) -> DeriveOut<G, &'a <F as View<'ub, 'ub>>::Output, Token4Ref<'a, 'ub, 'ub, P>>
     where
-        G: for<'life> Derive2<&'a <F as View<'life, 'ub>>::Output, &'a Token4<'life, 'ub, P>>,
-        for<'life> <G as Derive2<&'a <F as View<'life, 'ub>>::Output, &'a Token4<'life, 'ub, P>>>::Output:
-            IsType<
-                <G as Derive2<&'a <F as View<'ub, 'ub>>::Output, &'a Token4<'ub, 'ub, P>>>::Output,
-            >,
+        G: for<'life> Derive2<&'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>,
+        for<'life> WithRet<'a, 'life, 'ub, P, F, G>: IsType<WithRet<'a, 'ub, 'ub, P, F, G>>,
     {
         g.derive(self.view.as_ref(), &self.owner).get()
     }
 
-    pub fn with_mut<'a, G>(
-        &'a mut self,
-        g: G,
-    ) -> <G as Derive2<&'a mut <F as View<'ub, 'ub>>::Output, &'a Token4<'ub, 'ub, P>>>::Output
+    pub fn with_mut<'a, G>(&'a mut self, g: G) -> WithMutRet<'a, 'ub, 'ub, P, F, G>
     where
-        G: for<'life> Derive2<
-            &'a mut <F as View<'life, 'ub>>::Output,
-            &'a Token4<'life, 'ub, P>,
-        >,
-        for<'life> <G as Derive2<&'a mut <F as View<'life, 'ub>>::Output, &'a Token4<'life, 'ub, P>>>::Output:
-            IsType<
-                <G as Derive2<&'a mut <F as View<'ub, 'ub>>::Output, &'a Token4<'ub, 'ub, P>>>::Output,
-            >,
+        G: for<'life> Derive2<&'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>,
+        for<'life> WithMutRet<'a, 'life, 'ub, P, F, G>: IsType<WithMutRet<'a, 'ub, 'ub, P, F, G>>,
     {
         g.derive(self.view.as_mut(), &self.owner).get()
     }
