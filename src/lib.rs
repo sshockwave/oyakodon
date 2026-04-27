@@ -86,7 +86,7 @@ pub mod primitive {
     pub mod stable_deref;
 
     pub use aliasable::{Aliasable, DanglingDeref};
-    pub use bowl::{Bowl, BrandedBowl, Derive2, Derived, Handle, Slot, Stamp, View};
+    pub use bowl::{Bowl, Derived, Handle, Session, Slot, Stamp, View};
 
     #[cfg(all(feature = "stable_deref", not(doc)))]
     pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
