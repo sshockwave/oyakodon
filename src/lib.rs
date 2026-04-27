@@ -81,6 +81,7 @@ mod bowl_box;
 mod bowl_mut;
 mod bowl_ref;
 mod primitive {
+    mod aliasable;
     mod bowl;
     pub mod stable_deref;
 }
