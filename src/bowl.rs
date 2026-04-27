@@ -94,10 +94,7 @@ where
 pub struct Token1<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ())>);
 
 impl<'brand, 'life, 'ub> Token1<'brand, 'life, 'ub> {
-    pub fn make<F>(
-        &self,
-        view: <F as View<'life, 'ub>>::Output,
-    ) -> Token2<'brand, 'ub, F, <F as View<'ub, 'ub>>::Output>
+    pub fn make<F>(&self, view: <F as View<'life, 'ub>>::Output) -> Token2<'brand, 'ub, F>
     where
         F: ?Sized + for<'x> View<'x, 'ub>,
     {
@@ -109,7 +106,10 @@ impl<'brand, 'life, 'ub> Token1<'brand, 'life, 'ub> {
 }
 
 #[derive(Clone, Copy)]
-pub struct Token2<'brand, 'ub, F: ?Sized, V>(V, PhantomData<(&'brand (), &'ub (), F)>);
+pub struct Token2<'brand, 'ub, F: View<'ub, 'ub> + ?Sized>(
+    F::Output,
+    PhantomData<(&'brand (), &'ub (), F)>,
+);
 
 pub struct Token3<'brand, 'ub, P>(P, PhantomData<(&'brand (), &'ub ())>);
 
@@ -119,7 +119,7 @@ where
 {
     pub fn consume<F>(
         self,
-        view: Token2<'brand, 'ub, F, <F as View<'ub, 'ub>>::Output>,
+        view: Token2<'brand, 'ub, F>,
     ) -> Bowl<'ub, P, <F as View<'ub, 'ub>>::Output, F>
     where
         F: for<'x> View<'x, 'ub>,
