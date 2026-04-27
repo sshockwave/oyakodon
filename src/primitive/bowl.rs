@@ -114,23 +114,26 @@ impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
     }
 }
 
-type HandleRef<'a, 'life, 'ub, P> = &'a Handle<'life, 'ub, P, &'a &'life ()>;
-type ViewOut<'life, 'ub, F> = <F as View<'life, 'ub>>::Output;
-
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
     F: ?Sized + for<'x> View<'x, 'ub>,
 {
     pub fn with<'a, R>(
         &'a self,
-        f: impl for<'life> FnOnce(&'a ViewOut<'life, 'ub, F>, HandleRef<'a, 'life, 'ub, P>) -> R,
+        f: impl for<'life> FnOnce(
+            &'a <F as View<'life, 'ub>>::Output,
+            &'a Handle<'life, 'ub, P, &'a &'life ()>,
+        ) -> R,
     ) -> R {
         f(&*self.view, &self.owner)
     }
 
     pub fn with_mut<'a, R>(
         &'a mut self,
-        f: impl for<'life> FnOnce(&'a mut ViewOut<'life, 'ub, F>, HandleRef<'a, 'life, 'ub, P>) -> R,
+        f: impl for<'life> FnOnce(
+            &'a mut <F as View<'life, 'ub>>::Output,
+            &'a Handle<'life, 'ub, P, &'a &'life ()>,
+        ) -> R,
     ) -> R {
         f(&mut *self.view, &self.owner)
     }
@@ -150,7 +153,7 @@ where
 {
     pub fn open<R>(
         self,
-        f: impl for<'life> FnOnce(ViewOut<'life, 'ub, F>, Stamp<'brand, 'life, 'ub>) -> R,
+        f: impl for<'life> FnOnce(<F as View<'life, 'ub>>::Output, Stamp<'brand, 'life, 'ub>) -> R,
     ) -> (R, Slot<'brand, 'ub, P>) {
         (
             f(MaybeDangling::into_inner(self.0.view), Stamp(PhantomData)),
