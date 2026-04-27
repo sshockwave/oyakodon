@@ -40,12 +40,7 @@ impl<T> IsType<T> for T {
     }
 }
 
-pub struct Bowl<'ub, P, F: ?Sized>
-where
-    P: AliasableDeref,
-    P::Target: 'ub,
-    F: View<'ub, 'ub>,
-{
+pub struct Bowl<'ub, P, F: View<'ub, 'ub> + ?Sized> {
     view: MaybeDangling<F::Output>,
     owner: Token4<'ub, 'ub, P, &'ub &'ub ()>,
 }
@@ -110,22 +105,17 @@ pub struct Token2<'brand, 'ub, F: View<'ub, 'ub> + ?Sized>(
 
 pub struct Token3<'brand, 'ub, P>(P, PhantomData<(&'brand (), &'ub ())>);
 
-impl<'brand, 'ub, P> Token3<'brand, 'ub, P>
-where
-    P: AliasableDeref,
-{
+impl<'brand, 'ub, P> Token3<'brand, 'ub, P> {
     pub fn consume<F>(self, view: Token2<'brand, 'ub, F>) -> Bowl<'ub, P, F>
     where
-        F: for<'x> View<'x, 'ub>,
+        F: ?Sized + for<'x> View<'x, 'ub>,
     {
         Bowl {
             view: MaybeDangling::new(view.0),
             owner: Token4(self.0, PhantomData),
         }
     }
-}
 
-impl<'brand, 'ub, P> Token3<'brand, 'ub, P> {
     pub fn into_inner(self) -> P {
         self.0
     }
@@ -142,12 +132,6 @@ where
 
 pub struct Token4<'life, 'ub, P, X>(P, PhantomData<(&'life (), &'ub (), X)>);
 
-impl<'life, 'ub, P, X> Token4<'life, 'ub, P, X> {
-    pub fn into_inner(self) -> P {
-        self.0
-    }
-}
-
 impl<'life, 'ub, P, X> Clone for Token4<'life, 'ub, P, X>
 where
     P: CloneStableDeref,
@@ -157,13 +141,14 @@ where
     }
 }
 
-impl<'life, 'ub, P, X> Token4<'life, 'ub, P, X>
-where
-    P: AliasableDeref,
-{
+impl<'life, 'ub, P, X> Token4<'life, 'ub, P, X> {
+    pub fn into_inner(self) -> P {
+        self.0
+    }
+
     pub fn consume<F>(self, view: <F as View<'life, 'ub>>::Output) -> Bowl<'ub, P, F>
     where
-        F: for<'x> View<'x, 'ub>,
+        F: ?Sized + for<'x> View<'x, 'ub>,
     {
         let view = unsafe {
             transmute::<<F as View<'life, 'ub>>::Output, <F as View<'ub, 'ub>>::Output>(view)
@@ -181,11 +166,17 @@ type DeriveOut<G, T, S> = <G as Derive2<T, S>>::Output;
 type WithRet<'a, 'life, 'ub, P, F, G> =
     DeriveOut<G, &'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>;
 
+type WithMutRet<'a, 'life, 'ub, P, F, G> =
+    DeriveOut<G, &'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>;
+
+type MapGRet<'life, 'ub, 'brand, G, F> =
+    DeriveOut<G, ViewOut<'life, 'ub, F>, Token1<'brand, 'life, 'ub>>;
+type MapHRet<'ub, 'brand, P, F, G, H> =
+    DeriveOut<H, MapGRet<'ub, 'ub, 'brand, G, F>, Token3<'brand, 'ub, P>>;
+
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
-    P: AliasableDeref,
-    P::Target: 'ub,
-    F: for<'x> View<'x, 'ub>,
+    F: ?Sized + for<'x> View<'x, 'ub>,
 {
     pub fn with<'a, G>(
         &'a self,
@@ -197,17 +188,7 @@ where
     {
         g.derive(&*self.view, &self.owner)
     }
-}
 
-type WithMutRet<'a, 'life, 'ub, P, F, G> =
-    DeriveOut<G, &'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>;
-
-impl<'ub, P, F> Bowl<'ub, P, F>
-where
-    P: AliasableDeref,
-    P::Target: 'ub,
-    F: for<'x> View<'x, 'ub>,
-{
     pub fn with_mut<'a, G>(&'a mut self, g: G) -> WithMutRet<'a, 'ub, 'ub, P, F, G>
     where
         G: for<'life> Derive2<&'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>>,
@@ -215,19 +196,7 @@ where
     {
         g.derive(&mut *self.view, &self.owner)
     }
-}
 
-type MapGRet<'life, 'ub, 'brand, G, F> =
-    DeriveOut<G, ViewOut<'life, 'ub, F>, Token1<'brand, 'life, 'ub>>;
-type MapHRet<'ub, 'brand, P, F, G, H> =
-    DeriveOut<H, MapGRet<'ub, 'ub, 'brand, G, F>, Token3<'brand, 'ub, P>>;
-
-impl<'ub, P, F> Bowl<'ub, P, F>
-where
-    P: AliasableDeref,
-    P::Target: 'ub,
-    F: for<'x> View<'x, 'ub>,
-{
     pub fn map<G, H>(self, g: G, h: H) -> MapHRet<'ub, 'static, P, F, G, H>
     where
         G: for<'life, 'brand> Derive2<ViewOut<'life, 'ub, F>, Token1<'brand, 'life, 'ub>>,
