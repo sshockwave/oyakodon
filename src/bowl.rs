@@ -1,6 +1,8 @@
 use core::{marker::PhantomData, mem::transmute};
 use maybe_dangling::MaybeDangling;
 
+use crate::CloneStableDeref;
+
 pub unsafe trait AliasableDeref {
     type Target: ?Sized;
     fn deref(&self) -> &Self::Target;
@@ -43,12 +45,12 @@ where
     P: AliasableDeref,
     P::Target: 'ub,
     F: for<'x> View<'x, 'ub>,
-    <F as View<'ub, 'ub>>::Output: IsType<V>,
+    V: IsType<<F as View<'ub, 'ub>>::Output>,
 {
     view: MaybeDangling<V>,
-    owner: P,
     // Covariant over `'ub` is safe because it maintains the HRTB invariant.
-    phantom: PhantomData<(&'ub (), F)>,
+    owner: Token4<'ub, 'ub, P>,
+    phantom: PhantomData<F>,
 }
 
 pub struct RefView<'ub, T: ?Sized>(PhantomData<&'ub T>);
@@ -70,7 +72,7 @@ where
         let view = unsafe { transmute::<&P::Target, &P::Target>(view) };
         Self {
             view: MaybeDangling::new(view),
-            owner,
+            owner: Token4(owner, PhantomData),
             phantom: PhantomData,
         }
     }
@@ -85,7 +87,7 @@ where
         let view = unsafe { transmute::<&mut P::Target, &mut P::Target>(view) };
         Self {
             view: MaybeDangling::new(view),
-            owner,
+            owner: Token4(owner, PhantomData),
             phantom: PhantomData,
         }
     }
@@ -126,7 +128,7 @@ where
     {
         Bowl {
             view: MaybeDangling::new(view.0),
-            owner: self.0,
+            owner: Token4(self.0, PhantomData),
             phantom: PhantomData,
         }
     }
@@ -138,15 +140,94 @@ impl<'brand, 'ub, P> Token3<'brand, 'ub, P> {
     }
 }
 
-// TODO: impl Clone Token3 for P: CloneStableRef
+impl<'brand, 'ub, P> Clone for Token3<'brand, 'ub, P>
+where
+    P: CloneStableDeref,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), PhantomData)
+    }
+}
+
+pub struct Token4<'life, 'ub, P>(P, PhantomData<(&'life (), &'ub ())>);
+
+impl<'life, 'ub, P> Token4<'life, 'ub, P> {
+    pub fn into_inner(self) -> P {
+        self.0
+    }
+}
+
+impl<'life, 'ub, P> Clone for Token4<'life, 'ub, P>
+where
+    P: CloneStableDeref,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), PhantomData)
+    }
+}
+
+impl<'life, 'ub, P> Token4<'life, 'ub, P>
+where
+    P: AliasableDeref,
+{
+    pub fn consume<F>(
+        self,
+        view: <F as View<'life, 'ub>>::Output,
+    ) -> Bowl<'ub, P, <F as View<'ub, 'ub>>::Output, F>
+    where
+        F: for<'x> View<'x, 'ub>,
+    {
+        let view = unsafe {
+            transmute::<<F as View<'life, 'ub>>::Output, <F as View<'ub, 'ub>>::Output>(view)
+        };
+        Bowl {
+            view: MaybeDangling::new(view),
+            owner: Token4(self.0, PhantomData),
+            phantom: PhantomData,
+        }
+    }
+}
 
 impl<'ub, P, V, F> Bowl<'ub, P, V, F>
 where
     P: AliasableDeref,
     P::Target: 'ub,
     F: for<'x> View<'x, 'ub>,
-    <F as View<'ub, 'ub>>::Output: IsType<V>,
+    V: IsType<<F as View<'ub, 'ub>>::Output>,
+    V: AsRef<<F as View<'ub, 'ub>>::Output>,
+    V: AsMut<<F as View<'ub, 'ub>>::Output>,
 {
+    pub fn with<'a, G>(
+        &'a self,
+        g: G,
+    ) -> <G as Derive2<&'a <F as View<'ub, 'ub>>::Output, &'a Token4<'ub, 'ub, P>>>::Output
+    where
+        G: for<'life> Derive2<&'a <F as View<'life, 'ub>>::Output, &'a Token4<'life, 'ub, P>>,
+        for<'life> <G as Derive2<&'a <F as View<'life, 'ub>>::Output, &'a Token4<'life, 'ub, P>>>::Output:
+            IsType<
+                <G as Derive2<&'a <F as View<'ub, 'ub>>::Output, &'a Token4<'ub, 'ub, P>>>::Output,
+            >,
+    {
+        g.derive(self.view.as_ref(), &self.owner).get()
+    }
+
+    pub fn with_mut<'a, G>(
+        &'a mut self,
+        g: G,
+    ) -> <G as Derive2<&'a mut <F as View<'ub, 'ub>>::Output, &'a Token4<'ub, 'ub, P>>>::Output
+    where
+        G: for<'life> Derive2<
+            &'a mut <F as View<'life, 'ub>>::Output,
+            &'a Token4<'life, 'ub, P>,
+        >,
+        for<'life> <G as Derive2<&'a mut <F as View<'life, 'ub>>::Output, &'a Token4<'life, 'ub, P>>>::Output:
+            IsType<
+                <G as Derive2<&'a mut <F as View<'ub, 'ub>>::Output, &'a Token4<'ub, 'ub, P>>>::Output,
+            >,
+    {
+        g.derive(self.view.as_mut(), &self.owner).get()
+    }
+
     pub fn map<G, H>(
         self,
         g: G,
@@ -173,6 +254,14 @@ where
             >>::Output,
         >,
     {
-        todo!()
+        h.derive(
+            g.derive(
+                MaybeDangling::into_inner(self.view).get(),
+                Token1(PhantomData),
+            )
+            .get(),
+            Token3(self.owner.0, PhantomData),
+        )
+        .get()
     }
 }
