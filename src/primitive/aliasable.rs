@@ -1,4 +1,4 @@
-use crate::StableDeref;
+use super::StableDeref;
 use ::{
     core::ops::{Deref, DerefMut},
     maybe_dangling::MaybeDangling,

@@ -9,6 +9,7 @@
 // Internally, we implement `BowlMut` as a wrapper around `BowlRef`
 // so the code size increase is not significant anyway.
 use super::*;
+use crate::primitive::StableDeref;
 use ::{
     core::{
         fmt::Debug,

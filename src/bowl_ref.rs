@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitive::StableDeref;
 use ::{
     core::{
         cmp::{Eq, PartialEq},
@@ -361,7 +362,7 @@ where
 
 impl<'a, T, F> Clone for BowlRef<'a, T, F>
 where
-    T: super::CloneStableDeref,
+    T: super::primitive::CloneStableDeref,
     F: for<'b> View<&'b T::Target> + ?Sized,
     for<'b> <F as View<&'b T::Target>>::Output: Clone,
 {
