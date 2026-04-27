@@ -6,7 +6,6 @@ use ::core::{
 use maybe_dangling::MaybeDangling;
 
 pub trait View<'x> {
-    type ImplyBound<X>;
     type Output;
 }
 
@@ -14,8 +13,17 @@ impl<'x, F: ?Sized, R> View<'x> for F
 where
     F: FnOnce(&'x ()) -> R,
 {
-    type ImplyBound<X> = ();
     type Output = R;
+}
+
+pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
+    type Target;
+}
+impl<'x, 'ub, T: ?Sized> ViewIn<'x, 'ub> for T
+where
+    T: View<'x>,
+{
+    type Target = Self::Output;
 }
 
 pub struct Bowl<'ub, P, F: View<'ub> + ?Sized> {
@@ -48,7 +56,7 @@ pub struct Stamp<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ()
 impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
     pub fn stamp<F>(&self, view: <F as View<'life>>::Output) -> Derived<'brand, 'ub, F>
     where
-        F: ?Sized + for<'x> View<'x, ImplyBound<&'x &'ub ()> = ()>,
+        F: ?Sized + for<'x> ViewIn<'x, 'ub>,
     {
         let view = unsafe {
             ::core::mem::transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view)
@@ -68,7 +76,7 @@ pub struct Slot<'brand, 'ub, P>(P, PhantomData<(&'brand (), &'ub ())>);
 impl<'brand, 'ub, P> Slot<'brand, 'ub, P> {
     pub fn fill<F>(self, view: Derived<'brand, 'ub, F>) -> Bowl<'ub, P, F>
     where
-        F: ?Sized + for<'x> View<'x, ImplyBound<&'x &'ub ()> = ()>,
+        F: ?Sized + for<'x> ViewIn<'x, 'ub>,
     {
         Bowl {
             view: MaybeDangling::new(view.0),
@@ -108,7 +116,7 @@ impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
 
     pub fn fill<F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
     where
-        F: ?Sized + for<'x> View<'x, ImplyBound<&'x &'ub ()> = ()>,
+        F: ?Sized + for<'x> ViewIn<'x, 'ub>,
     {
         Slot(self.0, PhantomData).fill(Stamp(PhantomData).stamp(view))
     }
@@ -116,12 +124,12 @@ impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
 
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
-    F: ?Sized + for<'x> View<'x, ImplyBound<&'x &'ub ()> = ()>,
+    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
 {
     pub fn with<'a, R>(
         &'a self,
         f: impl for<'life> FnOnce(
-            &'a <F as View<'life>>::Output,
+            &'a <F as ViewIn<'life, 'ub>>::Target,
             &'a Handle<'life, 'ub, P, &'a &'life ()>,
         ) -> R,
     ) -> R {
@@ -131,7 +139,7 @@ where
     pub fn with_mut<'a, R>(
         &'a mut self,
         f: impl for<'life> FnOnce(
-            &'a mut <F as View<'life>>::Output,
+            &'a mut <F as ViewIn<'life, 'ub>>::Target,
             &'a Handle<'life, 'ub, P, &'a &'life ()>,
         ) -> R,
     ) -> R {
@@ -154,7 +162,7 @@ where
 
 impl<'brand, 'ub, P, F> Session<'brand, 'ub, P, F>
 where
-    F: ?Sized + for<'x> View<'x, ImplyBound<&'x &'ub ()> = ()>,
+    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
 {
     pub fn open<R>(
         self,
