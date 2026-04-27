@@ -144,13 +144,7 @@ impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
     where
         F: ?Sized + for<'x> View<'x, 'ub>,
     {
-        let view = unsafe {
-            transmute::<<F as View<'life, 'ub>>::Output, <F as View<'ub, 'ub>>::Output>(view)
-        };
-        Bowl {
-            view: MaybeDangling::new(view),
-            owner: Handle(self.0, PhantomData),
-        }
+        Slot(self.0, PhantomData).consume(Stamp(PhantomData).make(view))
     }
 }
 
