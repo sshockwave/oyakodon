@@ -1,5 +1,4 @@
-use super::aliasable::Aliasable;
-use crate::CloneStableDeref;
+use super::{Aliasable, CloneStableDeref};
 use ::core::{
     marker::PhantomData,
     mem::transmute,
