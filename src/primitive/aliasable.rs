@@ -6,6 +6,13 @@ use ::{
 
 pub unsafe trait Aliasable: Deref {}
 
+unsafe impl<T: ?Sized> Aliasable for &T {}
+#[cfg(feature = "alloc")]
+unsafe impl<T: ?Sized> Aliasable for ::alloc::rc::Rc<T> {}
+#[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
+unsafe impl<T: ?Sized> Aliasable for ::alloc::sync::Arc<T> {}
+unsafe impl<T> Aliasable for DanglingDeref<T> where T: StableDeref {}
+
 pub struct DanglingDeref<T>(MaybeDangling<T>);
 
 impl<T> DanglingDeref<T> {
@@ -30,5 +37,3 @@ impl<T: DerefMut> DerefMut for DanglingDeref<T> {
         &mut *self.0
     }
 }
-
-unsafe impl<T> Aliasable for DanglingDeref<T> where T: StableDeref {}
