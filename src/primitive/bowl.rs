@@ -150,12 +150,6 @@ impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
 
 type Token4Ref<'a, 'life, 'ub, P> = &'a Handle<'life, 'ub, P, &'a &'life ()>;
 type ViewOut<'life, 'ub, F> = <F as View<'life, 'ub>>::Output;
-type DeriveOut<G, T, S> = <G as Derive2<T, S>>::Output;
-
-type MapGRet<'life, 'ub, 'brand, G, F> =
-    DeriveOut<G, ViewOut<'life, 'ub, F>, Stamp<'brand, 'life, 'ub>>;
-type MapHRet<'ub, 'brand, P, F, G, H> =
-    DeriveOut<H, MapGRet<'ub, 'ub, 'brand, G, F>, Slot<'brand, 'ub, P>>;
 
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
@@ -175,17 +169,26 @@ where
         g(&mut *self.view, &self.owner)
     }
 
-    pub fn map<G, H>(self, g: G, h: H) -> MapHRet<'ub, 'static, P, F, G, H>
-    where
-        G: for<'life, 'brand> Derive2<ViewOut<'life, 'ub, F>, Stamp<'brand, 'life, 'ub>>,
-        for<'life, 'brand> MapGRet<'life, 'ub, 'brand, G, F>:
-            IsType<MapGRet<'ub, 'ub, 'brand, G, F>>,
-        H: for<'brand> Derive2<MapGRet<'ub, 'ub, 'brand, G, F>, Slot<'brand, 'ub, P>>,
-        for<'brand> MapHRet<'ub, 'brand, P, F, G, H>: IsType<MapHRet<'ub, 'static, P, F, G, H>>,
-    {
-        h.derive(
-            g.derive(MaybeDangling::into_inner(self.view), Stamp(PhantomData)),
-            Slot(self.owner.0, PhantomData),
+    pub fn map<R>(self, f: impl for<'brand> FnOnce(BrandedBowl<'ub, 'brand, P, F>) -> R) -> R {
+        f(BrandedBowl(self, PhantomData))
+    }
+}
+
+pub struct BrandedBowl<'ub, 'brand, P, F>(Bowl<'ub, P, F>, PhantomData<&'brand ()>)
+where
+    F: View<'ub, 'ub> + ?Sized;
+
+impl<'brand, 'ub, P, F> BrandedBowl<'ub, 'brand, P, F>
+where
+    F: ?Sized + for<'x> View<'x, 'ub>,
+{
+    pub fn map<R>(
+        self,
+        f: impl for<'life> FnOnce(ViewOut<'life, 'ub, F>, Stamp<'brand, 'life, 'ub>) -> R,
+    ) -> (R, Slot<'brand, 'ub, P>) {
+        (
+            f(MaybeDangling::into_inner(self.0.view), Stamp(PhantomData)),
+            Slot(self.0.owner.0, PhantomData),
         )
     }
 }
