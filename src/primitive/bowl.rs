@@ -10,28 +10,11 @@ pub trait View<'x, 'ub, __ImplyBound = &'x &'ub ()> {
     type Output;
 }
 
-pub trait Derive2<T, S> {
-    type Output;
-    fn derive(self, a: T, b: S) -> Self::Output;
-}
-
-impl<T, S, R, F> Derive2<T, S> for F
+impl<'x, 'ub, F: ?Sized, R> View<'x, 'ub> for F
 where
-    F: FnOnce(T, S) -> R,
+    F: FnOnce(&'x ()) -> R,
 {
     type Output = R;
-    fn derive(self, a: T, b: S) -> R {
-        self(a, b)
-    }
-}
-
-pub trait IsType<T> {
-    fn get(self) -> T;
-}
-impl<T> IsType<T> for T {
-    fn get(self) -> T {
-        self
-    }
 }
 
 pub struct Bowl<'ub, P, F: View<'ub, 'ub> + ?Sized> {
@@ -80,7 +63,7 @@ where
 pub struct Stamp<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ())>);
 
 impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
-    pub fn make<F>(&self, view: <F as View<'life, 'ub>>::Output) -> Derived<'brand, 'ub, F>
+    pub fn stamp<F>(&self, view: <F as View<'life, 'ub>>::Output) -> Derived<'brand, 'ub, F>
     where
         F: ?Sized + for<'x> View<'x, 'ub>,
     {
@@ -100,7 +83,7 @@ pub struct Derived<'brand, 'ub, F: View<'ub, 'ub> + ?Sized>(
 pub struct Slot<'brand, 'ub, P>(P, PhantomData<(&'brand (), &'ub ())>);
 
 impl<'brand, 'ub, P> Slot<'brand, 'ub, P> {
-    pub fn consume<F>(self, view: Derived<'brand, 'ub, F>) -> Bowl<'ub, P, F>
+    pub fn fill<F>(self, view: Derived<'brand, 'ub, F>) -> Bowl<'ub, P, F>
     where
         F: ?Sized + for<'x> View<'x, 'ub>,
     {
@@ -140,15 +123,15 @@ impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
         self.0
     }
 
-    pub fn consume<F>(self, view: <F as View<'life, 'ub>>::Output) -> Bowl<'ub, P, F>
+    pub fn fill<F>(self, view: <F as View<'life, 'ub>>::Output) -> Bowl<'ub, P, F>
     where
         F: ?Sized + for<'x> View<'x, 'ub>,
     {
-        Slot(self.0, PhantomData).consume(Stamp(PhantomData).make(view))
+        Slot(self.0, PhantomData).fill(Stamp(PhantomData).stamp(view))
     }
 }
 
-type Token4Ref<'a, 'life, 'ub, P> = &'a Handle<'life, 'ub, P, &'a &'life ()>;
+type HandleRef<'a, 'life, 'ub, P> = &'a Handle<'life, 'ub, P, &'a &'life ()>;
 type ViewOut<'life, 'ub, F> = <F as View<'life, 'ub>>::Output;
 
 impl<'ub, P, F> Bowl<'ub, P, F>
@@ -157,32 +140,32 @@ where
 {
     pub fn with<'a, R>(
         &'a self,
-        g: impl for<'life> FnOnce(&'a ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>) -> R,
+        f: impl for<'life> FnOnce(&'a ViewOut<'life, 'ub, F>, HandleRef<'a, 'life, 'ub, P>) -> R,
     ) -> R {
-        g(&*self.view, &self.owner)
+        f(&*self.view, &self.owner)
     }
 
     pub fn with_mut<'a, R>(
         &'a mut self,
-        g: impl for<'life> FnOnce(&'a mut ViewOut<'life, 'ub, F>, Token4Ref<'a, 'life, 'ub, P>) -> R,
+        f: impl for<'life> FnOnce(&'a mut ViewOut<'life, 'ub, F>, HandleRef<'a, 'life, 'ub, P>) -> R,
     ) -> R {
-        g(&mut *self.view, &self.owner)
+        f(&mut *self.view, &self.owner)
     }
 
-    pub fn map<R>(self, f: impl for<'brand> FnOnce(BrandedBowl<'ub, 'brand, P, F>) -> R) -> R {
-        f(BrandedBowl(self, PhantomData))
+    pub fn map<R>(self, f: impl for<'brand> FnOnce(Session<'ub, 'brand, P, F>) -> R) -> R {
+        f(Session(self, PhantomData))
     }
 }
 
-pub struct BrandedBowl<'ub, 'brand, P, F>(Bowl<'ub, P, F>, PhantomData<&'brand ()>)
+pub struct Session<'ub, 'brand, P, F>(Bowl<'ub, P, F>, PhantomData<&'brand ()>)
 where
     F: View<'ub, 'ub> + ?Sized;
 
-impl<'brand, 'ub, P, F> BrandedBowl<'ub, 'brand, P, F>
+impl<'brand, 'ub, P, F> Session<'ub, 'brand, P, F>
 where
     F: ?Sized + for<'x> View<'x, 'ub>,
 {
-    pub fn map<R>(
+    pub fn open<R>(
         self,
         f: impl for<'life> FnOnce(ViewOut<'life, 'ub, F>, Stamp<'brand, 'life, 'ub>) -> R,
     ) -> (R, Slot<'brand, 'ub, P>) {
