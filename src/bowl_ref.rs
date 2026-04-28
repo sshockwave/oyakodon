@@ -123,7 +123,6 @@ where
         Self::from_derive(owner, derive)
     }
 
-    /// Transforms the current view using `f`, encoding the composition as [`Map<T::Target, F, G>`][Map].
     pub fn map<G>(self, f: G) -> BowlRef<'a, T, Map<T::Target, F, G>>
     where
         G: for<'b> Derive<<F as View<&'b T::Target>>::Output>,
@@ -170,19 +169,11 @@ where
     T: Deref,
     F: for<'b> View<&'b T::Target> + ?Sized,
 {
-    /// Changes the lifetime placeholder `'a` without modifying the value.
-    ///
-    /// Because `'a` is only a placeholder, any valid lifetime can be substituted freely.
-    /// See the struct documentation for guidance on choosing `'a`.
     pub fn cast_life<'b>(self) -> BowlRef<'b, T, F> {
         // SAFETY: Same as `as_ref()`.
         unsafe { transmute(self) }
     }
 
-    /// Changes the view marker type `F` to any `G` that produces identical output types.
-    ///
-    /// Two bowls with different view markers but the same `Output` for all lifetimes
-    /// have identical representations at runtime and can be freely interconverted.
     pub fn cast_view<
         G: ?Sized + for<'b> View<&'b T::Target, Output = <F as View<&'b T::Target>>::Output>,
     >(
@@ -192,7 +183,6 @@ where
         BowlRef { owner, view }
     }
 
-    /// Combines [`cast_life`][Self::cast_life] and [`cast_view`][Self::cast_view].
     pub fn cast<
         'b,
         G: ?Sized + for<'c> View<&'c T::Target, Output = <F as View<&'c T::Target>>::Output>,
@@ -202,10 +192,6 @@ where
         self.cast_life().cast_view()
     }
 
-    /// Drops the view and returns the owner.
-    ///
-    /// The view is explicitly dropped before the owner is extracted,
-    /// preserving the correct destruction order even when the view's destructor panics.
     pub fn into_owner(self) -> T {
         let Self { owner, view } = self;
         // `owner` must be dropped even if `view`'s drop panics.
@@ -216,10 +202,6 @@ where
         MaybeDangling::into_inner(owner)
     }
 
-    /// Drops the owner and returns the view.
-    ///
-    /// The bound of this function requires the view cannot borrow from `*owner`.
-    /// When the view does borrow from the owner, use [`get`][Self::get] instead.
     pub fn into_view<S>(self) -> S
     where
         for<'c> F: View<&'c T::Target, Output = S>,
@@ -231,10 +213,6 @@ where
         MaybeDangling::into_inner(view)
     }
 
-    /// Returns both the owner and the view as a tuple.
-    ///
-    /// Carries the same `for<'c>` constraint as [`into_view`][Self::into_view]:
-    /// the view type must be lifetime-independent of the owner.
     pub fn into_parts<S>(self) -> (T, S)
     where
         for<'c> F: View<&'c T::Target, Output = S>,
@@ -263,9 +241,6 @@ where
         }
     }
 
-    /// Unwraps an [`Outcome`] view, branching into `Ok` or `Err`.
-    /// Both branches retain the owner.
-    ///
     /// # Examples
     ///
     /// ```

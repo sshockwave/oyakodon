@@ -80,6 +80,7 @@ extern crate alloc;
 mod bowl_box;
 mod bowl_mut;
 mod bowl_ref;
+mod helper;
 pub mod primitive;
 
 use ::core::{future::Future, marker::PhantomData, option::Option, result::Result};
