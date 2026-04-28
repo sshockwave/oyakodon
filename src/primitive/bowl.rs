@@ -26,7 +26,46 @@ where
     type Target = Self::Output;
 }
 
+/// Stores an owner and a derived shared reference into it.
+///
+/// The `P` parameter is the owner container (e.g. [`Rc<String>`][std::rc::Rc]).
+/// It must implement the [`Aliasable`] trait to ensure that
+/// it does not mutate the owned value when the derived view is alive.
+///
+/// and `F` is the higher-kinded view marker type that describes the signature of the derivation function.
+/// You can write `F` like `dyn for<'x> Fn(&'x ()) -> Type<'x>` to indicate that the view type is `Type<'x>`,
+/// or you can manually implement the [`View`] trait.
+/// Note that it is entirely different type for different `F`,
+/// even if they produce the same output type.
+/// So it is recommended to use a unified view type in the same project,
+/// though you can fall back on converting between them with [`Self::cast_view`].
+///
+/// The `'ub` parameter is a placeholder lifetime that can be deduced automatically.
+/// If you need to specify it explicitly,
+/// perfer choosing the longest possible lifetime satisfying `T::Target: 'ub`
+/// to minimize the number of distinct types.
+/// For owned heap containers, this is usually `'static`.
+/// You could consider lowering it afterwards with [`Self::cast_life`]
+/// if you need to put a shorter lifetime in the view,
+/// which makes it somewhat easier to satisfy the invariants held by [`Bowl`].
 pub struct Bowl<'ub, P, F: View<'ub> + ?Sized> {
+    // `owner` will be dropped after `view`.
+    // Rust guarantees that fields are dropped in the order of declaration.
+    // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
+    //
+    // `view: MaybeDangling<_>` suppresses Tree Borrows reference protection.
+    // When `BowlRef` is passed by value to a function,
+    // Tree Borrows would normally "protect" any references inside it for the entire call duration,
+    // asserting that the memory they point to remains valid.
+    // But `BowlRef` owns both `view` (the borrow) and `owner` (the allocation),
+    // so dropping `BowlRef` inside the callee frees `owner` while `view` is still considered live.
+    // `MaybeDangling` opts out of the `dereferenceable` assumption, suppressing the protector.
+    //
+    // `owner: Aliasable` suppresses Stacked Borrows Unique retag.
+    // Box-like types assert Unique ownership over their allocation whenever they are moved
+    // (e.g., as a function argument).
+    // If `owner` were moved after `view` was computed,
+    // the resulting Unique retag would invalidate `view`'s SharedReadWrite tag on the same allocation.
     view: MaybeDangling<F::Output>,
     owner: Handle<'ub, 'ub, P, &'ub &'ub ()>,
 }
@@ -133,6 +172,10 @@ where
             &'a Handle<'life, 'ub, P, &'a &'life ()>,
         ) -> R,
     ) -> R {
+        // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
+        // We don't know `'self`, but we know it outlives `'a`.
+        // So the `spawn()` function only needs to handle the possible lifetimes
+        // that are longer than `'a` and shorter than `'ub`.
         f(&*self.view, &self.owner)
     }
 

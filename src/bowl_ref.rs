@@ -14,16 +14,6 @@ use ::{
     maybe_dangling::MaybeDangling,
 };
 
-/// Stores an owner and a derived shared reference into it.
-///
-/// The `T` parameter is the owner container (e.g., [`Box<String>`][Box] or [`Rc<String>`][std::rc::Rc]),
-/// and `F` is the view marker type that describes the derivation function.
-/// The `'a` parameter is a placeholder lifetime that is deduced automatically.
-/// If you need to specify it explicitly,
-/// perfer choosing the longest possible lifetime satisfying `T::Target: 'a`
-/// to minimize the number of distinct types.
-/// For owned heap containers, this is usually `'static`.
-///
 /// # Examples
 ///
 /// ```
@@ -41,27 +31,6 @@ use ::{
 /// bowl.spawn(|v: &&_| bowl2.spawn(|v2: &&_| assert_eq!(*v, *v2)));
 /// ```
 pub struct BowlRef<'a, T: Deref, F: for<'b> View<&'b T::Target> + ?Sized> {
-    // `owner` will be dropped after `view`.
-    // Rust guarantees that fields are dropped in the order of declaration.
-    // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
-    //
-    // Both fields are wrapped in `MaybeDangling` for distinct reasons:
-    //
-    // `view: MaybeDangling<_>` suppresses Tree Borrows reference protection.
-    // When `BowlRef` is passed by value to a function,
-    // Tree Borrows would normally "protect" any references inside it for the entire call duration,
-    // asserting that the memory they point to remains valid.
-    // But `BowlRef` owns both `view` (the borrow) and `owner` (the allocation),
-    // so dropping `BowlRef` inside the callee frees `owner` while `view` is still considered live.
-    // `MaybeDangling` opts out of the `dereferenceable` assumption, suppressing the protector.
-    //
-    // `owner: MaybeDangling<_>` suppresses Stacked Borrows Unique retag.
-    // Box-like types assert Unique ownership over their allocation whenever they are moved
-    // (e.g., as a function argument).
-    // If `owner` were moved after `view` was computed,
-    // the resulting Unique retag would invalidate `view`'s SharedReadWrite tag on the same allocation.
-    // Wrapping `owner` in `MaybeDangling` (a union) before calling `derive`
-    // means no further Box move occurs after `view` is created.
     view: MaybeDangling<<F as View<&'a T::Target>>::Output>,
     owner: MaybeDangling<T>,
 }
@@ -340,14 +309,8 @@ where
 
     pub fn spawn<'b, S>(
         &'b self,
-        // The implicit bound on this HRTB limits the lifetime of `'c`
-        // to be between `T::Target` and `'b`.
         spawn: impl for<'c> Derive<&'b <F as View<&'c T::Target>>::Output, &'b &'c (), Output = S>,
     ) -> S {
-        // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
-        // We don't know `'self`, but we know it outlives `'b`.
-        // So the `spawn()` function only needs to handle the possible lifetimes
-        // that are longer than `'b` and shorter than `T::Target`.
         spawn.call(&*self.view)
     }
 
