@@ -1,9 +1,11 @@
 use super::{Aliasable, CloneStableDeref};
-use ::core::{
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
+use ::{
+    core::{
+        marker::PhantomData,
+        ops::{Deref, DerefMut},
+    },
+    maybe_dangling::MaybeDangling,
 };
-use maybe_dangling::MaybeDangling;
 
 pub trait View<'x> {
     type Output;
