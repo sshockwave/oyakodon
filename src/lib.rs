@@ -80,19 +80,7 @@ extern crate alloc;
 mod bowl_box;
 mod bowl_mut;
 mod bowl_ref;
-pub mod primitive {
-    mod aliasable;
-    mod bowl;
-    pub mod stable_deref;
-
-    pub use aliasable::{Aliasable, DanglingDeref};
-    pub use bowl::{Bowl, Derived, Handle, Session, Slot, Stamp, View};
-
-    #[cfg(all(feature = "stable_deref", not(doc)))]
-    pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
-    #[cfg(any(not(feature = "stable_deref"), doc))]
-    pub use stable_deref::{CloneStableDeref, StableDeref};
-}
+pub mod primitive;
 
 use ::core::{future::Future, marker::PhantomData, option::Option, result::Result};
 #[cfg(feature = "alloc")]
