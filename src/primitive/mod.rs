@@ -9,10 +9,12 @@ mod aliasable;
 mod bowl;
 pub mod stable_deref;
 
-pub use aliasable::{Aliasable, DanglingDeref};
-pub use bowl::{Bowl, Derived, Handle, Session, Slot, Stamp, View};
+pub use self::{
+    aliasable::{Aliasable, DanglingDeref},
+    bowl::{Bowl, Derived, Handle, Session, Slot, Stamp, View},
+};
 
+#[cfg(any(not(feature = "stable_deref"), doc))]
+pub use self::stable_deref::{CloneStableDeref, StableDeref};
 #[cfg(all(feature = "stable_deref", not(doc)))]
 pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
-#[cfg(any(not(feature = "stable_deref"), doc))]
-pub use stable_deref::{CloneStableDeref, StableDeref};
