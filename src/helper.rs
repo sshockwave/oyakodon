@@ -1,7 +1,7 @@
 #[cfg(feature = "alloc")]
 use crate::primitive::MutView;
 use crate::primitive::{Bowl, View};
-use ::core::fmt;
+use ::core::{fmt, mem::drop};
 
 pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
     type Target;
@@ -113,7 +113,45 @@ where
     where
         for<'x> F: ViewIn<'x, 'ub, Target = S>,
     {
-        self.map(|session| session.open(|view, _| view).0)
+        self.map(|session| {
+            let (view, slot) = session.open(|view, _| view);
+            // `view` must be dropped even if `owner`'s drop panics.
+            // Miri reports that this is not guaranteed
+            // if `owner` is dropped implicitly at the end of the function,
+            // because the `view` is in a transition state
+            // where it is still valid but not fully owned by the caller.
+            // Users can do this leak manually,
+            // but this is not a concern,
+            // because Rust consider memory leaks as a safe behavior.
+            // They can reproduce this leak with safe code:
+            // ```rust
+            // struct PanicOnDrop;
+            // impl Drop for PanicOnDrop {
+            //     fn drop(&mut self) {
+            //         panic!("Drop panicked!");
+            //     }
+            // }
+            // struct LeakMe(Box<i64>);
+            // fn leak_generator() -> LeakMe {
+            //     let a = LeakMe(Box::new(1));
+            //     let b = PanicOnDrop;
+            //     // Implicitly:
+            //     // 1. a_local is moved to the return slot
+            //     // 2. b_local is dropped -> PANIC
+            //     // 3. a_local is leaked because the return never completes
+            //     a
+            // }
+            // fn main() {
+            //     // We catch the panic so the program doesn't abort,
+            //     // allowing Miri to show us the leak.
+            //     let _ = std::panic::catch_unwind(|| {
+            //         leak_generator();
+            //     });
+            // }
+            // ```
+            drop(slot);
+            view
+        })
     }
 
     /// Returns both the owner and the view as a tuple.

@@ -194,9 +194,6 @@ where
 
     pub fn into_owner(self) -> T {
         let Self { owner, view } = self;
-        // `owner` must be dropped even if `view`'s drop panics.
-        // Miri reports that this is not guaranteed
-        // if `view` is dropped implicitly at the end of the function.
         drop(view);
         // SAFETY: `*owner` is not used elsewhere after `view` is dropped.
         MaybeDangling::into_inner(owner)
