@@ -93,9 +93,10 @@ where
 pub struct Stamp<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ())>);
 
 impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
-    pub fn stamp<F>(&self, view: <F as View<'life>>::Output) -> Derived<'brand, 'ub, F>
+    pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> Derived<'brand, 'ub, F>
     where
-        F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+        F: ?Sized + for<'x> ViewIn<'x, 'long>,
+        'long: 'ub + 'life,
     {
         let view = unsafe {
             ::core::mem::transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view)
@@ -115,7 +116,7 @@ pub struct Slot<'brand, 'ub, P>(P, PhantomData<(&'brand (), &'ub ())>);
 impl<'brand, 'ub, P> Slot<'brand, 'ub, P> {
     pub fn fill<F>(self, view: Derived<'brand, 'ub, F>) -> Bowl<'ub, P, F>
     where
-        F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+        F: ?Sized + View<'ub>,
     {
         Bowl {
             view: MaybeDangling::new(view.0),
@@ -153,9 +154,10 @@ impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
         self.0
     }
 
-    pub fn fill<F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
+    pub fn fill<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
     where
-        F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+        F: ?Sized + for<'x> ViewIn<'x, 'long>,
+        'long: 'ub + 'life,
     {
         Slot(self.0, PhantomData).fill(Stamp(PhantomData).stamp(view))
     }
