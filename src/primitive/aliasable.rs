@@ -7,11 +7,17 @@ use ::{
 pub unsafe trait Aliasable: Deref {}
 
 unsafe impl<T: ?Sized> Aliasable for &T {}
-#[cfg(feature = "alloc")]
-unsafe impl<T: ?Sized> Aliasable for ::alloc::rc::Rc<T> {}
-#[cfg(all(feature = "alloc", target_has_atomic = "ptr"))]
-unsafe impl<T: ?Sized> Aliasable for ::alloc::sync::Arc<T> {}
 unsafe impl<T> Aliasable for DanglingDeref<T> where T: StableDeref {}
+
+#[cfg(feature = "alloc")]
+mod has_alloc {
+    use super::Aliasable;
+    unsafe impl<T: ?Sized> Aliasable for ::alloc::rc::Rc<T> {}
+    #[cfg(target_has_atomic = "ptr")]
+    unsafe impl<T: ?Sized> Aliasable for ::alloc::sync::Arc<T> {}
+    unsafe impl<T: ?Sized> Aliasable for ::aliasable::boxed::AliasableBox<T> {}
+    unsafe impl<T> Aliasable for ::aliasable::vec::AliasableVec<T> {}
+}
 
 pub struct DanglingDeref<T>(MaybeDangling<T>);
 

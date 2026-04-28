@@ -26,6 +26,19 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
+impl<'ub, T> Bowl<'ub, ::aliasable::boxed::AliasableBox<T>, dyn for<'x> Fn(&'x ()) -> &'x mut T> {
+    pub fn new_box(owner: T) -> Self {
+        Bowl::new_mut(::aliasable::boxed::AliasableBox::from_unique(
+            ::alloc::boxed::Box::new(owner),
+        ))
+    }
+
+    pub fn into_owner_value(self) -> T {
+        *::aliasable::boxed::AliasableBox::into_unique(self.into_owner())
+    }
+}
+
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
     F: ?Sized + for<'x> ViewIn<'x, 'ub>,
