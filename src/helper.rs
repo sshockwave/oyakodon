@@ -1,3 +1,5 @@
+#[cfg(feature = "alloc")]
+use crate::primitive::MutView;
 use crate::primitive::{Bowl, View};
 use ::core::fmt;
 
@@ -27,13 +29,19 @@ where
 }
 
 #[cfg(feature = "alloc")]
-impl<'ub, T> Bowl<'ub, ::aliasable::boxed::AliasableBox<T>, dyn for<'x> Fn(&'x ()) -> &'x mut T> {
+impl<'ub, T: 'ub> Bowl<'ub, ::aliasable::boxed::AliasableBox<T>, MutView<T>> {
     pub fn new_box(owner: T) -> Self {
         Bowl::new_mut(::aliasable::boxed::AliasableBox::from_unique(
             ::alloc::boxed::Box::new(owner),
         ))
     }
+}
 
+#[cfg(feature = "alloc")]
+impl<'ub, T: 'ub, F> Bowl<'ub, ::aliasable::boxed::AliasableBox<T>, F>
+where
+    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+{
     pub fn into_owner_value(self) -> T {
         *::aliasable::boxed::AliasableBox::into_unique(self.into_owner())
     }

@@ -2,6 +2,7 @@ use super::{Aliasable, CloneStableDeref};
 use ::{
     core::{
         marker::PhantomData,
+        mem::transmute,
         ops::{Deref, DerefMut},
     },
     maybe_dangling::MaybeDangling,
@@ -72,23 +73,41 @@ pub struct Bowl<'ub, P, F: View<'ub> + ?Sized> {
     owner: Handle<'ub, 'ub, P, &'ub &'ub ()>,
 }
 
-impl<'ub, P> Bowl<'ub, P, dyn for<'x> Fn(&'x ()) -> &'x P::Target>
+pub struct RefView<T: ?Sized>(PhantomData<T>);
+impl<'x, T: 'x + ?Sized> View<'x> for RefView<T> {
+    type Output = &'x T;
+}
+
+impl<'ub, P> Bowl<'ub, P, RefView<P::Target>>
 where
     P: Aliasable + Deref,
+    P::Target: 'ub,
 {
     pub fn new(owner: P) -> Self {
-        let derived = Stamp(PhantomData).stamp(owner.deref());
-        Slot(owner, PhantomData).fill(derived)
+        let view = unsafe { transmute::<&P::Target, &'ub P::Target>(&*owner) };
+        Bowl {
+            view: MaybeDangling::new(view),
+            owner: Handle(owner, PhantomData),
+        }
     }
 }
 
-impl<'ub, P> Bowl<'ub, P, dyn for<'x> Fn(&'x ()) -> &'x mut P::Target>
+pub struct MutView<T: ?Sized>(PhantomData<T>);
+impl<'x, T: 'x + ?Sized> View<'x> for MutView<T> {
+    type Output = &'x mut T;
+}
+
+impl<'ub, P> Bowl<'ub, P, MutView<P::Target>>
 where
     P: Aliasable + DerefMut,
+    P::Target: 'ub,
 {
     pub fn new_mut(mut owner: P) -> Self {
-        let derived = Stamp(PhantomData).stamp(owner.deref_mut());
-        Slot(owner, PhantomData).fill(derived)
+        let view = unsafe { transmute::<&mut P::Target, &'ub mut P::Target>(&mut *owner) };
+        Bowl {
+            view: MaybeDangling::new(view),
+            owner: Handle(owner, PhantomData),
+        }
     }
 }
 
@@ -100,9 +119,8 @@ impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
         F: ?Sized + for<'x> ViewIn<'x, 'long>,
         'long: 'ub + 'life,
     {
-        let view = unsafe {
-            ::core::mem::transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view)
-        };
+        let view =
+            unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
         Derived(view, PhantomData)
     }
 }
