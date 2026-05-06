@@ -94,6 +94,76 @@ where
     }
 }
 
+#[derive(Copy)]
+pub struct Isomorphic<'ub, F: View<'ub> + ?Sized>(F::Output);
+
+impl<'ub, F> Clone for Isomorphic<'ub, F>
+where
+    F: View<'ub> + ?Sized,
+    F::Output: Clone,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<'ub, P, F> Bowl<'ub, P, F>
+where
+    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+{
+    pub fn borrow<'a>(
+        &'a self,
+    ) -> Isomorphic<
+        'ub,
+        dyn for<'x> View<'x, Output = (&'a <F as ViewIn<'x, 'ub>>::Target, &'a Handle<'x, 'ub, P>)>
+            + 'static,
+    > {
+        Isomorphic((&*self.view, &self.owner))
+    }
+
+    pub fn borrow_mut<'a>(
+        &'a mut self,
+    ) -> Isomorphic<
+        'ub,
+        dyn for<'x> View<
+                'x,
+                Output = (
+                    &'a mut <F as ViewIn<'x, 'ub>>::Target,
+                    &'a Handle<'x, 'ub, P>,
+                ),
+            > + 'static,
+    > {
+        Isomorphic((&mut *self.view, &self.owner))
+    }
+}
+
+pub struct IsoStamp<'life, 'ub>(PhantomData<(&'life (), &'ub ())>);
+
+impl<'a, 'ub, F> Isomorphic<'ub, F>
+where
+    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+{
+    pub fn map<R>(
+        self,
+        f: impl for<'x> FnOnce(<F as ViewIn<'x, 'ub>>::Target, IsoStamp<'x, 'ub>) -> R,
+    ) -> R {
+        f(self.0, IsoStamp(PhantomData))
+    }
+}
+
+impl<'life, 'ub> IsoStamp<'life, 'ub> {
+    pub fn stamp<'long, F>(&self, view: <F as ViewIn<'life, 'long>>::Target) -> Isomorphic<'ub, F>
+    where
+        F: ?Sized + for<'x> ViewIn<'x, 'long>,
+        'long: 'ub + 'life,
+    {
+        let view = unsafe {
+            transmute::<<F as ViewIn<'life, 'long>>::Target, <F as View<'ub>>::Output>(view)
+        };
+        Isomorphic(view)
+    }
+}
+
 pub struct Stamp<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ())>);
 
 impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
@@ -163,32 +233,6 @@ impl<'life, 'ub, P> Handle<'life, 'ub, P> {
         'long: 'ub + 'life,
     {
         Slot(self.0, PhantomData).fill(Stamp(PhantomData).stamp(view))
-    }
-}
-
-impl<'ub, P, F> Bowl<'ub, P, F>
-where
-    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
-{
-    pub fn with<'a, R>(
-        &'a self,
-        f: impl for<'life> FnOnce(&'a <F as ViewIn<'life, 'ub>>::Target, &'a Handle<'life, 'ub, P>) -> R,
-    ) -> R {
-        // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
-        // We don't know `'self`, but we know it outlives `'a`.
-        // So the `spawn()` function only needs to handle the possible lifetimes
-        // that are longer than `'a` and shorter than `'ub`.
-        f(&*self.view, &self.owner)
-    }
-
-    pub fn with_mut<'a, R>(
-        &'a mut self,
-        f: impl for<'life> FnOnce(
-            &'a mut <F as ViewIn<'life, 'ub>>::Target,
-            &'a Handle<'life, 'ub, P>,
-        ) -> R,
-    ) -> R {
-        f(&mut *self.view, &self.owner)
     }
 }
 

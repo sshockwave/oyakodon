@@ -1,4 +1,4 @@
-use crate::primitive::{Bowl, View};
+use crate::primitive::{Bowl, Handle, View};
 use ::core::{fmt, mem::drop};
 
 pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
@@ -55,6 +55,23 @@ impl<'ub, P, F> Bowl<'ub, P, F>
 where
     F: ?Sized + for<'x> ViewIn<'x, 'ub>,
 {
+    pub fn with<'a, R>(
+        &'a self,
+        f: impl for<'life> FnOnce(&'a <F as ViewIn<'life, 'ub>>::Target, &'a Handle<'life, 'ub, P>) -> R,
+    ) -> R {
+        self.borrow().map(|(view, handle), _| f(view, handle))
+    }
+
+    pub fn with_mut<'a, R>(
+        &'a mut self,
+        f: impl for<'life> FnOnce(
+            &'a mut <F as ViewIn<'life, 'ub>>::Target,
+            &'a Handle<'life, 'ub, P>,
+        ) -> R,
+    ) -> R {
+        self.borrow_mut().map(|(view, handle), _| f(view, handle))
+    }
+
     /// Transforms the current view using `f`, encoding the composition as a generated view type.
     pub fn map_view<G>(
         self,
