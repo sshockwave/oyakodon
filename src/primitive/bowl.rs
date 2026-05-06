@@ -190,19 +190,19 @@ impl<'bowl, 'life, 'ub> IsoStamp<'bowl, 'life, 'ub> {
 pub struct Stamp<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ())>);
 
 impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
-    pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> Derived<'brand, 'ub, F>
+    pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> Encased<'brand, 'ub, F>
     where
         F: ?Sized + for<'x> ViewIn<'x, 'long>,
         'long: 'ub + 'life,
     {
         let view =
             unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
-        Derived(view, PhantomData)
+        Encased(view, PhantomData)
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct Derived<'brand, 'ub, F: View<'ub> + ?Sized>(
+pub struct Encased<'brand, 'ub, F: View<'ub> + ?Sized>(
     F::Output,
     PhantomData<(&'brand (), &'ub (), F)>,
 );
@@ -210,7 +210,7 @@ pub struct Derived<'brand, 'ub, F: View<'ub> + ?Sized>(
 pub struct Slot<'brand, 'ub, P>(P, PhantomData<(&'brand (), &'ub ())>);
 
 impl<'brand, 'ub, P> Slot<'brand, 'ub, P> {
-    pub fn fill<F>(self, view: Derived<'brand, 'ub, F>) -> Bowl<'ub, P, F>
+    pub fn fill<F>(self, view: Encased<'brand, 'ub, F>) -> Bowl<'ub, P, F>
     where
         F: ?Sized + View<'ub>,
     {

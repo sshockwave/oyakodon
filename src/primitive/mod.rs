@@ -11,7 +11,7 @@ mod stable_deref;
 
 pub use self::{
     aliasable::{Aliasable, DanglingDeref},
-    bowl::{Bowl, Derived, Handle, IsoStamp, Isomorphic, Session, Slot, Stamp, View},
+    bowl::{Bowl, Encased, Handle, IsoStamp, Isomorphic, Session, Slot, Stamp, View},
 };
 
 #[cfg(any(not(feature = "stable_deref"), doc))]
