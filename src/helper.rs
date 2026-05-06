@@ -1,5 +1,5 @@
 use crate::primitive::{Anchor, Bowl, ForAll, View};
-use ::core::{fmt, mem::drop};
+use ::core::{clone::Clone, fmt, marker::Copy, mem::drop};
 
 pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
     type Target;
@@ -264,5 +264,22 @@ where
 impl<'ub> ForAll<'ub, dyn for<'x> View<'x, Output = ()>> {
     pub fn new() -> Self {
         Default::default()
+    }
+}
+
+impl<'ub, F> Copy for ForAll<'ub, F>
+where
+    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+    for<'x> <F as ViewIn<'x, 'ub>>::Target: Copy,
+{
+}
+
+impl<'ub, F> Clone for ForAll<'ub, F>
+where
+    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+    for<'x> <F as ViewIn<'x, 'ub>>::Target: Clone,
+{
+    fn clone(&self) -> Self {
+        self.borrow().map(|view, stamp| stamp.stamp(view.clone()))
     }
 }

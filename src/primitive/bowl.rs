@@ -3,7 +3,7 @@ use ::{
     core::{
         clone::Clone,
         default::Default,
-        marker::{Copy, PhantomData},
+        marker::PhantomData,
         mem::transmute,
         ops::{Deref, DerefMut},
     },
@@ -120,23 +120,6 @@ where
 {
     fn default() -> Self {
         Self(Default::default())
-    }
-}
-
-impl<'ub, F> Copy for ForAll<'ub, F>
-where
-    F: View<'ub> + ?Sized,
-    F::Output: Copy,
-{
-}
-
-impl<'ub, F> Clone for ForAll<'ub, F>
-where
-    F: View<'ub> + ?Sized,
-    F::Output: Clone,
-{
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
     }
 }
 
