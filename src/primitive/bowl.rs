@@ -73,12 +73,7 @@ pub struct Bowl<'ub, P, F: View<'ub> + ?Sized> {
     owner: Handle<'ub, 'ub, P, &'ub &'ub ()>,
 }
 
-pub struct RefView<T: ?Sized>(PhantomData<T>);
-impl<'x, T: 'x + ?Sized> View<'x> for RefView<T> {
-    type Output = &'x T;
-}
-
-impl<'ub, P> Bowl<'ub, P, RefView<P::Target>>
+impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x P::Target>>
 where
     P: Aliasable + Deref,
     P::Target: 'ub,
@@ -92,12 +87,7 @@ where
     }
 }
 
-pub struct MutView<T: ?Sized>(PhantomData<T>);
-impl<'x, T: 'x + ?Sized> View<'x> for MutView<T> {
-    type Output = &'x mut T;
-}
-
-impl<'ub, P> Bowl<'ub, P, MutView<P::Target>>
+impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x mut P::Target>>
 where
     P: Aliasable + DerefMut,
     P::Target: 'ub,
