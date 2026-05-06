@@ -258,7 +258,7 @@ where
     }
 }
 
-impl<'bowl, 'ub> ForAll<'bowl, 'ub, dyn for<'x> View<'x, Output = ()>> {
+impl<'ub> ForAll<'ub, dyn for<'x> View<'x, Output = ()>> {
     pub fn new() -> Self {
         Default::default()
     }

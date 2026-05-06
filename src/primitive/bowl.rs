@@ -96,9 +96,9 @@ where
     }
 }
 
-pub struct ForAll<'bowl, 'ub, F: View<'ub> + ?Sized>(F::Output, PhantomData<&'bowl ()>);
+pub struct ForAll<'ub, F: View<'ub> + ?Sized>(F::Output);
 
-impl<'bowl, 'ub, F> ForAll<'bowl, 'ub, F>
+impl<'ub, F> ForAll<'ub, F>
 where
     F: View<'ub> + ?Sized,
 {
@@ -109,34 +109,34 @@ where
     /// e.g. `View<'x, Output = &'a &'x ()>`,
     /// the invariant only needs to hold for `'x` that makes the expression well-formed.
     pub unsafe fn new_unchecked(view: F::Output) -> Self {
-        ForAll(view, PhantomData)
+        ForAll(view)
     }
 }
 
-impl<'bowl, 'ub, F> Default for ForAll<'bowl, 'ub, F>
+impl<'ub, F> Default for ForAll<'ub, F>
 where
     F: View<'ub> + ?Sized,
     F::Output: Default,
 {
     fn default() -> Self {
-        Self(Default::default(), PhantomData)
+        Self(Default::default())
     }
 }
 
-impl<'bowl, 'ub, F> Copy for ForAll<'bowl, 'ub, F>
+impl<'ub, F> Copy for ForAll<'ub, F>
 where
     F: View<'ub> + ?Sized,
     F::Output: Copy,
 {
 }
 
-impl<'bowl, 'ub, F> Clone for ForAll<'bowl, 'ub, F>
+impl<'ub, F> Clone for ForAll<'ub, F>
 where
     F: View<'ub> + ?Sized,
     F::Output: Clone,
 {
     fn clone(&self) -> Self {
-        Self(self.0.clone(), PhantomData)
+        Self(self.0.clone())
     }
 }
 
@@ -147,7 +147,6 @@ where
     pub fn borrow<'a>(
         &'a self,
     ) -> ForAll<
-        'a,
         'ub,
         dyn for<'x> View<
                 'x,
@@ -172,7 +171,6 @@ where
     pub fn borrow_mut<'a>(
         &'a mut self,
     ) -> ForAll<
-        'a,
         'ub,
         dyn for<'x> View<
                 'x,
@@ -187,19 +185,16 @@ where
     }
 }
 
-pub struct IsoStamp<'bowl, 'life, 'ub>(PhantomData<(&'bowl (), &'life (), &'ub (), fn(&'ub ()))>);
+pub struct IsoStamp<'life, 'ub>(PhantomData<(&'life (), &'ub (), fn(&'ub ()))>);
 
-impl<'bowl, 'ub, F> ForAll<'bowl, 'ub, F>
+impl<'ub, F> ForAll<'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
     pub fn borrow<'a>(
         &'a self,
-    ) -> ForAll<
-        'bowl,
-        'ub,
-        dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static,
-    > {
+    ) -> ForAll<'ub, dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static>
+    {
         // SAFETY: The return type raises the lower bound of `'x`,
         // but `&'a self` implies `&'a F::Output`,
         // thus `'x` already satisfies the lower bound.
@@ -209,7 +204,6 @@ where
     pub fn borrow_mut<'a>(
         &'a mut self,
     ) -> ForAll<
-        'bowl,
         'ub,
         dyn for<'x> View<'x, Output = &'a mut <F as BoundedView<'x, 'ub>>::Target> + 'static,
     > {
@@ -219,17 +213,14 @@ where
 
     pub fn map<R>(
         self,
-        f: impl for<'x> FnOnce(<F as BoundedView<'x, 'ub>>::Target, IsoStamp<'bowl, 'x, 'ub>) -> R,
+        f: impl for<'x> FnOnce(<F as BoundedView<'x, 'ub>>::Target, IsoStamp<'x, 'ub>) -> R,
     ) -> R {
         f(self.0, IsoStamp(PhantomData))
     }
 }
 
-impl<'bowl, 'life, 'ub> IsoStamp<'bowl, 'life, 'ub> {
-    pub fn stamp<'long, F>(
-        &self,
-        view: <F as BoundedView<'life, 'long>>::Target,
-    ) -> ForAll<'bowl, 'ub, F>
+impl<'life, 'ub> IsoStamp<'life, 'ub> {
+    pub fn stamp<'long, F>(&self, view: <F as BoundedView<'life, 'long>>::Target) -> ForAll<'ub, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
@@ -291,8 +282,17 @@ impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
 #[derive(Clone, Copy)]
 pub struct ProtectedForAll<'brand, 'ub, F: View<'ub> + ?Sized>(
     F::Output,
-    PhantomData<(&'brand (), &'ub (), F)>,
+    PhantomData<(&'brand (), F)>,
 );
+
+impl<'brand, 'ub, F> ProtectedForAll<'brand, 'ub, F>
+where
+    F: View<'ub> + ?Sized,
+{
+    pub unsafe fn new_unchecked(view: F::Output) -> Self {
+        Self(view, PhantomData)
+    }
+}
 
 pub struct Slot<'brand, P>(P, PhantomData<&'brand ()>);
 
@@ -376,11 +376,8 @@ where
     pub fn borrow<'a, P>(
         &'a self,
         _token: &'a ProtectedSlot<'bowl, P>,
-    ) -> ForAll<
-        'a,
-        'ub,
-        dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static,
-    > {
+    ) -> ForAll<'ub, dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static>
+    {
         unsafe { ForAll::new_unchecked(&self.0) }
     }
 
@@ -388,7 +385,6 @@ where
         &'a mut self,
         _token: &'a ProtectedSlot<'bowl, P>,
     ) -> ForAll<
-        'a,
         'ub,
         dyn for<'x> View<'x, Output = &'a mut <F as BoundedView<'x, 'ub>>::Target> + 'static,
     > {
