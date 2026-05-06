@@ -59,8 +59,8 @@ fn ouroboros_88() {}
 #[test]
 fn yoke_3696() {
     fn example<P>(_: Bowl<P, dyn for<'x> View<'x, Output = &'x mut [u8]>>) {}
-    let bowl = Bowl::new_box(vec![0u8, 1, 2]).map(|session| {
-        let (derived, slot) = session
+    let bowl = Bowl::new_box(vec![0u8, 1, 2]).map(|scope| {
+        let (derived, slot) = scope
             .open(|view, stamp| stamp.stamp::<dyn for<'x> View<'x, Output = &'x mut [u8]>>(view));
         slot.fill(derived)
     });

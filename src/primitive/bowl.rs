@@ -14,10 +14,10 @@ pub trait View<'x> {
     type Output;
 }
 
-pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
+pub trait BoundedView<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
     type Target;
 }
-impl<'x, 'ub, T: ?Sized> ViewIn<'x, 'ub> for T
+impl<'x, 'ub, T: ?Sized> BoundedView<'x, 'ub> for T
 where
     T: View<'x>,
 {
@@ -65,7 +65,7 @@ pub struct Bowl<'ub, P, F: View<'ub> + ?Sized> {
     // If `owner` were moved after `view` was computed,
     // the resulting Unique retag would invalidate `view`'s SharedReadWrite tag on the same allocation.
     view: MaybeDangling<F::Output>,
-    owner: Handle<'ub, 'ub, P>,
+    owner: Anchor<'ub, 'ub, P>,
 }
 
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x P::Target>>
@@ -77,7 +77,7 @@ where
         let view = unsafe { transmute::<&P::Target, &'ub P::Target>(&*owner) };
         Bowl {
             view: MaybeDangling::new(view),
-            owner: Handle(owner, PhantomData),
+            owner: Anchor(owner, PhantomData),
         }
     }
 }
@@ -91,14 +91,14 @@ where
         let view = unsafe { transmute::<&mut P::Target, &'ub mut P::Target>(&mut *owner) };
         Bowl {
             view: MaybeDangling::new(view),
-            owner: Handle(owner, PhantomData),
+            owner: Anchor(owner, PhantomData),
         }
     }
 }
 
-pub struct Isomorphic<'bowl, 'ub, F: View<'ub> + ?Sized>(F::Output, PhantomData<&'bowl ()>);
+pub struct ForAll<'bowl, 'ub, F: View<'ub> + ?Sized>(F::Output, PhantomData<&'bowl ()>);
 
-impl<'bowl, 'ub, F> Isomorphic<'bowl, 'ub, F>
+impl<'bowl, 'ub, F> ForAll<'bowl, 'ub, F>
 where
     F: View<'ub> + ?Sized,
 {
@@ -109,11 +109,11 @@ where
     /// e.g. `View<'x, Output = &'a &'x ()>`,
     /// the invariant only needs to hold for `'x` that makes the expression well-formed.
     pub unsafe fn new_unchecked(view: F::Output) -> Self {
-        Isomorphic(view, PhantomData)
+        ForAll(view, PhantomData)
     }
 }
 
-impl<'bowl, 'ub, F> Default for Isomorphic<'bowl, 'ub, F>
+impl<'bowl, 'ub, F> Default for ForAll<'bowl, 'ub, F>
 where
     F: View<'ub> + ?Sized,
     F::Output: Default,
@@ -123,14 +123,14 @@ where
     }
 }
 
-impl<'bowl, 'ub, F> Copy for Isomorphic<'bowl, 'ub, F>
+impl<'bowl, 'ub, F> Copy for ForAll<'bowl, 'ub, F>
 where
     F: View<'ub> + ?Sized,
     F::Output: Copy,
 {
 }
 
-impl<'bowl, 'ub, F> Clone for Isomorphic<'bowl, 'ub, F>
+impl<'bowl, 'ub, F> Clone for ForAll<'bowl, 'ub, F>
 where
     F: View<'ub> + ?Sized,
     F::Output: Clone,
@@ -142,79 +142,84 @@ where
 
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
-    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
     pub fn borrow<'a>(
         &'a self,
-    ) -> Isomorphic<
+    ) -> ForAll<
         'a,
         'ub,
-        dyn for<'x> View<'x, Output = (&'a <F as ViewIn<'x, 'ub>>::Target, &'a Handle<'x, 'ub, P>)>
-            + 'static,
+        dyn for<'x> View<
+                'x,
+                Output = (
+                    &'a <F as BoundedView<'x, 'ub>>::Target,
+                    &'a Anchor<'x, 'ub, P>,
+                ),
+            > + 'static,
     > {
         // We cannot borrow `self.view` and then add `self.owner` here
         // because the lower bound of `'x` from `self.view.borrow()` is not enough
         // to prove that `'x` outlives `'a`,
         // which is required by the return type signature.
         // SAFETY: The lifetime acts like a brand
-        // that the `Handle` will only be matched
+        // that the `Anchor` will only be matched
         // with the view derived from the same `Bowl`.
         // It would be a violation of this invariant
-        // if we add a `fn zip(Isomorphic<A>, Isomorphic<B>) -> Isomorphic<(A, B)>`.
-        unsafe { Isomorphic::new_unchecked((&*self.view, &self.owner)) }
+        // if we add a `fn zip(ForAll<A>, ForAll<B>) -> ForAll<(A, B)>`.
+        unsafe { ForAll::new_unchecked((&*self.view, &self.owner)) }
     }
 
     pub fn borrow_mut<'a>(
         &'a mut self,
-    ) -> Isomorphic<
+    ) -> ForAll<
         'a,
         'ub,
         dyn for<'x> View<
                 'x,
                 Output = (
-                    &'a mut <F as ViewIn<'x, 'ub>>::Target,
-                    &'a Handle<'x, 'ub, P>,
+                    &'a mut <F as BoundedView<'x, 'ub>>::Target,
+                    &'a Anchor<'x, 'ub, P>,
                 ),
             > + 'static,
     > {
         // SAFETY: Same as `borrow`.
-        unsafe { Isomorphic::new_unchecked((&mut *self.view, &self.owner)) }
+        unsafe { ForAll::new_unchecked((&mut *self.view, &self.owner)) }
     }
 }
 
 pub struct IsoStamp<'bowl, 'life, 'ub>(PhantomData<(&'bowl (), &'life (), &'ub (), fn(&'ub ()))>);
 
-impl<'bowl, 'ub, F> Isomorphic<'bowl, 'ub, F>
+impl<'bowl, 'ub, F> ForAll<'bowl, 'ub, F>
 where
-    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
     pub fn borrow<'a>(
         &'a self,
-    ) -> Isomorphic<
+    ) -> ForAll<
         'bowl,
         'ub,
-        dyn for<'x> View<'x, Output = &'a <F as ViewIn<'x, 'ub>>::Target> + 'static,
+        dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static,
     > {
         // SAFETY: The return type raises the lower bound of `'x`,
         // but `&'a self` implies `&'a F::Output`,
         // thus `'x` already satisfies the lower bound.
-        unsafe { Isomorphic::new_unchecked(&self.0) }
+        unsafe { ForAll::new_unchecked(&self.0) }
     }
 
     pub fn borrow_mut<'a>(
         &'a mut self,
-    ) -> Isomorphic<
+    ) -> ForAll<
         'bowl,
         'ub,
-        dyn for<'x> View<'x, Output = &'a mut <F as ViewIn<'x, 'ub>>::Target> + 'static,
+        dyn for<'x> View<'x, Output = &'a mut <F as BoundedView<'x, 'ub>>::Target> + 'static,
     > {
         // SAFETY: Same as `borrow`.
-        unsafe { Isomorphic::new_unchecked(&mut self.0) }
+        unsafe { ForAll::new_unchecked(&mut self.0) }
     }
 
     pub fn map<R>(
         self,
-        f: impl for<'x> FnOnce(<F as ViewIn<'x, 'ub>>::Target, IsoStamp<'bowl, 'x, 'ub>) -> R,
+        f: impl for<'x> FnOnce(<F as BoundedView<'x, 'ub>>::Target, IsoStamp<'bowl, 'x, 'ub>) -> R,
     ) -> R {
         f(self.0, IsoStamp(PhantomData))
     }
@@ -223,17 +228,17 @@ where
 impl<'bowl, 'life, 'ub> IsoStamp<'bowl, 'life, 'ub> {
     pub fn stamp<'long, F>(
         &self,
-        view: <F as ViewIn<'life, 'long>>::Target,
-    ) -> Isomorphic<'bowl, 'ub, F>
+        view: <F as BoundedView<'life, 'long>>::Target,
+    ) -> ForAll<'bowl, 'ub, F>
     where
-        F: ?Sized + for<'x> ViewIn<'x, 'long>,
+        F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
         let view = unsafe {
-            transmute::<<F as ViewIn<'life, 'long>>::Target, <F as View<'ub>>::Output>(view)
+            transmute::<<F as BoundedView<'life, 'long>>::Target, <F as View<'ub>>::Output>(view)
         };
         // SAFETY: Depends on `IsoStamp` always being used inside an function generic over the `'life`.
-        unsafe { Isomorphic::new_unchecked(view) }
+        unsafe { ForAll::new_unchecked(view) }
     }
 }
 
@@ -271,7 +276,7 @@ pub struct Stamp<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ()
 impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
     pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> Encased<'brand, 'ub, F>
     where
-        F: ?Sized + for<'x> ViewIn<'x, 'long>,
+        F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
         let view =
@@ -295,7 +300,7 @@ impl<'brand, 'ub, P> Slot<'brand, 'ub, P> {
     {
         Bowl {
             view: MaybeDangling::new(view.0),
-            owner: Handle(self.0, PhantomData),
+            owner: Anchor(self.0, PhantomData),
         }
     }
 
@@ -313,9 +318,9 @@ where
     }
 }
 
-pub struct Handle<'life, 'ub, P>(P, PhantomData<(&'life (), &'ub ())>);
+pub struct Anchor<'life, 'ub, P>(P, PhantomData<(&'life (), &'ub ())>);
 
-impl<'life, 'ub, P> Clone for Handle<'life, 'ub, P>
+impl<'life, 'ub, P> Clone for Anchor<'life, 'ub, P>
 where
     P: CloneStableDeref,
 {
@@ -324,14 +329,14 @@ where
     }
 }
 
-impl<'life, 'ub, P> Handle<'life, 'ub, P> {
+impl<'life, 'ub, P> Anchor<'life, 'ub, P> {
     pub fn into_inner(self) -> P {
         self.0
     }
 
-    pub fn fill<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
+    pub fn bind<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
     where
-        F: ?Sized + for<'x> ViewIn<'x, 'long>,
+        F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
         Slot(self.0, PhantomData).fill(Stamp(PhantomData).stamp(view))
@@ -342,18 +347,18 @@ impl<'ub, P, F> Bowl<'ub, P, F>
 where
     F: ?Sized + View<'ub>,
 {
-    pub fn map<R>(self, f: impl for<'brand> FnOnce(Session<'brand, 'ub, P, F>) -> R) -> R {
-        f(Session(self, PhantomData))
+    pub fn map<R>(self, f: impl for<'brand> FnOnce(Scope<'brand, 'ub, P, F>) -> R) -> R {
+        f(Scope(self, PhantomData))
     }
 }
 
-pub struct Session<'brand, 'ub, P, F>(Bowl<'ub, P, F>, PhantomData<&'brand ()>)
+pub struct Scope<'brand, 'ub, P, F>(Bowl<'ub, P, F>, PhantomData<&'brand ()>)
 where
     F: View<'ub> + ?Sized;
 
-impl<'brand, 'ub, P, F> Session<'brand, 'ub, P, F>
+impl<'brand, 'ub, P, F> Scope<'brand, 'ub, P, F>
 where
-    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
     pub fn open<R>(
         self,

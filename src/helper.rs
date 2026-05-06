@@ -1,4 +1,4 @@
-use crate::primitive::{Bowl, Handle, Isomorphic, View};
+use crate::primitive::{Anchor, Bowl, ForAll, View};
 use ::core::{fmt, mem::drop};
 
 pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
@@ -57,19 +57,19 @@ where
 {
     pub fn with<'a, R>(
         &'a self,
-        f: impl for<'life> FnOnce(&'a <F as ViewIn<'life, 'ub>>::Target, &'a Handle<'life, 'ub, P>) -> R,
+        f: impl for<'life> FnOnce(&'a <F as ViewIn<'life, 'ub>>::Target, &'a Anchor<'life, 'ub, P>) -> R,
     ) -> R {
-        self.borrow().map(|(view, handle), _| f(view, handle))
+        self.borrow().map(|(view, anchor), _| f(view, anchor))
     }
 
     pub fn with_mut<'a, R>(
         &'a mut self,
         f: impl for<'life> FnOnce(
             &'a mut <F as ViewIn<'life, 'ub>>::Target,
-            &'a Handle<'life, 'ub, P>,
+            &'a Anchor<'life, 'ub, P>,
         ) -> R,
     ) -> R {
-        self.borrow_mut().map(|(view, handle), _| f(view, handle))
+        self.borrow_mut().map(|(view, anchor), _| f(view, anchor))
     }
 
     /// Transforms the current view using `f`, encoding the composition as a generated view type.
@@ -85,8 +85,8 @@ where
     where
         G: for<'x> Derive<<F as ViewIn<'x, 'ub>>::Target>,
     {
-        self.map(|session| {
-            let (view, slot) = session.open(|view, stamp| stamp.stamp(f.call(view)));
+        self.map(|scope| {
+            let (view, slot) = scope.open(|view, stamp| stamp.stamp(f.call(view)));
             slot.fill(view)
         })
     }
@@ -98,8 +98,8 @@ where
     where
         'ub: 'short,
     {
-        self.map(|session| {
-            let (view, slot) = session.open(|view, stamp| stamp.stamp(view));
+        self.map(|scope| {
+            let (view, slot) = scope.open(|view, stamp| stamp.stamp(view));
             slot.fill(view)
         })
     }
@@ -110,8 +110,8 @@ where
     pub fn cast_view<G: ?Sized + for<'x> ViewIn<'x, 'ub, Target = <F as View<'x>>::Output>>(
         self,
     ) -> Bowl<'ub, P, G> {
-        self.map(|session| {
-            let (view, slot) = session.open(|view, stamp| stamp.stamp(view));
+        self.map(|scope| {
+            let (view, slot) = scope.open(|view, stamp| stamp.stamp(view));
             slot.fill(view)
         })
     }
@@ -128,7 +128,7 @@ where
 
     /// Drops the view and returns the owner.
     pub fn into_owner(self) -> P {
-        self.map(|session| session.open(|_, _| ()).1.into_inner())
+        self.map(|scope| scope.open(|_, _| ()).1.into_inner())
     }
 
     /// Drops the owner and returns the view.
@@ -139,8 +139,8 @@ where
     where
         for<'x> F: ViewIn<'x, 'ub, Target = S>,
     {
-        self.map(|session| {
-            let (view, slot) = session.open(|view, _| view);
+        self.map(|scope| {
+            let (view, slot) = scope.open(|view, _| view);
             // `view` must be dropped even if `owner`'s drop panics.
             // Miri reports that this is not guaranteed
             // if `owner` is dropped implicitly at the end of the function,
@@ -188,8 +188,8 @@ where
     where
         for<'x> F: ViewIn<'x, 'ub, Target = S>,
     {
-        self.map(|session| {
-            let t = session.open(|view, _| view);
+        self.map(|scope| {
+            let t = scope.open(|view, _| view);
             (t.1.into_inner(), t.0)
         })
     }
@@ -205,8 +205,8 @@ where
     where
         for<'x> <F as View<'x>>::Output: Result,
     {
-        self.map(|session| {
-            let (view, slot) = session.open(|view, stamp| match Result::into(view) {
+        self.map(|scope| {
+            let (view, slot) = scope.open(|view, stamp| match Result::into(view) {
                 Ok(ok) => Ok(stamp.stamp(ok)),
                 Err(err) => Err(stamp.stamp(err)),
             });
@@ -239,7 +239,7 @@ where
     for<'x> <F as ViewIn<'x, 'ub>>::Target: Clone,
 {
     fn clone(&self) -> Self {
-        self.with(|view, handle| handle.clone().fill(view.clone()))
+        self.with(|view, anchor| anchor.clone().bind(view.clone()))
     }
 }
 
@@ -257,7 +257,7 @@ where
     }
 }
 
-impl<'bowl, 'ub> Isomorphic<'bowl, 'ub, dyn for<'x> View<'x, Output = ()>> {
+impl<'bowl, 'ub> ForAll<'bowl, 'ub, dyn for<'x> View<'x, Output = ()>> {
     pub fn new() -> Self {
         Default::default()
     }
