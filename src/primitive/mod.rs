@@ -7,7 +7,7 @@
 
 mod aliasable;
 mod bowl;
-pub mod stable_deref;
+mod stable_deref;
 
 pub use self::{
     aliasable::{Aliasable, DanglingDeref},
