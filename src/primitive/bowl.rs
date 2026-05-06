@@ -275,13 +275,12 @@ impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
     {
         let view =
             unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
-        ProtectedForAll(view, PhantomData)
+        unsafe { ProtectedForAll::new_unchecked(view) }
     }
 }
 
-#[derive(Clone, Copy)]
 pub struct ProtectedForAll<'brand, 'ub, F: View<'ub> + ?Sized>(
-    F::Output,
+    MaybeDangling<F::Output>,
     PhantomData<(&'brand (), F)>,
 );
 
@@ -290,7 +289,7 @@ where
     F: View<'ub> + ?Sized,
 {
     pub unsafe fn new_unchecked(view: F::Output) -> Self {
-        Self(view, PhantomData)
+        Self(MaybeDangling::new(view), PhantomData)
     }
 }
 
@@ -302,7 +301,7 @@ impl<'brand, P> Slot<'brand, P> {
         F: ?Sized + View<'ub>,
     {
         Bowl {
-            view: MaybeDangling::new(view.0),
+            view: view.0,
             owner: Anchor(self.0, PhantomData),
         }
     }
@@ -355,7 +354,7 @@ where
         f: impl for<'bowl> FnOnce(ProtectedForAll<'bowl, 'ub, F>, ProtectedSlot<'bowl, P>) -> R,
     ) -> R {
         f(
-            ProtectedForAll(MaybeDangling::into_inner(self.view), PhantomData),
+            unsafe { ProtectedForAll::new_unchecked(MaybeDangling::into_inner(self.view)) },
             ProtectedSlot(self.owner.0, PhantomData),
         )
     }
@@ -380,7 +379,7 @@ where
         'ub,
         dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static,
     > {
-        unsafe { ProtectedForAll::new_unchecked(&self.0) }
+        unsafe { ProtectedForAll::new_unchecked(&*self.0) }
     }
 
     pub fn borrow_mut<'a, P>(
@@ -390,7 +389,7 @@ where
         'ub,
         dyn for<'x> View<'x, Output = &'a mut <F as BoundedView<'x, 'ub>>::Target> + 'static,
     > {
-        unsafe { ProtectedForAll::new_unchecked(&mut self.0) }
+        unsafe { ProtectedForAll::new_unchecked(&mut *self.0) }
     }
 
     pub fn zip<G>(
@@ -410,7 +409,12 @@ where
     where
         G: ?Sized + for<'x> BoundedView<'x, 'ub>,
     {
-        unsafe { ProtectedForAll::new_unchecked((self.0, other.0)) }
+        unsafe {
+            ProtectedForAll::new_unchecked((
+                MaybeDangling::into_inner(self.0),
+                MaybeDangling::into_inner(other.0),
+            ))
+        }
     }
 
     pub fn map<R, P>(
@@ -418,6 +422,6 @@ where
         _token: &ProtectedSlot<'bowl, P>,
         f: impl for<'x> FnOnce(<F as BoundedView<'x, 'ub>>::Target, Stamp<'bowl, 'x, 'ub>) -> R,
     ) -> R {
-        f(self.0, Stamp(PhantomData))
+        f(MaybeDangling::into_inner(self.0), Stamp(PhantomData))
     }
 }
