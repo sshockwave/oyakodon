@@ -128,7 +128,10 @@ where
 
     /// Drops the view and returns the owner.
     pub fn into_owner(self) -> P {
-        self.map(|_, slot| slot.unseal().into_inner())
+        self.map(|view, slot| {
+            drop(view); // Same as `into_view`
+            slot.unseal().into_inner()
+        })
     }
 
     /// Drops the owner and returns the view.
