@@ -98,6 +98,21 @@ where
 
 pub struct Isomorphic<'bowl, 'ub, F: View<'ub> + ?Sized>(F::Output, PhantomData<&'bowl ()>);
 
+impl<'bowl, 'ub, F> Isomorphic<'bowl, 'ub, F>
+where
+    F: View<'ub> + ?Sized,
+{
+    /// # SAFETY
+    /// The caller must ensure that the view is valid for all lifetimes `'x`
+    /// that does not outlive `'ub`.
+    /// If the view contain a lower bound to `'x`,
+    /// e.g. `View<'x, Output = &'a &'x ()>`,
+    /// the invariant only needs to hold for `'x` that makes the expression well-formed.
+    pub unsafe fn new_unchecked(view: F::Output) -> Self {
+        Isomorphic(view, PhantomData)
+    }
+}
+
 impl<'bowl, 'ub, F> Default for Isomorphic<'bowl, 'ub, F>
 where
     F: View<'ub> + ?Sized,
@@ -137,7 +152,16 @@ where
         dyn for<'x> View<'x, Output = (&'a <F as ViewIn<'x, 'ub>>::Target, &'a Handle<'x, 'ub, P>)>
             + 'static,
     > {
-        Isomorphic((&*self.view, &self.owner), PhantomData)
+        // We cannot borrow `self.view` and then add `self.owner` here
+        // because the lower bound of `'x` from `self.view.borrow()` is not enough
+        // to prove that `'x` outlives `'a`,
+        // which is required by the return type signature.
+        // SAFETY: The lifetime acts like a brand
+        // that the `Handle` will only be matched
+        // with the view derived from the same `Bowl`.
+        // It would be a violation of this invariant
+        // if we add a `fn zip(Isomorphic<A>, Isomorphic<B>) -> Isomorphic<(A, B)>`.
+        unsafe { Isomorphic::new_unchecked((&*self.view, &self.owner)) }
     }
 
     pub fn borrow_mut<'a>(
@@ -153,7 +177,8 @@ where
                 ),
             > + 'static,
     > {
-        Isomorphic((&mut *self.view, &self.owner), PhantomData)
+        // SAFETY: Same as `borrow`.
+        unsafe { Isomorphic::new_unchecked((&mut *self.view, &self.owner)) }
     }
 }
 
@@ -163,6 +188,30 @@ impl<'bowl, 'ub, F> Isomorphic<'bowl, 'ub, F>
 where
     F: ?Sized + for<'x> ViewIn<'x, 'ub>,
 {
+    pub fn borrow<'a>(
+        &'a self,
+    ) -> Isomorphic<
+        'bowl,
+        'ub,
+        dyn for<'x> View<'x, Output = &'a <F as ViewIn<'x, 'ub>>::Target> + 'static,
+    > {
+        // SAFETY: The return type raises the lower bound of `'x`,
+        // but `&'a self` implies `&'a F::Output`,
+        // thus `'x` already satisfies the lower bound.
+        unsafe { Isomorphic::new_unchecked(&self.0) }
+    }
+
+    pub fn borrow_mut<'a>(
+        &'a mut self,
+    ) -> Isomorphic<
+        'bowl,
+        'ub,
+        dyn for<'x> View<'x, Output = &'a mut <F as ViewIn<'x, 'ub>>::Target> + 'static,
+    > {
+        // SAFETY: Same as `borrow`.
+        unsafe { Isomorphic::new_unchecked(&mut self.0) }
+    }
+
     pub fn map<R>(
         self,
         f: impl for<'x> FnOnce(<F as ViewIn<'x, 'ub>>::Target, IsoStamp<'bowl, 'x, 'ub>) -> R,
@@ -183,10 +232,40 @@ impl<'bowl, 'life, 'ub> IsoStamp<'bowl, 'life, 'ub> {
         let view = unsafe {
             transmute::<<F as ViewIn<'life, 'long>>::Target, <F as View<'ub>>::Output>(view)
         };
-        Isomorphic(view, PhantomData)
+        // SAFETY: Depends on `IsoStamp` always being used inside an function generic over the `'life`.
+        unsafe { Isomorphic::new_unchecked(view) }
     }
 }
 
+/// [`stamp`] could have been unsound due to [#84591]:
+/// ```
+/// use oyakodon::primitive::View;
+/// fn requires_all<F: ?Sized + for<'x> View<'x>>() {}
+/// fn get_lifetime<'lower_bound>() {
+///     requires_all::<dyn for<'x> View<'x, Output = &'static &'x ()>>();
+/// }
+/// ```
+/// But curiously, Rust is able to reject this case:
+/// ```compile_fail
+/// use oyakodon::primitive::View;
+/// pub struct Requires<'life>(&'life ());
+/// impl<'life> Requires<'life> {
+///     pub fn all<F: ?Sized + View<'life>>(_: F::Output) {}
+/// }
+/// fn get_lifetime<'lower_bound, 'life, 'ub>() {
+///     Requires::<'life>::all::<dyn for<'x> View<'x, Output = &'lower_bound &'x ()>>(&&());
+/// }
+/// ```
+/// So [`stamp`] cannot be exploited to raise the lower bound of `'life`:
+/// ```compile_fail
+/// use oyakodon::primitive::{Stamp, View};
+/// fn get_stamp<'short, 'brand, 'life, 'ub>(stamp: Stamp<'brand, 'life, 'ub>) {
+///     stamp.stamp::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
+/// }
+/// ```
+///
+/// [`stamp`]: Self::stamp
+/// [#84591]: https://github.com/rust-lang/rust/issues/84591
 pub struct Stamp<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ())>);
 
 impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
