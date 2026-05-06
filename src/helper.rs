@@ -85,9 +85,9 @@ where
     where
         G: for<'x> Derive<<F as ViewIn<'x, 'ub>>::Target>,
     {
-        self.map(|scope| {
-            let (view, slot) = scope.open(|view, stamp| stamp.stamp(f.call(view)));
-            slot.fill(view)
+        self.map(|view, slot| {
+            let view = view.map(&slot, |view, stamp| stamp.stamp(f.call(view)));
+            slot.unseal().fill(view)
         })
     }
 
@@ -98,9 +98,9 @@ where
     where
         'ub: 'short,
     {
-        self.map(|scope| {
-            let (view, slot) = scope.open(|view, stamp| stamp.stamp(view));
-            slot.fill(view)
+        self.map(|view, slot| {
+            let view = view.map(&slot, |view, stamp| stamp.stamp(view));
+            slot.unseal().fill(view)
         })
     }
 
@@ -110,9 +110,9 @@ where
     pub fn cast_view<G: ?Sized + for<'x> ViewIn<'x, 'ub, Target = <F as View<'x>>::Output>>(
         self,
     ) -> Bowl<'ub, P, G> {
-        self.map(|scope| {
-            let (view, slot) = scope.open(|view, stamp| stamp.stamp(view));
-            slot.fill(view)
+        self.map(|view, slot| {
+            let view = view.map(&slot, |view, stamp| stamp.stamp(view));
+            slot.unseal().fill(view)
         })
     }
 
@@ -128,7 +128,7 @@ where
 
     /// Drops the view and returns the owner.
     pub fn into_owner(self) -> P {
-        self.map(|scope| scope.open(|_, _| ()).1.into_inner())
+        self.map(|_, slot| slot.unseal().into_inner())
     }
 
     /// Drops the owner and returns the view.
@@ -139,8 +139,8 @@ where
     where
         for<'x> F: ViewIn<'x, 'ub, Target = S>,
     {
-        self.map(|scope| {
-            let (view, slot) = scope.open(|view, _| view);
+        self.map(|view, slot| {
+            let view = view.map(&slot, |view, _| view);
             // `view` must be dropped even if `owner`'s drop panics.
             // Miri reports that this is not guaranteed
             // if `owner` is dropped implicitly at the end of the function,
@@ -188,9 +188,9 @@ where
     where
         for<'x> F: ViewIn<'x, 'ub, Target = S>,
     {
-        self.map(|scope| {
-            let t = scope.open(|view, _| view);
-            (t.1.into_inner(), t.0)
+        self.map(|view, slot| {
+            let view = view.map(&slot, |view, _| view);
+            (slot.unseal().into_inner(), view)
         })
     }
 
@@ -205,11 +205,12 @@ where
     where
         for<'x> <F as View<'x>>::Output: Result,
     {
-        self.map(|scope| {
-            let (view, slot) = scope.open(|view, stamp| match Result::into(view) {
+        self.map(|view, slot| {
+            let view = view.map(&slot, |view, stamp| match Result::into(view) {
                 Ok(ok) => Ok(stamp.stamp(ok)),
                 Err(err) => Err(stamp.stamp(err)),
             });
+            let slot = slot.unseal();
             match view {
                 Ok(ok) => Ok(slot.fill(ok)),
                 Err(err) => Err(slot.fill(err)),

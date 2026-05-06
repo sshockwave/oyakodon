@@ -350,26 +350,56 @@ impl<'ub, P, F> Bowl<'ub, P, F>
 where
     F: ?Sized + View<'ub>,
 {
-    pub fn map<R>(self, f: impl for<'brand> FnOnce(Scope<'brand, 'ub, P, F>) -> R) -> R {
-        f(Scope(self, PhantomData))
+    pub fn map<R>(
+        self,
+        f: impl for<'bowl> FnOnce(ProtectedForAll<'bowl, 'ub, F>, ProtectedSlot<'bowl, P>) -> R,
+    ) -> R {
+        f(
+            ProtectedForAll(MaybeDangling::into_inner(self.view), PhantomData),
+            ProtectedSlot(self.owner.0, PhantomData),
+        )
     }
 }
 
-pub struct Scope<'brand, 'ub, P, F>(Bowl<'ub, P, F>, PhantomData<&'brand ()>)
-where
-    F: View<'ub> + ?Sized;
+pub struct ProtectedSlot<'bowl, P>(P, PhantomData<&'bowl ()>);
 
-impl<'brand, 'ub, P, F> Scope<'brand, 'ub, P, F>
+impl<'bowl, P> ProtectedSlot<'bowl, P> {
+    pub fn unseal(self) -> Slot<'bowl, P> {
+        Slot(self.0, PhantomData)
+    }
+}
+
+impl<'bowl, 'ub, F> ProtectedForAll<'bowl, 'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
-    pub fn open<R>(
+    pub fn borrow<'a, P>(
+        &'a self,
+        _token: &'a ProtectedSlot<'bowl, P>,
+    ) -> ForAll<
+        'a,
+        'ub,
+        dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static,
+    > {
+        unsafe { ForAll::new_unchecked(&self.0) }
+    }
+
+    pub fn borrow_mut<'a, P>(
+        &'a mut self,
+        _token: &'a ProtectedSlot<'bowl, P>,
+    ) -> ForAll<
+        'a,
+        'ub,
+        dyn for<'x> View<'x, Output = &'a mut <F as BoundedView<'x, 'ub>>::Target> + 'static,
+    > {
+        unsafe { ForAll::new_unchecked(&mut self.0) }
+    }
+
+    pub fn map<R, P>(
         self,
-        f: impl for<'life> FnOnce(<F as View<'life>>::Output, Stamp<'brand, 'life, 'ub>) -> R,
-    ) -> (R, Slot<'brand, P>) {
-        (
-            f(MaybeDangling::into_inner(self.0.view), Stamp(PhantomData)),
-            Slot(self.0.owner.0, PhantomData),
-        )
+        _token: &ProtectedSlot<'bowl, P>,
+        f: impl for<'x> FnOnce(<F as BoundedView<'x, 'ub>>::Target, Stamp<'bowl, 'x, 'ub>) -> R,
+    ) -> R {
+        f(self.0, Stamp(PhantomData))
     }
 }
