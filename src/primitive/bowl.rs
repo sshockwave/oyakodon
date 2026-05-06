@@ -157,7 +157,7 @@ where
     }
 }
 
-pub struct IsoStamp<'bowl, 'life, 'ub>(PhantomData<(&'bowl (), &'life (), &'ub ())>);
+pub struct IsoStamp<'bowl, 'life, 'ub>(PhantomData<(&'bowl (), &'life (), &'ub (), fn(&'ub ()))>);
 
 impl<'bowl, 'ub, F> Isomorphic<'bowl, 'ub, F>
 where
