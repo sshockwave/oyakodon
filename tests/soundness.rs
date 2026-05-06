@@ -1,4 +1,4 @@
-use oyakodon::{BowlMut, BowlRef, View};
+use oyakodon::primitive::{Bowl, View};
 
 /// Regression: [`into_owner()`] must drop `owner` even when `view`'s drop panics.
 /// Previously, `view: _` in the destructure produced an unnamed temporary
@@ -6,7 +6,7 @@ use oyakodon::{BowlMut, BowlRef, View};
 /// causing `owner` to leak when `view`'s drop panicked.
 /// Fixed by using a named binding so `owner` is a proper tracked local.
 ///
-/// [`into_owner()`]: BowlRef::into_owner
+/// [`into_owner()`]: Bowl::into_owner
 #[test]
 #[should_panic]
 fn into_owner_drops_owner_on_view_panic() {
@@ -17,14 +17,16 @@ fn into_owner_drops_owner_on_view_panic() {
             panic!("view drop panic");
         }
     }
-    fn make(s: &String) -> PanicOnDrop<'_> {
+    fn make(s: &mut String) -> PanicOnDrop<'_> {
         PanicOnDrop(s)
     }
     // Miri detects the leak if `Box<String>` is not freed after the panic.
-    BowlRef::new(Box::new(String::from("hello")), make).into_owner();
+    Bowl::new_box(String::from("hello"))
+        .map_view(make)
+        .into_owner();
 }
 
-/// The same as [`into_owner_drops_owner_on_view_panic`] but for [`BowlRef::into_view()`]
+/// The same as [`into_owner_drops_owner_on_view_panic`] but for [`Bowl::into_view()`].
 #[test]
 #[should_panic]
 fn into_view_drops_view_on_owner_panic() {
@@ -34,12 +36,13 @@ fn into_view_drops_view_on_owner_panic() {
             panic!("owner drop panic");
         }
     }
-    fn make_view(owner: &PanicOnDrop) -> Box<String> {
+    fn make_view(owner: &mut PanicOnDrop) -> Box<String> {
         Box::new(owner.0.clone())
     }
     // Miri detects the leak if Box<String> (the view) is not freed after the panic.
-    let _: Box<String> =
-        BowlRef::new(Box::new(PanicOnDrop("hello".to_string())), make_view).into_view();
+    let _: Box<String> = Bowl::new_box(PanicOnDrop("hello".to_string()))
+        .map_view(make_view)
+        .into_view();
 }
 
 /// https://github.com/someguynamedjosh/ouroboros/issues/88
@@ -55,12 +58,13 @@ fn ouroboros_88() {}
 /// Should be run with `-Zmiri-retag-fields` though enabled in new Miri versions by default.
 #[test]
 fn yoke_3696() {
-    struct GetRef;
-    impl<'a> View<&'a mut [u8]> for GetRef {
-        type Output = &'a mut [u8];
-    }
-    fn example(_: BowlMut<'_, Vec<u8>, GetRef>) {}
-    example(BowlMut::<_, GetRef>::from_fn(vec![0, 1, 2], &|data| data));
+    fn example<P>(_: Bowl<P, dyn for<'x> View<'x, Output = &'x mut [u8]>>) {}
+    let bowl = Bowl::new_box(vec![0u8, 1, 2]).map(|session| {
+        let (derived, slot) = session
+            .open(|view, stamp| stamp.stamp::<dyn for<'x> View<'x, Output = &'x mut [u8]>>(view));
+        slot.fill(derived)
+    });
+    example(bowl);
 }
 
 /// https://github.com/Kimundi/owning-ref-rs/issues/49
@@ -72,15 +76,11 @@ fn yoke_3696() {
 fn owning_ref_49() {
     use std::cell::Cell;
 
-    fn derive(cell: &mut Cell<u8>) -> &Cell<u8> {
-        &*cell
-    }
-
-    let owning_ref = BowlMut::new(Box::new(Cell::new(25u8)), derive);
-    let res = owning_ref.spawn(|v: &&Cell<_>| {
-        (*v).set(10);
-        (*v).set(20);
-        (*v).get()
+    let owning_ref = Bowl::new_box(Cell::new(25u8));
+    let res = owning_ref.with(|v, _| {
+        v.set(10);
+        v.set(20);
+        v.get()
     });
     assert_eq!(res, 20);
 
