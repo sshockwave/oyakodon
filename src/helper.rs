@@ -62,7 +62,8 @@ where
     ) -> Bowl<
         'ub,
         P,
-        dyn for<'x> View<'x, Output = <G as Derive<<F as ViewIn<'x, 'ub>>::Target>>::Output>,
+        dyn for<'x> View<'x, Output = <G as Derive<<F as ViewIn<'x, 'ub>>::Target>>::Output>
+            + 'static,
     >
     where
         G: for<'x> Derive<<F as ViewIn<'x, 'ub>>::Target>,
