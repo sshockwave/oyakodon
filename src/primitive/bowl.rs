@@ -375,20 +375,42 @@ where
 {
     pub fn borrow<'a, P>(
         &'a self,
-        _token: &'a ProtectedSlot<'bowl, P>,
-    ) -> ForAll<'ub, dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static>
-    {
-        unsafe { ForAll::new_unchecked(&self.0) }
+    ) -> ProtectedForAll<
+        'bowl,
+        'ub,
+        dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static,
+    > {
+        unsafe { ProtectedForAll::new_unchecked(&self.0) }
     }
 
     pub fn borrow_mut<'a, P>(
         &'a mut self,
-        _token: &'a ProtectedSlot<'bowl, P>,
-    ) -> ForAll<
+    ) -> ProtectedForAll<
+        'bowl,
         'ub,
         dyn for<'x> View<'x, Output = &'a mut <F as BoundedView<'x, 'ub>>::Target> + 'static,
     > {
-        unsafe { ForAll::new_unchecked(&mut self.0) }
+        unsafe { ProtectedForAll::new_unchecked(&mut self.0) }
+    }
+
+    pub fn zip<G>(
+        self,
+        other: ProtectedForAll<'bowl, 'ub, G>,
+    ) -> ProtectedForAll<
+        'bowl,
+        'ub,
+        dyn for<'x> View<
+            'x,
+            Output = (
+                <F as BoundedView<'x, 'ub>>::Target,
+                <G as BoundedView<'x, 'ub>>::Target,
+            ),
+        >,
+    >
+    where
+        G: ?Sized + for<'x> BoundedView<'x, 'ub>,
+    {
+        unsafe { ProtectedForAll::new_unchecked((self.0, other.0)) }
     }
 
     pub fn map<R, P>(
