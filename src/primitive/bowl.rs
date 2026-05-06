@@ -63,7 +63,7 @@ pub struct Bowl<'ub, P, F: View<'ub> + ?Sized> {
     // If `owner` were moved after `view` was computed,
     // the resulting Unique retag would invalidate `view`'s SharedReadWrite tag on the same allocation.
     view: MaybeDangling<F::Output>,
-    owner: Handle<'ub, 'ub, P, &'ub &'ub ()>,
+    owner: Handle<'ub, 'ub, P>,
 }
 
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x P::Target>>
@@ -141,9 +141,9 @@ where
     }
 }
 
-pub struct Handle<'life, 'ub, P, X>(P, PhantomData<(&'life (), &'ub (), X)>);
+pub struct Handle<'life, 'ub, P>(P, PhantomData<(&'life (), &'ub ())>);
 
-impl<'life, 'ub, P, X> Clone for Handle<'life, 'ub, P, X>
+impl<'life, 'ub, P> Clone for Handle<'life, 'ub, P>
 where
     P: CloneStableDeref,
 {
@@ -152,7 +152,7 @@ where
     }
 }
 
-impl<'life, 'ub, P, X> Handle<'life, 'ub, P, X> {
+impl<'life, 'ub, P> Handle<'life, 'ub, P> {
     pub fn into_inner(self) -> P {
         self.0
     }
@@ -172,10 +172,7 @@ where
 {
     pub fn with<'a, R>(
         &'a self,
-        f: impl for<'life> FnOnce(
-            &'a <F as ViewIn<'life, 'ub>>::Target,
-            &'a Handle<'life, 'ub, P, &'a &'life ()>,
-        ) -> R,
+        f: impl for<'life> FnOnce(&'a <F as ViewIn<'life, 'ub>>::Target, &'a Handle<'life, 'ub, P>) -> R,
     ) -> R {
         // SAFETY: The HRTB on this method maintains the HRTB invariant on `derive()`.
         // We don't know `'self`, but we know it outlives `'a`.
@@ -188,7 +185,7 @@ where
         &'a mut self,
         f: impl for<'life> FnOnce(
             &'a mut <F as ViewIn<'life, 'ub>>::Target,
-            &'a Handle<'life, 'ub, P, &'a &'life ()>,
+            &'a Handle<'life, 'ub, P>,
         ) -> R,
     ) -> R {
         f(&mut *self.view, &self.owner)
