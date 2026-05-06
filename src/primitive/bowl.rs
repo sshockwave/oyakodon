@@ -291,10 +291,10 @@ pub struct Encased<'brand, 'ub, F: View<'ub> + ?Sized>(
     PhantomData<(&'brand (), &'ub (), F)>,
 );
 
-pub struct Slot<'brand, 'ub, P>(P, PhantomData<(&'brand (), &'ub ())>);
+pub struct Slot<'brand, P>(P, PhantomData<&'brand ()>);
 
-impl<'brand, 'ub, P> Slot<'brand, 'ub, P> {
-    pub fn fill<F>(self, view: Encased<'brand, 'ub, F>) -> Bowl<'ub, P, F>
+impl<'brand, P> Slot<'brand, P> {
+    pub fn fill<'ub, F>(self, view: Encased<'brand, 'ub, F>) -> Bowl<'ub, P, F>
     where
         F: ?Sized + View<'ub>,
     {
@@ -309,7 +309,7 @@ impl<'brand, 'ub, P> Slot<'brand, 'ub, P> {
     }
 }
 
-impl<'brand, 'ub, P> Clone for Slot<'brand, 'ub, P>
+impl<'brand, 'ub, P> Clone for Slot<'brand, P>
 where
     P: CloneStableDeref,
 {
@@ -363,7 +363,7 @@ where
     pub fn open<R>(
         self,
         f: impl for<'life> FnOnce(<F as View<'life>>::Output, Stamp<'brand, 'life, 'ub>) -> R,
-    ) -> (R, Slot<'brand, 'ub, P>) {
+    ) -> (R, Slot<'brand, P>) {
         (
             f(MaybeDangling::into_inner(self.0.view), Stamp(PhantomData)),
             Slot(self.0.owner.0, PhantomData),
