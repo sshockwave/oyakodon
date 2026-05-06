@@ -59,7 +59,11 @@ where
     pub fn map_view<G>(
         self,
         f: G,
-    ) -> Bowl<'ub, P, dyn for<'x> Fn(&'x ()) -> <G as Derive<<F as ViewIn<'x, 'ub>>::Target>>::Output>
+    ) -> Bowl<
+        'ub,
+        P,
+        dyn for<'x> View<'x, Output = <G as Derive<<F as ViewIn<'x, 'ub>>::Target>>::Output>,
+    >
     where
         G: for<'x> Derive<<F as ViewIn<'x, 'ub>>::Target>,
     {
@@ -83,7 +87,7 @@ where
     }
 
     /// Changes the view marker type `F` to any `G` that produces identical output types.
-    /// It is recommended to use `dyn for<'x> Fn(&'x ()) -> Type<'x>` as the view type indicator (i.e. HKT),
+    /// It is recommended to use `dyn for<'x> View<'x, Output = Type<'x>>` as the view type indicator (i.e. HKT),
     /// or a unified view type in the same project.
     pub fn cast_view<G: ?Sized + for<'x> ViewIn<'x, 'ub, Target = <F as View<'x>>::Output>>(
         self,
@@ -177,8 +181,8 @@ where
     pub fn into_result(
         self,
     ) -> ::core::result::Result<
-        Bowl<'ub, P, dyn for<'x> Fn(&'x ()) -> <<F as View<'x>>::Output as Result>::Ok>,
-        Bowl<'ub, P, dyn for<'x> Fn(&'x ()) -> <<F as View<'x>>::Output as Result>::Err>,
+        Bowl<'ub, P, dyn for<'x> View<'x, Output = <<F as View<'x>>::Output as Result>::Ok>>,
+        Bowl<'ub, P, dyn for<'x> View<'x, Output = <<F as View<'x>>::Output as Result>::Err>>,
     >
     where
         for<'x> <F as View<'x>>::Output: Result,

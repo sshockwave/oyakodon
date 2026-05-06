@@ -12,13 +12,6 @@ pub trait View<'x> {
     type Output;
 }
 
-impl<'x, F: ?Sized, R> View<'x> for F
-where
-    F: FnOnce(&'x ()) -> R,
-{
-    type Output = R;
-}
-
 pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
     type Target;
 }
@@ -36,7 +29,7 @@ where
 /// it does not mutate the owned value when the derived view is alive.
 ///
 /// `F` is the higher-kinded view marker type that describes the signature of the derivation function.
-/// You can write `F` like `dyn for<'x> Fn(&'x ()) -> Type<'x>` to indicate that the view type is `Type<'x>`,
+/// You can write `F` like `dyn for<'x> View<'x, Output = Type<'x>>` to indicate that the view type is `Type<'x>`,
 /// or you can manually implement the [`View`] trait.
 /// Note that it is entirely different type for different `F`,
 /// even if they produce the same output type.
