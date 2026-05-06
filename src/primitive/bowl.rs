@@ -1,7 +1,8 @@
 use super::{Aliasable, CloneStableDeref};
 use ::{
     core::{
-        marker::PhantomData,
+        clone::Clone,
+        marker::{Copy, PhantomData},
         mem::transmute,
         ops::{Deref, DerefMut},
     },
@@ -94,8 +95,14 @@ where
     }
 }
 
-#[derive(Copy)]
 pub struct Isomorphic<'bowl, 'ub, F: View<'ub> + ?Sized>(F::Output, PhantomData<&'bowl ()>);
+
+impl<'bowl, 'ub, F> Copy for Isomorphic<'bowl, 'ub, F>
+where
+    F: View<'ub> + ?Sized,
+    F::Output: Copy,
+{
+}
 
 impl<'bowl, 'ub, F> Clone for Isomorphic<'bowl, 'ub, F>
 where
