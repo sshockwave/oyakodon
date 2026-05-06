@@ -1,4 +1,4 @@
-use crate::primitive::{Bowl, Handle, View};
+use crate::primitive::{Bowl, Handle, Isomorphic, View};
 use ::core::{fmt, mem::drop};
 
 pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
@@ -254,5 +254,11 @@ where
             dbg_struct.field("view", view);
         });
         dbg_struct.finish_non_exhaustive()
+    }
+}
+
+impl<'bowl, 'ub> Isomorphic<'bowl, 'ub, dyn for<'x> View<'x, Output = ()>> {
+    pub fn new() -> Self {
+        Default::default()
     }
 }

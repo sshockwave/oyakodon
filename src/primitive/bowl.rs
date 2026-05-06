@@ -2,6 +2,7 @@ use super::{Aliasable, CloneStableDeref};
 use ::{
     core::{
         clone::Clone,
+        default::Default,
         marker::{Copy, PhantomData},
         mem::transmute,
         ops::{Deref, DerefMut},
@@ -96,6 +97,16 @@ where
 }
 
 pub struct Isomorphic<'bowl, 'ub, F: View<'ub> + ?Sized>(F::Output, PhantomData<&'bowl ()>);
+
+impl<'bowl, 'ub, F> Default for Isomorphic<'bowl, 'ub, F>
+where
+    F: View<'ub> + ?Sized,
+    F::Output: Default,
+{
+    fn default() -> Self {
+        Self(Default::default(), PhantomData)
+    }
+}
 
 impl<'bowl, 'ub, F> Copy for Isomorphic<'bowl, 'ub, F>
 where
