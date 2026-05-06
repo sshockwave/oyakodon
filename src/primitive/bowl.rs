@@ -95,15 +95,15 @@ where
 }
 
 #[derive(Copy)]
-pub struct Isomorphic<'ub, F: View<'ub> + ?Sized>(F::Output);
+pub struct Isomorphic<'bowl, 'ub, F: View<'ub> + ?Sized>(F::Output, PhantomData<&'bowl ()>);
 
-impl<'ub, F> Clone for Isomorphic<'ub, F>
+impl<'bowl, 'ub, F> Clone for Isomorphic<'bowl, 'ub, F>
 where
     F: View<'ub> + ?Sized,
     F::Output: Clone,
 {
     fn clone(&self) -> Self {
-        Self(self.0.clone())
+        Self(self.0.clone(), PhantomData)
     }
 }
 
@@ -114,16 +114,18 @@ where
     pub fn borrow<'a>(
         &'a self,
     ) -> Isomorphic<
+        'a,
         'ub,
         dyn for<'x> View<'x, Output = (&'a <F as ViewIn<'x, 'ub>>::Target, &'a Handle<'x, 'ub, P>)>
             + 'static,
     > {
-        Isomorphic((&*self.view, &self.owner))
+        Isomorphic((&*self.view, &self.owner), PhantomData)
     }
 
     pub fn borrow_mut<'a>(
         &'a mut self,
     ) -> Isomorphic<
+        'a,
         'ub,
         dyn for<'x> View<
                 'x,
@@ -133,26 +135,29 @@ where
                 ),
             > + 'static,
     > {
-        Isomorphic((&mut *self.view, &self.owner))
+        Isomorphic((&mut *self.view, &self.owner), PhantomData)
     }
 }
 
-pub struct IsoStamp<'life, 'ub>(PhantomData<(&'life (), &'ub ())>);
+pub struct IsoStamp<'bowl, 'life, 'ub>(PhantomData<(&'bowl (), &'life (), &'ub ())>);
 
-impl<'a, 'ub, F> Isomorphic<'ub, F>
+impl<'bowl, 'ub, F> Isomorphic<'bowl, 'ub, F>
 where
     F: ?Sized + for<'x> ViewIn<'x, 'ub>,
 {
     pub fn map<R>(
         self,
-        f: impl for<'x> FnOnce(<F as ViewIn<'x, 'ub>>::Target, IsoStamp<'x, 'ub>) -> R,
+        f: impl for<'x> FnOnce(<F as ViewIn<'x, 'ub>>::Target, IsoStamp<'bowl, 'x, 'ub>) -> R,
     ) -> R {
         f(self.0, IsoStamp(PhantomData))
     }
 }
 
-impl<'life, 'ub> IsoStamp<'life, 'ub> {
-    pub fn stamp<'long, F>(&self, view: <F as ViewIn<'life, 'long>>::Target) -> Isomorphic<'ub, F>
+impl<'bowl, 'life, 'ub> IsoStamp<'bowl, 'life, 'ub> {
+    pub fn stamp<'long, F>(
+        &self,
+        view: <F as ViewIn<'life, 'long>>::Target,
+    ) -> Isomorphic<'bowl, 'ub, F>
     where
         F: ?Sized + for<'x> ViewIn<'x, 'long>,
         'long: 'ub + 'life,
@@ -160,7 +165,7 @@ impl<'life, 'ub> IsoStamp<'life, 'ub> {
         let view = unsafe {
             transmute::<<F as ViewIn<'life, 'long>>::Target, <F as View<'ub>>::Output>(view)
         };
-        Isomorphic(view)
+        Isomorphic(view, PhantomData)
     }
 }
 
