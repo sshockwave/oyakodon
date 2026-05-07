@@ -1,4 +1,4 @@
-use super::{Aliasable, CloneStableDeref, View};
+use super::{Aliasable, BoundedView, CloneStableDeref, View};
 use ::{
     core::{
         clone::Clone,
@@ -9,16 +9,6 @@ use ::{
     },
     maybe_dangling::MaybeDangling,
 };
-
-pub trait BoundedView<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
-    type Target;
-}
-impl<'x, 'ub, T: ?Sized> BoundedView<'x, 'ub> for T
-where
-    T: View<'x>,
-{
-    type Target = Self::Output;
-}
 
 /// Stores an owner and a derived shared reference into it.
 ///

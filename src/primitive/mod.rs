@@ -9,6 +9,7 @@ mod aliasable;
 mod bowl;
 mod stable_deref;
 
+use self::seal::BoundedView;
 pub use self::{
     aliasable::{Aliasable, DanglingDeref},
     bowl::{Anchor, Bowl, ForAll, IsoStamp, ProtectedForAll, ProtectedSlot, Slot, Stamp},
@@ -21,4 +22,18 @@ pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
 
 pub trait View<'x> {
     type Output;
+}
+
+mod seal {
+    pub trait BoundedView<'x, 'ub, X = &'x &'ub ()>:
+        super::View<'x, Output = Self::Target>
+    {
+        type Target;
+    }
+}
+impl<'x, 'ub, T: ?Sized> BoundedView<'x, 'ub> for T
+where
+    T: View<'x>,
+{
+    type Target = Self::Output;
 }
