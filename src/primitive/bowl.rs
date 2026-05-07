@@ -1,4 +1,4 @@
-use super::{Aliasable, CloneStableDeref};
+use super::{Aliasable, CloneStableDeref, View};
 use ::{
     core::{
         clone::Clone,
@@ -9,10 +9,6 @@ use ::{
     },
     maybe_dangling::MaybeDangling,
 };
-
-pub trait View<'x> {
-    type Output;
-}
 
 pub trait BoundedView<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
     type Target;

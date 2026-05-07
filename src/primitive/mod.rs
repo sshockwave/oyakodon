@@ -11,10 +11,14 @@ mod stable_deref;
 
 pub use self::{
     aliasable::{Aliasable, DanglingDeref},
-    bowl::{Anchor, Bowl, ForAll, IsoStamp, ProtectedForAll, ProtectedSlot, Slot, Stamp, View},
+    bowl::{Anchor, Bowl, ForAll, IsoStamp, ProtectedForAll, ProtectedSlot, Slot, Stamp},
 };
 
 #[cfg(any(not(feature = "stable_deref"), doc))]
 pub use self::stable_deref::{CloneStableDeref, StableDeref};
 #[cfg(all(feature = "stable_deref", not(doc)))]
 pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
+
+pub trait View<'x> {
+    type Output;
+}
