@@ -3,8 +3,9 @@ use ::{
     core::{
         clone::Clone,
         marker::PhantomData,
-        mem::transmute,
+        mem::{drop, replace, transmute},
         ops::{Deref, DerefMut},
+        option::Option,
     },
     maybe_dangling::MaybeDangling,
 };
@@ -175,7 +176,7 @@ pub struct Stamp<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ()
 
 impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
     pub fn stamp<'long, F>(
-        &self,
+        self,
         view: <F as View<'life>>::Output,
     ) -> ProtectedForAll<'brand, 'ub, F>
     where
@@ -185,6 +186,18 @@ impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
         let view =
             unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
         unsafe { ProtectedForAll::new_unchecked(view) }
+    }
+
+    pub fn spawn<P: CloneStableDeref>(
+        &self,
+        slot: &ProtectedSlot<'brand, P>,
+    ) -> Anchor<'life, 'ub, P> {
+        // Verified that this will compile to unchecked dereference with `-O`.
+        let owner = slot.0.as_ref();
+        // SAFETY: `slot` is guaranteed to be valid for its entire lifetime,
+        // so the `owner` must not have been moved out.
+        let owner = unsafe { owner.unwrap_unchecked() };
+        Anchor(owner.clone(), PhantomData)
     }
 }
 
@@ -209,33 +222,6 @@ where
     }
 }
 
-pub struct Slot<'brand, P>(P, PhantomData<&'brand ()>);
-
-impl<'brand, P> Slot<'brand, P> {
-    pub fn fill<'ub, F>(self, view: ProtectedForAll<'brand, 'ub, F>) -> Bowl<'ub, P, F>
-    where
-        F: ?Sized + View<'ub>,
-    {
-        Bowl {
-            view: view.0,
-            owner: Anchor(self.0, PhantomData),
-        }
-    }
-
-    pub fn into_inner(self) -> P {
-        self.0
-    }
-}
-
-impl<'brand, 'ub, P> Clone for Slot<'brand, P>
-where
-    P: CloneStableDeref,
-{
-    fn clone(&self) -> Self {
-        Self(self.0.clone(), PhantomData)
-    }
-}
-
 pub struct Anchor<'life, 'ub, P>(P, PhantomData<(&'life (), &'ub ())>);
 
 impl<'life, 'ub, P> Clone for Anchor<'life, 'ub, P>
@@ -257,7 +243,12 @@ impl<'life, 'ub, P> Anchor<'life, 'ub, P> {
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
-        Slot(self.0, PhantomData).fill(Stamp(PhantomData).stamp(view))
+        let view =
+            unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
+        Bowl {
+            view: MaybeDangling::new(view),
+            owner: Anchor(self.0, PhantomData),
+        }
     }
 }
 
@@ -265,21 +256,43 @@ impl<'ub, P, F> Bowl<'ub, P, F>
 where
     F: ?Sized + View<'ub>,
 {
+    /// Internally this function uses [`Option`] to check
+    /// whether the caller has dropped the owner during the call.
+    /// This has some performance overhead,
+    /// but the compiler should be able to optimize it to the same level as [drop flags].
+    ///
+    /// [drop flags]: https://doc.rust-lang.org/reference/destructors.html#drop-flags
     pub fn map<R>(
         self,
         f: impl for<'bowl> FnOnce(ProtectedForAll<'bowl, 'ub, F>, ProtectedSlot<'bowl, P>) -> R,
     ) -> R {
         let view = MaybeDangling::into_inner(self.view);
         let view = unsafe { ProtectedForAll::new_unchecked(view) };
-        f(view, ProtectedSlot(self.owner.0, PhantomData))
+        let mut owner = Some(self.owner.into_inner());
+        let result = f(view, ProtectedSlot(&mut owner));
+        drop(owner);
+        result
     }
 }
 
-pub struct ProtectedSlot<'bowl, P>(P, PhantomData<&'bowl ()>);
+pub struct ProtectedSlot<'bowl, P>(&'bowl mut Option<P>);
 
 impl<'bowl, P> ProtectedSlot<'bowl, P> {
-    pub fn unseal(self) -> Slot<'bowl, P> {
-        Slot(self.0, PhantomData)
+    pub fn fill<'ub, F>(self, view: ProtectedForAll<'bowl, 'ub, F>) -> Bowl<'ub, P, F>
+    where
+        F: View<'ub> + ?Sized,
+    {
+        Bowl {
+            view: view.0,
+            owner: Anchor(self.into_inner(), PhantomData),
+        }
+    }
+
+    pub fn into_inner(self) -> P {
+        let owner = replace(self.0, None);
+        // SAFETY: `self` is consumed,
+        // so the `owner` must not have been moved out.
+        unsafe { owner.unwrap_unchecked() }
     }
 }
 
@@ -287,46 +300,6 @@ impl<'bowl, 'ub, F> ProtectedForAll<'bowl, 'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
-    pub fn borrow<'a, P>(
-        &'a self,
-    ) -> ProtectedForAll<
-        'bowl,
-        'ub,
-        dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static,
-    > {
-        unsafe { ProtectedForAll::new_unchecked(&*self.0) }
-    }
-
-    pub fn borrow_mut<'a, P>(
-        &'a mut self,
-    ) -> ProtectedForAll<
-        'bowl,
-        'ub,
-        dyn for<'x> View<'x, Output = &'a mut <F as BoundedView<'x, 'ub>>::Target> + 'static,
-    > {
-        unsafe { ProtectedForAll::new_unchecked(&mut *self.0) }
-    }
-
-    pub fn zip<G>(
-        self,
-        other: ProtectedForAll<'bowl, 'ub, G>,
-    ) -> ProtectedForAll<
-        'bowl,
-        'ub,
-        dyn for<'x> View<
-            'x,
-            Output = (
-                <F as BoundedView<'x, 'ub>>::Target,
-                <G as BoundedView<'x, 'ub>>::Target,
-            ),
-        >,
-    >
-    where
-        G: ?Sized + for<'x> BoundedView<'x, 'ub>,
-    {
-        unsafe { ProtectedForAll::new_unchecked((self.into_inner(), other.into_inner())) }
-    }
-
     pub fn map<R, P>(
         self,
         _token: &ProtectedSlot<'bowl, P>,

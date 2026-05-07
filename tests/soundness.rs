@@ -63,7 +63,7 @@ fn yoke_3696() {
         let view = view.map(&slot, |view, stamp| {
             stamp.stamp::<dyn for<'x> View<'x, Output = &'x mut [u8]>>(view)
         });
-        slot.unseal().fill(view)
+        slot.fill(view)
     });
     example(bowl);
 }

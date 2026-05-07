@@ -87,7 +87,7 @@ where
     {
         self.map(|view, slot| {
             let view = view.map(&slot, |view, stamp| stamp.stamp(f.call(view)));
-            slot.unseal().fill(view)
+            slot.fill(view)
         })
     }
 
@@ -100,7 +100,7 @@ where
     {
         self.map(|view, slot| {
             let view = view.map(&slot, |view, stamp| stamp.stamp(view));
-            slot.unseal().fill(view)
+            slot.fill(view)
         })
     }
 
@@ -112,7 +112,7 @@ where
     ) -> Bowl<'ub, P, G> {
         self.map(|view, slot| {
             let view = view.map(&slot, |view, stamp| stamp.stamp(view));
-            slot.unseal().fill(view)
+            slot.fill(view)
         })
     }
 
@@ -130,7 +130,7 @@ where
     pub fn into_owner(self) -> P {
         self.map(|view, slot| {
             drop(view); // Same as `into_view`
-            slot.unseal().into_inner()
+            slot.into_inner()
         })
     }
 
@@ -193,7 +193,7 @@ where
     {
         self.map(|view, slot| {
             let view = view.map(&slot, |view, _| view);
-            (slot.unseal().into_inner(), view)
+            (slot.into_inner(), view)
         })
     }
 
@@ -213,7 +213,6 @@ where
                 Ok(ok) => Ok(stamp.stamp(ok)),
                 Err(err) => Err(stamp.stamp(err)),
             });
-            let slot = slot.unseal();
             match view {
                 Ok(ok) => Ok(slot.fill(ok)),
                 Err(err) => Err(slot.fill(err)),

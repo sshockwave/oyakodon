@@ -51,7 +51,7 @@ fn main() {
     let cell = SelfRef::<_, StrRef>(Bowl::new_box(String::from("hello, world")).map(
         |view, slot| {
             let view = view.map(&slot, |view, stamp| stamp.stamp(view.as_str()));
-            slot.unseal().fill(view)
+            slot.fill(view)
         },
     ));
     let view = cell.get();
