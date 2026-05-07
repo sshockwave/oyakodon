@@ -165,35 +165,45 @@ where
 /// So [`stamp`] cannot be exploited to raise the lower bound of `'life`:
 /// ```compile_fail
 /// use oyakodon::primitive::{Stamp, View};
-/// fn get_stamp<'short, 'brand, 'life, 'ub>(stamp: Stamp<'brand, 'life, 'ub>) {
+/// fn get_stamp<'short, 'brand, 'life, 'ub, P>(stamp: Stamp<'brand, 'life, 'ub, P>) {
 ///     stamp.stamp::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
 /// }
 /// ```
 ///
 /// [`stamp`]: Self::stamp
 /// [#84591]: https://github.com/rust-lang/rust/issues/84591
-pub struct Stamp<'brand, 'life, 'ub>(PhantomData<(&'brand (), &'life (), &'ub ())>);
+pub struct Stamp<'brand, 'life, 'ub, P>(&'brand mut Option<P>, PhantomData<(&'life (), &'ub ())>);
 
-impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
-    pub fn stamp<'long, F>(
-        self,
-        view: <F as View<'life>>::Output,
-    ) -> ProtectedForAll<'brand, 'ub, F>
+impl<'brand, 'life, 'ub, P> Stamp<'brand, 'life, 'ub, P> {
+    pub fn stamp<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
         let view =
             unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
-        unsafe { ProtectedForAll::new_unchecked(view) }
+        let owner = replace(self.0, None);
+        // SAFETY: Same as `Self::into_owner`.
+        let owner = unsafe { owner.unwrap_unchecked() };
+        Bowl {
+            view: MaybeDangling::new(view),
+            owner: Anchor(owner, PhantomData),
+        }
     }
 
-    pub fn spawn<P: CloneStableDeref>(
-        &self,
-        slot: &ProtectedSlot<'brand, P>,
-    ) -> Anchor<'life, 'ub, P> {
+    pub fn into_owner(self) -> P {
+        let owner = replace(self.0, None);
+        // SAFETY: `self` is consumed,
+        // so the `owner` must not have been moved out.
+        // All references to `owner` are also dropped.
+        unsafe { owner.unwrap_unchecked() }
+    }
+}
+
+impl<'brand, 'life, 'ub, P: CloneStableDeref> Stamp<'brand, 'life, 'ub, P> {
+    pub fn spawn(&self) -> Anchor<'life, 'ub, P> {
         // Verified that this will compile to unchecked dereference with `-O`.
-        let owner = slot.0.as_ref();
+        let owner = self.0.as_ref();
         // SAFETY: `slot` is guaranteed to be valid for its entire lifetime,
         // so the `owner` must not have been moved out.
         let owner = unsafe { owner.unwrap_unchecked() };
@@ -247,7 +257,7 @@ impl<'life, 'ub, P> Anchor<'life, 'ub, P> {
 
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
-    F: ?Sized + View<'ub>,
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
     /// Internally this function uses [`Option`] to check
     /// whether the caller has dropped the owner during the call.
@@ -257,54 +267,15 @@ where
     /// [drop flags]: https://doc.rust-lang.org/reference/destructors.html#drop-flags
     pub fn map<R>(
         self,
-        f: impl for<'bowl> FnOnce(ProtectedForAll<'bowl, 'ub, F>, ProtectedSlot<'bowl, P>) -> R,
+        f: impl for<'bowl, 'life> FnOnce(
+            <F as BoundedView<'life, 'ub>>::Target,
+            Stamp<'bowl, 'life, 'ub, P>,
+        ) -> R,
     ) -> R {
         let view = MaybeDangling::into_inner(self.view);
-        let view = unsafe { ProtectedForAll::new_unchecked(view) };
         let mut owner = Some(self.owner.into_inner());
-        let result = f(view, ProtectedSlot(&mut owner));
+        let result = f(view, Stamp(&mut owner, PhantomData));
         drop(owner);
         result
-    }
-}
-
-pub struct ProtectedSlot<'bowl, P>(&'bowl mut Option<P>);
-
-impl<'bowl, P> ProtectedSlot<'bowl, P> {
-    pub fn fill<'ub, F>(self, view: ProtectedForAll<'bowl, 'ub, F>) -> Bowl<'ub, P, F>
-    where
-        F: View<'ub> + ?Sized,
-    {
-        let owner = replace(self.0, None);
-        // SAFETY: Same as `Self::into_owner`.
-        let owner = unsafe { owner.unwrap_unchecked() };
-        Bowl {
-            view: MaybeDangling::new(view.0),
-            owner: Anchor(owner, PhantomData),
-        }
-    }
-
-    pub fn into_owner<'ub, F>(self, view: ProtectedForAll<'bowl, 'ub, F>) -> P
-    where
-        F: View<'ub> + ?Sized,
-    {
-        drop(view);
-        let owner = replace(self.0, None);
-        // SAFETY: `self` is consumed,
-        // so the `owner` must not have been moved out.
-        // All references to `owner` are also dropped.
-        unsafe { owner.unwrap_unchecked() }
-    }
-}
-
-impl<'bowl, 'ub, F> ProtectedForAll<'bowl, 'ub, F>
-where
-    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
-{
-    pub fn map<R>(
-        self,
-        f: impl for<'x> FnOnce(<F as BoundedView<'x, 'ub>>::Target, Stamp<'bowl, 'x, 'ub>) -> R,
-    ) -> R {
-        f(self.0, Stamp(PhantomData))
     }
 }
