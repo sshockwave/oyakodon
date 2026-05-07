@@ -1,8 +1,7 @@
-use super::{Aliasable, BoundedView, CloneStableDeref, ForAll, View};
+use super::{Aliasable, BoundedView, CloneStableDeref, ForAll, Stamp, View};
 use ::{
     core::{
         clone::Clone,
-        marker::PhantomData,
         mem::{drop, replace, transmute},
         ops::{Deref, DerefMut},
         option::Option,
@@ -32,7 +31,17 @@ use ::{
 /// You could consider lowering it afterwards with [`Self::cast_life`]
 /// if you need to put a shorter lifetime in the view,
 /// which makes it somewhat easier to satisfy the invariants held by [`Bowl`].
-pub struct Bowl<'ub, P, F: View<'ub> + ?Sized> {
+pub struct Bowl<'ub, P, F: View<'ub> + ?Sized>(
+    ForAll<
+        'ub,
+        dyn for<'x> View<
+                'x,
+                Output = BowlInner<Anchor<'x, 'ub, P>, MaybeDangling<<F as View<'x>>::Output>>,
+            > + 'static,
+    >,
+);
+
+struct BowlInner<O, V> {
     // `owner` will be dropped after `view`.
     // Rust guarantees that fields are dropped in the order of declaration.
     // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
@@ -50,8 +59,8 @@ pub struct Bowl<'ub, P, F: View<'ub> + ?Sized> {
     // (e.g., as a function argument).
     // If `owner` were moved after `view` was computed,
     // the resulting Unique retag would invalidate `view`'s SharedReadWrite tag on the same allocation.
-    view: MaybeDangling<F::Output>,
-    owner: Anchor<'ub, 'ub, P>,
+    view: V,
+    owner: O,
 }
 
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x P::Target>>
@@ -61,10 +70,12 @@ where
 {
     pub fn new(owner: P) -> Self {
         let view = unsafe { transmute::<&P::Target, &'ub P::Target>(&*owner) };
-        Bowl {
-            view: MaybeDangling::new(view),
-            owner: Anchor(PhantomData, owner),
-        }
+        Self(ForAll::new().map(|(), stamp| {
+            stamp.stamp(BowlInner {
+                view: MaybeDangling::new(view),
+                owner: Anchor(stamp, owner),
+            })
+        }))
     }
 }
 
@@ -75,10 +86,12 @@ where
 {
     pub fn new_mut(mut owner: P) -> Self {
         let view = unsafe { transmute::<&mut P::Target, &'ub mut P::Target>(&mut *owner) };
-        Bowl {
-            view: MaybeDangling::new(view),
-            owner: Anchor(PhantomData, owner),
-        }
+        Self(ForAll::new().map(|(), stamp| {
+            stamp.stamp(BowlInner {
+                view: MaybeDangling::new(view),
+                owner: Anchor(stamp, owner),
+            })
+        }))
     }
 }
 
@@ -98,20 +111,8 @@ where
                 ),
             > + 'static,
     > {
-        let result = ForAll::new().map(|(), stamp| stamp.stamp((&*self.view, &self.owner)));
-        // SAFETY: This function is for backwards compatibility and will be removed in the future.
-        unsafe {
-            transmute::<
-                ForAll<
-                    'ub,
-                    dyn for<'x> View<
-                        'x,
-                        Output = (&'a <F as View<'ub>>::Output, &'a Anchor<'ub, 'ub, P>),
-                    >,
-                >,
-                _,
-            >(result)
-        }
+        self.0
+            .borrow(|bowl, stamp| stamp.stamp((&*bowl.view, &bowl.owner)))
     }
 
     pub fn borrow_mut<'a>(
@@ -126,20 +127,8 @@ where
                 ),
             > + 'static,
     > {
-        let result = ForAll::new().map(|(), stamp| stamp.stamp((&*self.view, &mut self.owner)));
-        // SAFETY: This function is for backwards compatibility and will be removed in the future.
-        unsafe {
-            transmute::<
-                ForAll<
-                    'ub,
-                    dyn for<'x> View<
-                        'x,
-                        Output = (&'a <F as View<'ub>>::Output, &'a mut Anchor<'ub, 'ub, P>),
-                    >,
-                >,
-                _,
-            >(result)
-        }
+        self.0
+            .borrow_mut(|bowl, stamp| stamp.stamp((&mut *bowl.view, &bowl.owner)))
     }
 }
 
@@ -172,23 +161,21 @@ where
 ///
 /// [`fill`]: Self::fill
 /// [#84591]: https://github.com/rust-lang/rust/issues/84591
-pub struct Slot<'life, 'ub, P>(&'life mut Option<P>, PhantomData<(&'life (), &'ub ())>);
+pub struct Slot<'owner, 'life, 'ub, P>(&'owner mut Option<P>, Stamp<'life, 'ub>);
 
-impl<'life, 'ub, P> Slot<'life, 'ub, P> {
+impl<'life, 'ub, P> Slot<'_, 'life, 'ub, P> {
     pub fn fill<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
-        let view =
-            unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
         let owner = replace(self.0, None);
         // SAFETY: Same as `Self::into_owner`.
         let owner = unsafe { owner.unwrap_unchecked() };
-        Bowl {
+        Bowl(self.1.stamp(BowlInner {
             view: MaybeDangling::new(view),
-            owner: Anchor(PhantomData, owner),
-        }
+            owner: Anchor(self.1, owner),
+        }))
     }
 
     pub fn into_owner(self) -> P {
@@ -200,22 +187,22 @@ impl<'life, 'ub, P> Slot<'life, 'ub, P> {
     }
 }
 
-impl<'life, 'ub, P: CloneStableDeref> Slot<'life, 'ub, P> {
+impl<'life, 'ub, P: CloneStableDeref> Slot<'_, 'life, 'ub, P> {
     pub fn spawn(&self) -> Anchor<'life, 'ub, P> {
         // Verified that this will compile to unchecked dereference with `-O`.
         let owner = self.0.as_ref();
         // SAFETY: `slot` is guaranteed to be valid for its entire lifetime,
         // so the `owner` must not have been moved out.
         let owner = unsafe { owner.unwrap_unchecked() };
-        Anchor(PhantomData, owner.clone())
+        Anchor(self.1, owner.clone())
     }
 }
 
-pub struct Anchor<'life, 'ub, P: ?Sized>(PhantomData<(&'life (), &'ub ())>, P);
+pub struct Anchor<'life, 'ub, P: ?Sized>(Stamp<'life, 'ub>, P);
 
 impl<P: CloneStableDeref + ?Sized> Clone for Anchor<'_, '_, P> {
     fn clone(&self) -> Self {
-        Self(PhantomData, self.1.clone())
+        Self(self.0, self.1.clone())
     }
 }
 
@@ -229,12 +216,11 @@ impl<'life, 'ub, P> Anchor<'life, 'ub, P> {
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
-        let view =
-            unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
-        Bowl {
+        let stamp = self.0;
+        Bowl(stamp.stamp(BowlInner {
             view: MaybeDangling::new(view),
-            owner: Anchor(PhantomData, self.1),
-        }
+            owner: self,
+        }))
     }
 }
 
@@ -250,13 +236,16 @@ where
     /// [drop flags]: https://doc.rust-lang.org/reference/destructors.html#drop-flags
     pub fn map<R>(
         self,
-        f: impl for<'life> FnOnce(<F as BoundedView<'life, 'ub>>::Target, Slot<'life, 'ub, P>) -> R,
+        f: impl for<'owner, 'life> FnOnce(
+            <F as BoundedView<'life, 'ub>>::Target,
+            Slot<'owner, 'life, 'ub, P>,
+        ) -> R,
     ) -> R {
-        let view = MaybeDangling::into_inner(self.view);
-        let view = unsafe { transmute::<<F as View<'ub>>::Output, <F as View<'_>>::Output>(view) };
-        let mut owner = Some(self.owner.into_inner());
-        let result = f(view, Slot(&mut owner, PhantomData));
-        drop(owner);
-        result
+        self.0.map(|BowlInner { view, owner }, stamp| {
+            let mut owner = Some(owner.into_inner());
+            let result = f(MaybeDangling::into_inner(view), Slot(&mut owner, stamp));
+            drop(owner);
+            result
+        })
     }
 }

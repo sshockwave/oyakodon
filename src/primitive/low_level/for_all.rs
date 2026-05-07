@@ -40,6 +40,7 @@ where
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Stamp<'life, 'ub>(PhantomData<(&'life (), &'ub ())>);
 
 impl<'life, 'ub> Stamp<'life, 'ub> {
