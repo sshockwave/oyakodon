@@ -202,7 +202,7 @@ impl<'brand, 'life, 'ub> Stamp<'brand, 'life, 'ub> {
 }
 
 pub struct ProtectedForAll<'brand, 'ub, F: View<'ub> + ?Sized>(
-    MaybeDangling<F::Output>,
+    F::Output,
     PhantomData<(&'brand (), F)>,
 );
 
@@ -211,14 +211,7 @@ where
     F: View<'ub> + ?Sized,
 {
     pub unsafe fn new_unchecked(view: F::Output) -> Self {
-        Self(MaybeDangling::new(view), PhantomData)
-    }
-
-    /// # Safety
-    /// The corresponding owner must exist for the entire lifetime of the returned `P`
-    /// until it is wrapped back into a `ProtectedForAll` again.
-    unsafe fn into_inner(self) -> F::Output {
-        MaybeDangling::into_inner(self.0)
+        Self(view, PhantomData)
     }
 }
 
@@ -283,7 +276,7 @@ impl<'bowl, P> ProtectedSlot<'bowl, P> {
         F: View<'ub> + ?Sized,
     {
         Bowl {
-            view: view.0,
+            view: MaybeDangling::new(view.0),
             owner: Anchor(self.into_inner(), PhantomData),
         }
     }
@@ -305,6 +298,6 @@ where
         _token: &ProtectedSlot<'bowl, P>,
         f: impl for<'x> FnOnce(<F as BoundedView<'x, 'ub>>::Target, Stamp<'bowl, 'x, 'ub>) -> R,
     ) -> R {
-        f(unsafe { self.into_inner() }, Stamp(PhantomData))
+        f(self.0, Stamp(PhantomData))
     }
 }
