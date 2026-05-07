@@ -143,7 +143,7 @@ where
     }
 }
 
-/// [`stamp`] could have been unsound due to [#84591]:
+/// [`fill`] could have been unsound due to [#84591]:
 /// ```
 /// use oyakodon::primitive::View;
 /// fn requires_all<F: ?Sized + for<'x> View<'x>>() {}
@@ -162,20 +162,20 @@ where
 ///     Requires::<'life>::all::<dyn for<'x> View<'x, Output = &'lower_bound &'x ()>>(&&());
 /// }
 /// ```
-/// So [`stamp`] cannot be exploited to raise the lower bound of `'life`:
+/// So [`fill`] cannot be exploited to raise the lower bound of `'life`:
 /// ```compile_fail
-/// use oyakodon::primitive::{Stamp, View};
-/// fn get_stamp<'short, 'life, 'ub, P>(stamp: Stamp<'life, 'ub, P>) {
-///     stamp.stamp::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
+/// use oyakodon::primitive::{Slot, View};
+/// fn get_slot<'short, 'life, 'ub, P>(slot: Slot<'life, 'ub, P>) {
+///     slot.fill::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
 /// }
 /// ```
 ///
-/// [`stamp`]: Self::stamp
+/// [`fill`]: Self::fill
 /// [#84591]: https://github.com/rust-lang/rust/issues/84591
-pub struct Stamp<'life, 'ub, P>(&'life mut Option<P>, PhantomData<(&'life (), &'ub ())>);
+pub struct Slot<'life, 'ub, P>(&'life mut Option<P>, PhantomData<(&'life (), &'ub ())>);
 
-impl<'life, 'ub, P> Stamp<'life, 'ub, P> {
-    pub fn stamp<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
+impl<'life, 'ub, P> Slot<'life, 'ub, P> {
+    pub fn fill<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
@@ -200,7 +200,7 @@ impl<'life, 'ub, P> Stamp<'life, 'ub, P> {
     }
 }
 
-impl<'life, 'ub, P: CloneStableDeref> Stamp<'life, 'ub, P> {
+impl<'life, 'ub, P: CloneStableDeref> Slot<'life, 'ub, P> {
     pub fn spawn(&self) -> Anchor<'life, 'ub, P> {
         // Verified that this will compile to unchecked dereference with `-O`.
         let owner = self.0.as_ref();
@@ -250,12 +250,12 @@ where
     /// [drop flags]: https://doc.rust-lang.org/reference/destructors.html#drop-flags
     pub fn map<R>(
         self,
-        f: impl for<'life> FnOnce(<F as BoundedView<'life, 'ub>>::Target, Stamp<'life, 'ub, P>) -> R,
+        f: impl for<'life> FnOnce(<F as BoundedView<'life, 'ub>>::Target, Slot<'life, 'ub, P>) -> R,
     ) -> R {
         let view = MaybeDangling::into_inner(self.view);
         let view = unsafe { transmute::<<F as View<'ub>>::Output, <F as View<'_>>::Output>(view) };
         let mut owner = Some(self.owner.into_inner());
-        let result = f(view, Stamp(&mut owner, PhantomData));
+        let result = f(view, Slot(&mut owner, PhantomData));
         drop(owner);
         result
     }

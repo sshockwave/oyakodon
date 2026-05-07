@@ -85,7 +85,7 @@ where
     where
         G: for<'x> Derive<<F as ViewIn<'x, 'ub>>::Target>,
     {
-        self.map(|view, stamp| stamp.stamp(f.call(view)))
+        self.map(|view, slot| slot.fill(f.call(view)))
     }
 
     /// Changes the lifetime placeholder `'ub` without modifying the value.
@@ -95,7 +95,7 @@ where
     where
         'ub: 'short,
     {
-        self.map(|view, stamp| stamp.stamp(view))
+        self.map(|view, slot| slot.fill(view))
     }
 
     /// Changes the view marker type `F` to any `G` that produces identical output types.
@@ -104,7 +104,7 @@ where
     pub fn cast_view<G: ?Sized + for<'x> ViewIn<'x, 'ub, Target = <F as View<'x>>::Output>>(
         self,
     ) -> Bowl<'ub, P, G> {
-        self.map(|view, stamp| stamp.stamp(view))
+        self.map(|view, slot| slot.fill(view))
     }
 
     /// Combines [`Self::cast_life`] and [`Self::cast_view`].
@@ -130,11 +130,11 @@ where
 
     /// Drops the view and returns the owner.
     pub fn into_owner(self) -> P {
-        self.map(|view, stamp| {
-            // `stamp` must be dropped even if `view`'s drop panics.
+        self.map(|view, slot| {
+            // `slot` must be dropped even if `view`'s drop panics.
             // Miri reports that this is not guaranteed
             // if `view` is dropped implicitly at the end of the function,
-            // because the `stamp` is in a transition state
+            // because the `slot` is in a transition state
             // where it is still valid but not fully owned by the caller.
             // Users can do this leak manually,
             // but this is not a concern,
@@ -166,7 +166,7 @@ where
             // }
             // ```
             drop(view);
-            stamp.into_owner()
+            slot.into_owner()
         })
     }
 
@@ -178,7 +178,7 @@ where
     where
         for<'x> F: ViewIn<'x, 'ub, Target = S>,
     {
-        self.map(|view, stamp| (stamp.into_owner(), view))
+        self.map(|view, slot| (slot.into_owner(), view))
     }
 
     /// Unwraps a [`Result`][::core::result::Result] view, branching into `Ok` or `Err`.
@@ -192,9 +192,9 @@ where
     where
         for<'x> <F as View<'x>>::Output: Result,
     {
-        self.map(|view, stamp| match Result::into(view) {
-            Ok(ok) => Ok(stamp.stamp(ok)),
-            Err(err) => Err(stamp.stamp(err)),
+        self.map(|view, slot| match Result::into(view) {
+            Ok(ok) => Ok(slot.fill(ok)),
+            Err(err) => Err(slot.fill(err)),
         })
     }
 }

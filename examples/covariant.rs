@@ -49,7 +49,7 @@ impl<'ub> Covariant<'ub> for StrRef {
 
 fn main() {
     let cell = SelfRef::<_, StrRef>(
-        Bowl::new_box(String::from("hello, world")).map(|view, stamp| stamp.stamp(view.as_str())),
+        Bowl::new_box(String::from("hello, world")).map(|view, slot| slot.fill(view.as_str())),
     );
     let view = cell.get();
     println!("{view}");
