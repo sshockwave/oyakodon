@@ -213,10 +213,7 @@ impl<'life, 'ub, P: CloneStableDeref> Stamp<'life, 'ub, P> {
 
 pub struct Anchor<'life, 'ub, P>(P, PhantomData<(&'life (), &'ub ())>);
 
-impl<'life, 'ub, P> Clone for Anchor<'life, 'ub, P>
-where
-    P: CloneStableDeref,
-{
+impl<P: CloneStableDeref> Clone for Anchor<'_, '_, P> {
     fn clone(&self) -> Self {
         Self(self.0.clone(), PhantomData)
     }

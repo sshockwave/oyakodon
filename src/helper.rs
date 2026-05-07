@@ -4,7 +4,7 @@ use ::core::{clone::Clone, fmt, marker::Copy, mem::drop};
 pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
     type Target;
 }
-impl<'x, 'ub, T: ?Sized> ViewIn<'x, 'ub> for T
+impl<'x, T: ?Sized> ViewIn<'x, '_> for T
 where
     T: View<'x>,
 {

@@ -35,7 +35,7 @@ mod seal {
         type Target;
     }
 }
-impl<'x, 'ub, T: ?Sized> BoundedView<'x, 'ub> for T
+impl<'x, T: ?Sized> BoundedView<'x, '_> for T
 where
     T: View<'x>,
 {
