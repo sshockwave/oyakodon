@@ -165,16 +165,16 @@ where
 /// So [`stamp`] cannot be exploited to raise the lower bound of `'life`:
 /// ```compile_fail
 /// use oyakodon::primitive::{Stamp, View};
-/// fn get_stamp<'short, 'brand, 'life, 'ub, P>(stamp: Stamp<'brand, 'life, 'ub, P>) {
+/// fn get_stamp<'short, 'life, 'ub, P>(stamp: Stamp<'life, 'ub, P>) {
 ///     stamp.stamp::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
 /// }
 /// ```
 ///
 /// [`stamp`]: Self::stamp
 /// [#84591]: https://github.com/rust-lang/rust/issues/84591
-pub struct Stamp<'brand, 'life, 'ub, P>(&'brand mut Option<P>, PhantomData<(&'life (), &'ub ())>);
+pub struct Stamp<'life, 'ub, P>(&'life mut Option<P>, PhantomData<(&'life (), &'ub ())>);
 
-impl<'brand, 'life, 'ub, P> Stamp<'brand, 'life, 'ub, P> {
+impl<'life, 'ub, P> Stamp<'life, 'ub, P> {
     pub fn stamp<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
@@ -200,7 +200,7 @@ impl<'brand, 'life, 'ub, P> Stamp<'brand, 'life, 'ub, P> {
     }
 }
 
-impl<'brand, 'life, 'ub, P: CloneStableDeref> Stamp<'brand, 'life, 'ub, P> {
+impl<'life, 'ub, P: CloneStableDeref> Stamp<'life, 'ub, P> {
     pub fn spawn(&self) -> Anchor<'life, 'ub, P> {
         // Verified that this will compile to unchecked dereference with `-O`.
         let owner = self.0.as_ref();
@@ -253,12 +253,10 @@ where
     /// [drop flags]: https://doc.rust-lang.org/reference/destructors.html#drop-flags
     pub fn map<R>(
         self,
-        f: impl for<'bowl, 'life> FnOnce(
-            <F as BoundedView<'life, 'ub>>::Target,
-            Stamp<'bowl, 'life, 'ub, P>,
-        ) -> R,
+        f: impl for<'life> FnOnce(<F as BoundedView<'life, 'ub>>::Target, Stamp<'life, 'ub, P>) -> R,
     ) -> R {
         let view = MaybeDangling::into_inner(self.view);
+        let view = unsafe { transmute::<<F as View<'ub>>::Output, <F as View<'_>>::Output>(view) };
         let mut owner = Some(self.owner.into_inner());
         let result = f(view, Stamp(&mut owner, PhantomData));
         drop(owner);
