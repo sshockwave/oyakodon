@@ -7,6 +7,7 @@
 
 mod aliasable;
 mod bowl;
+mod cell;
 mod low_level;
 mod stable_deref;
 
@@ -14,6 +15,7 @@ use self::seal::BoundedView;
 pub use self::{
     aliasable::{Aliasable, DanglingDeref},
     bowl::{Anchor, Bowl, ProtectedForAll, ProtectedSlot, Slot, Stamp},
+    cell::Cell,
     low_level::*,
 };
 
