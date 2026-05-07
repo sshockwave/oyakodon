@@ -1,8 +1,7 @@
-use super::{Aliasable, BoundedView, CloneStableDeref, View};
+use super::{Aliasable, BoundedView, CloneStableDeref, ForAll, View};
 use ::{
     core::{
         clone::Clone,
-        default::Default,
         marker::PhantomData,
         mem::transmute,
         ops::{Deref, DerefMut},
@@ -82,33 +81,6 @@ where
     }
 }
 
-pub struct ForAll<'ub, F: View<'ub> + ?Sized>(F::Output);
-
-impl<'ub, F> ForAll<'ub, F>
-where
-    F: View<'ub> + ?Sized,
-{
-    /// # SAFETY
-    /// The caller must ensure that the view is valid for all lifetimes `'x`
-    /// that does not outlive `'ub`.
-    /// If the view contain a lower bound to `'x`,
-    /// e.g. `View<'x, Output = &'a &'x ()>`,
-    /// the invariant only needs to hold for `'x` that makes the expression well-formed.
-    pub unsafe fn new_unchecked(view: F::Output) -> Self {
-        ForAll(view)
-    }
-}
-
-impl<'ub, F> Default for ForAll<'ub, F>
-where
-    F: View<'ub> + ?Sized,
-    F::Output: Default,
-{
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}
-
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
@@ -125,16 +97,20 @@ where
                 ),
             > + 'static,
     > {
-        // We cannot borrow `self.view` and then add `self.owner` here
-        // because the lower bound of `'x` from `self.view.borrow()` is not enough
-        // to prove that `'x` outlives `'a`,
-        // which is required by the return type signature.
-        // SAFETY: The lifetime acts like a brand
-        // that the `Anchor` will only be matched
-        // with the view derived from the same `Bowl`.
-        // It would be a violation of this invariant
-        // if we add a `fn zip(ForAll<A>, ForAll<B>) -> ForAll<(A, B)>`.
-        unsafe { ForAll::new_unchecked((&*self.view, &self.owner)) }
+        let result = ForAll::new().map(|(), stamp| stamp.stamp((&*self.view, &self.owner)));
+        // SAFETY: This function is for backwards compatibility and will be removed in the future.
+        unsafe {
+            transmute::<
+                ForAll<
+                    'ub,
+                    dyn for<'x> View<
+                        'x,
+                        Output = (&'a <F as View<'ub>>::Output, &'a Anchor<'ub, 'ub, P>),
+                    >,
+                >,
+                _,
+            >(result)
+        }
     }
 
     pub fn borrow_mut<'a>(
@@ -149,56 +125,20 @@ where
                 ),
             > + 'static,
     > {
-        // SAFETY: Same as `borrow`.
-        unsafe { ForAll::new_unchecked((&mut *self.view, &self.owner)) }
-    }
-}
-
-pub struct IsoStamp<'life, 'ub>(PhantomData<(&'life (), &'ub (), fn(&'ub ()))>);
-
-impl<'ub, F> ForAll<'ub, F>
-where
-    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
-{
-    pub fn borrow<'a>(
-        &'a self,
-    ) -> ForAll<'ub, dyn for<'x> View<'x, Output = &'a <F as BoundedView<'x, 'ub>>::Target> + 'static>
-    {
-        // SAFETY: The return type raises the lower bound of `'x`,
-        // but `&'a self` implies `&'a F::Output`,
-        // thus `'x` already satisfies the lower bound.
-        unsafe { ForAll::new_unchecked(&self.0) }
-    }
-
-    pub fn borrow_mut<'a>(
-        &'a mut self,
-    ) -> ForAll<
-        'ub,
-        dyn for<'x> View<'x, Output = &'a mut <F as BoundedView<'x, 'ub>>::Target> + 'static,
-    > {
-        // SAFETY: Same as `borrow`.
-        unsafe { ForAll::new_unchecked(&mut self.0) }
-    }
-
-    pub fn map<R>(
-        self,
-        f: impl for<'x> FnOnce(<F as BoundedView<'x, 'ub>>::Target, IsoStamp<'x, 'ub>) -> R,
-    ) -> R {
-        f(self.0, IsoStamp(PhantomData))
-    }
-}
-
-impl<'life, 'ub> IsoStamp<'life, 'ub> {
-    pub fn stamp<'long, F>(&self, view: <F as BoundedView<'life, 'long>>::Target) -> ForAll<'ub, F>
-    where
-        F: ?Sized + for<'x> BoundedView<'x, 'long>,
-        'long: 'ub + 'life,
-    {
-        let view = unsafe {
-            transmute::<<F as BoundedView<'life, 'long>>::Target, <F as View<'ub>>::Output>(view)
-        };
-        // SAFETY: Depends on `IsoStamp` always being used inside an function generic over the `'life`.
-        unsafe { ForAll::new_unchecked(view) }
+        let result = ForAll::new().map(|(), stamp| stamp.stamp((&*self.view, &mut self.owner)));
+        // SAFETY: This function is for backwards compatibility and will be removed in the future.
+        unsafe {
+            transmute::<
+                ForAll<
+                    'ub,
+                    dyn for<'x> View<
+                        'x,
+                        Output = (&'a <F as View<'ub>>::Output, &'a mut Anchor<'ub, 'ub, P>),
+                    >,
+                >,
+                _,
+            >(result)
+        }
     }
 }
 

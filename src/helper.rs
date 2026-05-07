@@ -261,9 +261,16 @@ where
     }
 }
 
-impl<'ub> ForAll<'ub, dyn for<'x> View<'x, Output = ()>> {
-    pub fn new() -> Self {
-        Default::default()
+impl<'ub, F> Default for ForAll<'ub, F>
+where
+    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+    for<'x> <F as ViewIn<'x, 'ub>>::Target: Default,
+{
+    fn default() -> Self {
+        // There should be a problem when converting `'static` to `'ub`,
+        // because we required `'ub: 'life` in [`Stamp::stamp`],
+        // but it does work currently and I don't understand why.
+        ForAll::new().map(|(), stamp| stamp.stamp(Default::default()))
     }
 }
 
@@ -280,6 +287,6 @@ where
     for<'x> <F as ViewIn<'x, 'ub>>::Target: Clone,
 {
     fn clone(&self) -> Self {
-        self.borrow().map(|view, stamp| stamp.stamp(view.clone()))
+        self.borrow(|view, stamp| stamp.stamp(view.clone()))
     }
 }

@@ -7,12 +7,14 @@
 
 mod aliasable;
 mod bowl;
+mod low_level;
 mod stable_deref;
 
 use self::seal::BoundedView;
 pub use self::{
     aliasable::{Aliasable, DanglingDeref},
-    bowl::{Anchor, Bowl, ForAll, IsoStamp, ProtectedForAll, ProtectedSlot, Slot, Stamp},
+    bowl::{Anchor, Bowl, ProtectedForAll, ProtectedSlot, Slot, Stamp},
+    low_level::*,
 };
 
 #[cfg(any(not(feature = "stable_deref"), doc))]
