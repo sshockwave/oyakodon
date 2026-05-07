@@ -63,7 +63,7 @@ where
         let view = unsafe { transmute::<&P::Target, &'ub P::Target>(&*owner) };
         Bowl {
             view: MaybeDangling::new(view),
-            owner: Anchor(owner, PhantomData),
+            owner: Anchor(PhantomData, owner),
         }
     }
 }
@@ -77,7 +77,7 @@ where
         let view = unsafe { transmute::<&mut P::Target, &'ub mut P::Target>(&mut *owner) };
         Bowl {
             view: MaybeDangling::new(view),
-            owner: Anchor(owner, PhantomData),
+            owner: Anchor(PhantomData, owner),
         }
     }
 }
@@ -187,7 +187,7 @@ impl<'life, 'ub, P> Stamp<'life, 'ub, P> {
         let owner = unsafe { owner.unwrap_unchecked() };
         Bowl {
             view: MaybeDangling::new(view),
-            owner: Anchor(owner, PhantomData),
+            owner: Anchor(PhantomData, owner),
         }
     }
 
@@ -207,21 +207,21 @@ impl<'life, 'ub, P: CloneStableDeref> Stamp<'life, 'ub, P> {
         // SAFETY: `slot` is guaranteed to be valid for its entire lifetime,
         // so the `owner` must not have been moved out.
         let owner = unsafe { owner.unwrap_unchecked() };
-        Anchor(owner.clone(), PhantomData)
+        Anchor(PhantomData, owner.clone())
     }
 }
 
-pub struct Anchor<'life, 'ub, P>(P, PhantomData<(&'life (), &'ub ())>);
+pub struct Anchor<'life, 'ub, P: ?Sized>(PhantomData<(&'life (), &'ub ())>, P);
 
-impl<P: CloneStableDeref> Clone for Anchor<'_, '_, P> {
+impl<P: CloneStableDeref + ?Sized> Clone for Anchor<'_, '_, P> {
     fn clone(&self) -> Self {
-        Self(self.0.clone(), PhantomData)
+        Self(PhantomData, self.1.clone())
     }
 }
 
 impl<'life, 'ub, P> Anchor<'life, 'ub, P> {
     pub fn into_inner(self) -> P {
-        self.0
+        self.1
     }
 
     pub fn bind<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
@@ -233,7 +233,7 @@ impl<'life, 'ub, P> Anchor<'life, 'ub, P> {
             unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
         Bowl {
             view: MaybeDangling::new(view),
-            owner: Anchor(self.0, PhantomData),
+            owner: Anchor(PhantomData, self.1),
         }
     }
 }
