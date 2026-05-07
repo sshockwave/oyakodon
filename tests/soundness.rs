@@ -59,12 +59,12 @@ fn ouroboros_88() {}
 #[test]
 fn yoke_3696() {
     fn example<P>(_: Bowl<P, dyn for<'x> View<'x, Output = &'x mut [u8]>>) {}
-    let bowl = Bowl::new_box(vec![0u8, 1, 2]).map(|view, slot| {
-        let view = view.map(&slot, |view, stamp| {
-            stamp.stamp::<dyn for<'x> View<'x, Output = &'x mut [u8]>>(view)
+    let bowl =
+        Bowl::new_box(vec![0u8, 1, 2]).map(|view, slot| {
+            slot.fill(view.map(|view, stamp| {
+                stamp.stamp::<dyn for<'x> View<'x, Output = &'x mut [u8]>>(view)
+            }))
         });
-        slot.fill(view)
-    });
     example(bowl);
 }
 

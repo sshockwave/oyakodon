@@ -275,16 +275,24 @@ impl<'bowl, P> ProtectedSlot<'bowl, P> {
     where
         F: View<'ub> + ?Sized,
     {
+        let owner = replace(self.0, None);
+        // SAFETY: Same as `Self::into_owner`.
+        let owner = unsafe { owner.unwrap_unchecked() };
         Bowl {
             view: MaybeDangling::new(view.0),
-            owner: Anchor(self.into_inner(), PhantomData),
+            owner: Anchor(owner, PhantomData),
         }
     }
 
-    pub fn into_inner(self) -> P {
+    pub fn into_owner<'ub, F>(self, view: ProtectedForAll<'bowl, 'ub, F>) -> P
+    where
+        F: View<'ub> + ?Sized,
+    {
+        drop(view);
         let owner = replace(self.0, None);
         // SAFETY: `self` is consumed,
         // so the `owner` must not have been moved out.
+        // All references to `owner` are also dropped.
         unsafe { owner.unwrap_unchecked() }
     }
 }
@@ -293,9 +301,8 @@ impl<'bowl, 'ub, F> ProtectedForAll<'bowl, 'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
-    pub fn map<R, P>(
+    pub fn map<R>(
         self,
-        _token: &ProtectedSlot<'bowl, P>,
         f: impl for<'x> FnOnce(<F as BoundedView<'x, 'ub>>::Target, Stamp<'bowl, 'x, 'ub>) -> R,
     ) -> R {
         f(self.0, Stamp(PhantomData))
