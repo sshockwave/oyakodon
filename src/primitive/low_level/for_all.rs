@@ -18,14 +18,6 @@ impl<'ub, F> ForAll<'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
-    // TODO: better name
-    pub fn cast<'short>(self) -> ForAll<'short, F>
-    where
-        'ub: 'short,
-    {
-        unsafe { transmute::<ForAll<'ub, F>, ForAll<'short, F>>(self) }
-    }
-
     pub fn borrow<'a, R>(
         &'a self,
         f: impl for<'x> FnOnce(&'a <F as BoundedView<'x, 'ub>>::Target, Stamp<'x, 'ub>) -> R,
@@ -51,10 +43,10 @@ where
 pub struct Stamp<'life, 'ub>(PhantomData<(&'life (), &'ub ())>);
 
 impl<'life, 'ub> Stamp<'life, 'ub> {
-    pub fn stamp<F>(&self, view: <F as View<'life>>::Output) -> ForAll<'ub, F>
+    pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> ForAll<'ub, F>
     where
-        F: ?Sized + for<'x> BoundedView<'x, 'ub>,
-        'ub: 'life,
+        F: ?Sized + for<'x> BoundedView<'x, 'long>,
+        'long: 'ub + 'life,
     {
         let view =
             unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };

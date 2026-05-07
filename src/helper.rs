@@ -267,3 +267,16 @@ where
         self.borrow(|view, stamp| stamp.stamp(view.clone()))
     }
 }
+
+impl<'ub, F> ForAll<'ub, F>
+where
+    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+{
+    // TODO: better name
+    pub fn cast<'short>(self) -> ForAll<'short, F>
+    where
+        'ub: 'short,
+    {
+        self.map(|view, stamp| stamp.stamp(view))
+    }
+}
