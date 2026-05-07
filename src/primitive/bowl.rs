@@ -211,20 +211,6 @@ impl<'brand, 'life, 'ub, P: CloneStableDeref> Stamp<'brand, 'life, 'ub, P> {
     }
 }
 
-pub struct ProtectedForAll<'brand, 'ub, F: View<'ub> + ?Sized>(
-    F::Output,
-    PhantomData<(&'brand (), F)>,
-);
-
-impl<'brand, 'ub, F> ProtectedForAll<'brand, 'ub, F>
-where
-    F: View<'ub> + ?Sized,
-{
-    pub unsafe fn new_unchecked(view: F::Output) -> Self {
-        Self(view, PhantomData)
-    }
-}
-
 pub struct Anchor<'life, 'ub, P>(P, PhantomData<(&'life (), &'ub ())>);
 
 impl<'life, 'ub, P> Clone for Anchor<'life, 'ub, P>

@@ -14,7 +14,7 @@ mod stable_deref;
 use self::seal::BoundedView;
 pub use self::{
     aliasable::{Aliasable, DanglingDeref},
-    bowl::{Anchor, Bowl, ProtectedForAll, Stamp},
+    bowl::{Anchor, Bowl, Stamp},
     cell::Cell,
     low_level::*,
 };
