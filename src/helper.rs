@@ -1,4 +1,4 @@
-use crate::primitive::{Anchor, Bowl, ForAll, View};
+use crate::primitive::{Anchor, Bowl, CloneStableDeref, ForAll, Owned, Slot, View};
 use ::core::{clone::Clone, fmt, marker::Copy, mem::drop};
 
 pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
@@ -220,7 +220,7 @@ where
     for<'x> <F as ViewIn<'x, 'ub>>::Target: Clone,
 {
     fn clone(&self) -> Self {
-        self.with(|view, anchor| anchor.clone().bind(view.clone()))
+        self.with(|view, anchor| anchor.clone().fill(view.clone()))
     }
 }
 
@@ -278,5 +278,11 @@ where
         'ub: 'short,
     {
         self.map(|view, stamp| stamp.stamp(view))
+    }
+}
+
+impl<P: CloneStableDeref> Clone for Slot<'_, '_, Owned<P>> {
+    fn clone(&self) -> Self {
+        self.spawn()
     }
 }

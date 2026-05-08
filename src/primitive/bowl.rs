@@ -1,4 +1,6 @@
-use super::{Aliasable, BoundedView, CloneStableDeref, DerefMove, ForAll, Stamp, Taker, View};
+use super::{
+    Aliasable, BoundedView, CloneStableDeref, DerefMove, ForAll, Owned, Stamp, Taker, View,
+};
 use ::{
     core::{
         clone::Clone,
@@ -72,7 +74,7 @@ where
         Self(ForAll::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
-                owner: Anchor(stamp, owner),
+                owner: Slot(Owned::new(owner), stamp),
             })
         }))
     }
@@ -88,7 +90,7 @@ where
         Self(ForAll::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
-                owner: Anchor(stamp, owner),
+                owner: Slot(Owned::new(owner), stamp),
             })
         }))
     }
@@ -145,7 +147,7 @@ where
     {
         Bowl(self.1.stamp(BowlInner {
             view: MaybeDangling::new(view),
-            owner: Anchor(self.1, self.0.deref_move()),
+            owner: Slot(Owned::new(self.0.deref_move()), self.1),
         }))
     }
 
@@ -160,35 +162,11 @@ where
     O::Target: CloneStableDeref,
 {
     pub fn spawn(&self) -> Anchor<'life, 'ub, O::Target> {
-        Anchor(self.1, self.0.clone())
+        Slot(Owned::new(self.0.clone()), self.1)
     }
 }
 
-pub struct Anchor<'life, 'ub, P: ?Sized>(Stamp<'life, 'ub>, P);
-
-impl<P: CloneStableDeref + ?Sized> Clone for Anchor<'_, '_, P> {
-    fn clone(&self) -> Self {
-        Self(self.0, self.1.clone())
-    }
-}
-
-impl<'life, 'ub, P> Anchor<'life, 'ub, P> {
-    pub fn into_inner(self) -> P {
-        self.1
-    }
-
-    pub fn bind<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
-    where
-        F: ?Sized + for<'x> BoundedView<'x, 'long>,
-        'long: 'ub + 'life,
-    {
-        let stamp = self.0;
-        Bowl(stamp.stamp(BowlInner {
-            view: MaybeDangling::new(view),
-            owner: self,
-        }))
-    }
-}
+pub type Anchor<'life, 'ub, P> = Slot<'life, 'ub, Owned<P>>;
 
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
@@ -208,7 +186,7 @@ where
         ) -> R,
     ) -> R {
         self.0.map(|BowlInner { view, owner }, stamp| {
-            let mut owner = Some(owner.into_inner());
+            let mut owner = Some(owner.into_owner());
             let taker = unsafe { Taker::new(&mut owner) };
             let result = f(MaybeDangling::into_inner(view), Slot(taker, stamp));
             drop(owner);
