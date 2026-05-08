@@ -6,15 +6,15 @@ use ::core::{marker::PhantomData, mem::transmute};
 /// If the view contain a lower bound to `'x`,
 /// e.g. `View<'x, Output = &'a &'x ()>`,
 /// the invariant only needs to hold for `'x` that makes the expression well-formed.
-pub struct ForAll<'ub, F: View<'ub> + ?Sized>(F::Output);
+pub struct Exists<'ub, F: View<'ub> + ?Sized>(F::Output);
 
-impl ForAll<'static, dyn for<'x> View<'x, Output = ()>> {
+impl Exists<'static, dyn for<'x> View<'x, Output = ()>> {
     pub fn new() -> Self {
-        ForAll(())
+        Exists(())
     }
 }
 
-impl<'ub, F> ForAll<'ub, F>
+impl<'ub, F> Exists<'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
@@ -73,13 +73,13 @@ impl<'life, 'ub> Stamp<'life, 'ub> {
     ///
     /// [`stamp`]: Self::stamp
     /// [#84591]: https://github.com/rust-lang/rust/issues/84591
-    pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> ForAll<'ub, F>
+    pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> Exists<'ub, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
         let view =
             unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
-        ForAll(view)
+        Exists(view)
     }
 }

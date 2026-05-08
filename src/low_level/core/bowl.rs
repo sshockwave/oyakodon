@@ -1,5 +1,5 @@
 use crate::primitive::{
-    Aliasable, BoundedView, CloneStableDeref, DerefMove, ForAll, Owned, Stamp, Taker, View,
+    Aliasable, BoundedView, CloneStableDeref, DerefMove, Exists, Owned, Stamp, Taker, View,
 };
 use ::{
     core::{
@@ -33,7 +33,7 @@ use ::{
 /// if you need to put a shorter lifetime in the view,
 /// which makes it somewhat easier to satisfy the invariants held by [`Bowl`].
 pub struct Bowl<'ub, P, F: ?Sized + for<'x> BoundedView<'x, 'ub>>(
-    ForAll<
+    Exists<
         'ub,
         dyn for<'x> View<
                 'x,
@@ -74,7 +74,7 @@ where
 {
     pub fn new(owner: P) -> Self {
         let view = unsafe { transmute::<&P::Target, &'ub P::Target>(&*owner) };
-        Self(ForAll::new().map(|(), stamp| {
+        Self(Exists::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
                 owner: Slot(stamp, Owned::new(owner)),
@@ -90,7 +90,7 @@ where
 {
     pub fn new_mut(mut owner: P) -> Self {
         let view = unsafe { transmute::<&mut P::Target, &'ub mut P::Target>(&mut *owner) };
-        Self(ForAll::new().map(|(), stamp| {
+        Self(Exists::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
                 owner: Slot(stamp, Owned::new(owner)),
@@ -105,7 +105,7 @@ where
 {
     pub fn borrow<'a>(
         &'a self,
-    ) -> ForAll<
+    ) -> Exists<
         'ub,
         dyn for<'x> View<
                 'x,
@@ -121,7 +121,7 @@ where
 
     pub fn borrow_mut<'a>(
         &'a mut self,
-    ) -> ForAll<
+    ) -> Exists<
         'ub,
         dyn for<'x> View<
                 'x,

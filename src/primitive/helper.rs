@@ -1,4 +1,4 @@
-use crate::primitive::{BoundedView, Bowl, CloneStableDeref, ForAll, Owned, Slot, View};
+use crate::primitive::{BoundedView, Bowl, CloneStableDeref, Exists, Owned, Slot, View};
 use ::core::{clone::Clone, fmt, marker::Copy, mem::drop};
 
 pub trait Derive<T> {
@@ -246,7 +246,7 @@ where
     }
 }
 
-impl<'ub, F> Default for ForAll<'ub, F>
+impl<'ub, F> Default for Exists<'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
     for<'x> <F as BoundedView<'x, 'ub>>::Target: Default,
@@ -255,18 +255,18 @@ where
         // There should be a problem when converting `'static` to `'ub`,
         // because we required `'ub: 'life` in [`Stamp::stamp`],
         // but it does work currently and I don't understand why.
-        ForAll::new().map(|(), stamp| stamp.stamp(Default::default()))
+        Exists::new().map(|(), stamp| stamp.stamp(Default::default()))
     }
 }
 
-impl<'ub, F> Copy for ForAll<'ub, F>
+impl<'ub, F> Copy for Exists<'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
     for<'x> <F as BoundedView<'x, 'ub>>::Target: Copy,
 {
 }
 
-impl<'ub, F> Clone for ForAll<'ub, F>
+impl<'ub, F> Clone for Exists<'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
     for<'x> <F as BoundedView<'x, 'ub>>::Target: Clone,
@@ -276,12 +276,12 @@ where
     }
 }
 
-impl<'ub, F> ForAll<'ub, F>
+impl<'ub, F> Exists<'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
     // TODO: better name
-    pub fn cast<'short>(self) -> ForAll<'short, F>
+    pub fn cast<'short>(self) -> Exists<'short, F>
     where
         'ub: 'short,
     {
