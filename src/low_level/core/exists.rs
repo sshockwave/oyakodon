@@ -1,4 +1,7 @@
-use crate::primitive::{BoundedView, PhantomInvariantLifetime, View};
+use crate::{
+    polyfill::PhantomInvariantLifetime,
+    primitive::{BoundedView, View},
+};
 use ::core::{marker::PhantomData, mem::transmute};
 
 /// Maintains an invariant that

@@ -65,7 +65,7 @@
 //! We also use [`MaybeDangling`] to remove the `dereferenceable` attribute for views.
 //!
 //! [Miri]: https://github.com/rust-lang/miri/
-//! [`MaybeDangling`]: maybe_dangling::MaybeDangling
+//! [`MaybeDangling`]: std::mem::MaybeDangling
 //!
 //! # About AI
 //! The tests are vibed while not the rest.

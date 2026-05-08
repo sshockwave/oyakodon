@@ -1,17 +1,14 @@
 use crate::{
-    polyfill::transmute_unchecked,
+    polyfill::{transmute_unchecked, MaybeDangling},
     primitive::{
         Aliasable, BoundedView, CloneStableDeref, DerefMove, Exists, Owned, Stamp, Taker, View,
     },
 };
-use ::{
-    core::{
-        clone::Clone,
-        marker::PhantomData,
-        mem::{drop, transmute},
-        ops::{Deref, DerefMut},
-    },
-    maybe_dangling::MaybeDangling,
+use ::core::{
+    clone::Clone,
+    marker::PhantomData,
+    mem::{drop, transmute},
+    ops::{Deref, DerefMut},
 };
 
 macro_rules! bowl {

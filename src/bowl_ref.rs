@@ -1,17 +1,14 @@
 use super::*;
-use crate::primitive::StableDeref;
-use ::{
-    core::{
-        cmp::{Eq, PartialEq},
-        convert::{AsMut, AsRef},
-        fmt::Debug,
-        future::Future,
-        hash::{Hash, Hasher},
-        mem::transmute,
-        ops::Deref,
-        result::Result,
-    },
-    maybe_dangling::MaybeDangling,
+use crate::{polyfill::MaybeDangling, primitive::StableDeref};
+use ::core::{
+    cmp::{Eq, PartialEq},
+    convert::{AsMut, AsRef},
+    fmt::Debug,
+    future::Future,
+    hash::{Hash, Hasher},
+    mem::transmute,
+    ops::Deref,
+    result::Result,
 };
 
 /// # Examples
