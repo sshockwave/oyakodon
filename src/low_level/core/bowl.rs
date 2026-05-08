@@ -177,10 +177,10 @@ mod with_new_bounded_view {
         O: DerefMove,
         O::Target: Sized,
     {
-        pub fn fill<'long, 'ub, F>(
+        pub fn fill<'long, 'ub, F, X: ?Sized>(
             self,
             view: <F as View<'life>>::Output,
-            stamp: Stamp<'life, 'ub>,
+            stamp: Stamp<'life, 'ub, X>,
         ) -> Bowl<'ub, O::Target, F>
         where
             F: ?Sized + for<'x> BoundedView<'x, 'long>,

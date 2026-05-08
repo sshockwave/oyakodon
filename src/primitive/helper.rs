@@ -193,7 +193,7 @@ mod with_new_bounded_view {
         where
             'ub: 'short,
         {
-            self.map(|view, slot, stamp| slot.fill(view, stamp))
+            self.map(|view, slot, stamp| slot.fill(view, stamp.cast::<()>()))
         }
 
         /// Combines [`Self::cast_life`] and [`Self::cast_view`].

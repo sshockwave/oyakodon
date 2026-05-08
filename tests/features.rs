@@ -17,7 +17,7 @@ fn nested_bowl() {
         slot.fill::<dyn for<'a> View<
             'a,
             Output = Bowl<_, dyn for<'b> View<'b, Output = (&'a String, &'b String)>>,
-        >>(
+        >, _>(
             Bowl::new_box(b).map(|b, slot, stamp| slot.fill((&*a, &*b), stamp)),
             stamp,
         )
@@ -25,7 +25,7 @@ fn nested_bowl() {
     let swapped_base = bowl.map(|view, slot_a, stamp_a| {
         type BowlA<'b> = dyn for<'a> View<'a, Output = (&'a String, &'b String)>;
         view.map(|view, slot_b, stamp_b| {
-            slot_b.fill::<dyn for<'b> View<'b, Output = Bowl<_, BowlA<'b>>>>(
+            slot_b.fill::<dyn for<'b> View<'b, Output = Bowl<_, BowlA<'b>>>, _>(
                 slot_a.fill(view, stamp_a),
                 stamp_b,
             )

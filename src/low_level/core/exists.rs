@@ -41,9 +41,13 @@ where
 }
 
 #[derive(Clone, Copy)]
-pub struct Stamp<'life, 'ub>(PhantomData<(&'life (), &'ub ())>);
+pub struct Stamp<'life, 'ub, X: ?Sized = &'life &'ub ()>(PhantomData<(&'life (), &'ub (), X)>);
 
-impl<'life, 'ub> Stamp<'life, 'ub> {
+impl<'life, 'ub, X: ?Sized> Stamp<'life, 'ub, X> {
+    pub fn cast<Y: ?Sized>(&self) -> Stamp<'life, 'ub, Y> {
+        Stamp(PhantomData)
+    }
+
     /// [`stamp`] could have been unsound due to [#84591]:
     /// ```
     /// use oyakodon::primitive::View;
