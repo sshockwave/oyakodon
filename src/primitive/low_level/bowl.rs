@@ -32,12 +32,15 @@ bounded_view!(BoundedView);
 /// You could consider lowering it afterwards with [`Self::cast_life`]
 /// if you need to put a shorter lifetime in the view,
 /// which makes it somewhat easier to satisfy the invariants held by [`Bowl`].
-pub struct Bowl<'ub, P, F: View<'ub> + ?Sized>(
+pub struct Bowl<'ub, P, F: ?Sized + for<'x> BoundedView<'x, 'ub>>(
     ForAll<
         'ub,
         dyn for<'x> View<
                 'x,
-                Output = BowlInner<Slot<'x, 'ub, Owned<P>>, MaybeDangling<<F as View<'x>>::Output>>,
+                Output = BowlInner<
+                    Slot<'x, 'ub, Owned<P>>,
+                    MaybeDangling<<F as BoundedView<'x, 'ub>>::Target>,
+                >,
             > + 'static,
     >,
 );
@@ -157,6 +160,8 @@ where
 
 pub struct Slot<'life, 'ub, O: ?Sized>(Stamp<'life, 'ub>, O);
 
+bounded_view!(StampBoundedView);
+
 impl<'life, 'ub, O> Slot<'life, 'ub, O>
 where
     O: DerefMove,
@@ -164,7 +169,7 @@ where
 {
     pub fn fill<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, O::Target, F>
     where
-        F: ?Sized + for<'x> BoundedView<'x, 'long>,
+        F: ?Sized + for<'x> StampBoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
         Bowl(self.0.stamp(BowlInner {
