@@ -5,24 +5,16 @@
 //! # A Journey to Safe Self-Referential Types
 //! TODO
 
-mod aliasable;
 mod bowl;
 mod cell;
 mod low_level;
-mod stable_deref;
 
+use self::{bounded_view::BoundedView, deref_move::DerefMove};
 pub use self::{
-    aliasable::{Aliasable, DanglingDeref},
     bowl::{Anchor, Bowl, Slot},
     cell::Cell,
     low_level::*,
 };
-use self::{bounded_view::BoundedView, deref_move::DerefMove};
-
-#[cfg(any(not(feature = "stable_deref"), doc))]
-pub use self::stable_deref::{CloneStableDeref, StableDeref};
-#[cfg(all(feature = "stable_deref", not(doc)))]
-pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
 
 pub trait View<'x> {
     type Output;
