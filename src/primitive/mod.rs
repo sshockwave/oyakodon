@@ -6,13 +6,11 @@
 //! TODO
 
 mod bowl;
-mod cell;
 mod low_level;
 
 use self::{bounded_view::BoundedView, deref_move::DerefMove};
 pub use self::{
     bowl::{Bowl, Slot},
-    cell::Cell,
     low_level::*,
 };
 
