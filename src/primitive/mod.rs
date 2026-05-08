@@ -11,7 +11,7 @@ mod low_level;
 
 use self::{bounded_view::BoundedView, deref_move::DerefMove};
 pub use self::{
-    bowl::{Anchor, Bowl, Slot},
+    bowl::{Bowl, Slot},
     cell::Cell,
     low_level::*,
 };

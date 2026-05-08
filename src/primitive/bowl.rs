@@ -37,7 +37,7 @@ pub struct Bowl<'ub, P, F: View<'ub> + ?Sized>(
         'ub,
         dyn for<'x> View<
                 'x,
-                Output = BowlInner<Anchor<'x, 'ub, P>, MaybeDangling<<F as View<'x>>::Output>>,
+                Output = BowlInner<Slot<'x, 'ub, Owned<P>>, MaybeDangling<<F as View<'x>>::Output>>,
             > + 'static,
     >,
 );
@@ -108,7 +108,7 @@ where
                 'x,
                 Output = (
                     &'a <F as BoundedView<'x, 'ub>>::Target,
-                    &'a Anchor<'x, 'ub, P>,
+                    &'a Slot<'x, 'ub, Owned<P>>,
                 ),
             > + 'static,
     > {
@@ -124,7 +124,7 @@ where
                 'x,
                 Output = (
                     &'a mut <F as BoundedView<'x, 'ub>>::Target,
-                    &'a Anchor<'x, 'ub, P>,
+                    &'a Slot<'x, 'ub, Owned<P>>,
                 ),
             > + 'static,
     > {
@@ -161,12 +161,10 @@ where
     O: DerefMove,
     O::Target: CloneStableDeref,
 {
-    pub fn spawn(&self) -> Anchor<'life, 'ub, O::Target> {
+    pub fn spawn(&self) -> Slot<'life, 'ub, Owned<O::Target>> {
         Slot(Owned::new(self.0.clone()), self.1)
     }
 }
-
-pub type Anchor<'life, 'ub, P> = Slot<'life, 'ub, Owned<P>>;
 
 impl<'ub, P, F> Bowl<'ub, P, F>
 where

@@ -1,4 +1,4 @@
-use crate::primitive::{Anchor, Bowl, CloneStableDeref, ForAll, Owned, Slot, View};
+use crate::primitive::{Bowl, CloneStableDeref, ForAll, Owned, Slot, View};
 use ::core::{clone::Clone, fmt, marker::Copy, mem::drop};
 
 pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
@@ -57,19 +57,22 @@ where
 {
     pub fn with<'a, R>(
         &'a self,
-        f: impl for<'life> FnOnce(&'a <F as ViewIn<'life, 'ub>>::Target, &'a Anchor<'life, 'ub, P>) -> R,
+        f: impl for<'life> FnOnce(
+            &'a <F as ViewIn<'life, 'ub>>::Target,
+            &'a Slot<'life, 'ub, Owned<P>>,
+        ) -> R,
     ) -> R {
-        self.borrow().map(|(view, anchor), _| f(view, anchor))
+        self.borrow().map(|(view, slot), _| f(view, slot))
     }
 
     pub fn with_mut<'a, R>(
         &'a mut self,
         f: impl for<'life> FnOnce(
             &'a mut <F as ViewIn<'life, 'ub>>::Target,
-            &'a Anchor<'life, 'ub, P>,
+            &'a Slot<'life, 'ub, Owned<P>>,
         ) -> R,
     ) -> R {
-        self.borrow_mut().map(|(view, anchor), _| f(view, anchor))
+        self.borrow_mut().map(|(view, slot), _| f(view, slot))
     }
 
     /// Transforms the current view using `f`, encoding the composition as a generated view type.
@@ -220,7 +223,7 @@ where
     for<'x> <F as ViewIn<'x, 'ub>>::Target: Clone,
 {
     fn clone(&self) -> Self {
-        self.with(|view, anchor| anchor.clone().fill(view.clone()))
+        self.with(|view, slot| slot.clone().fill(view.clone()))
     }
 }
 
