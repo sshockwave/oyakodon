@@ -1,4 +1,4 @@
-use crate::primitive::{BoundedView, Bowl, CloneStableDeref, Exists, Owned, Slot, View};
+use crate::primitive::{BoundedView, Bowl, CloneStableDeref, Exists, Owned, Slot, Stamp, View};
 use ::core::{clone::Clone, fmt, marker::Copy, mem::drop};
 
 pub trait Derive<T> {
@@ -49,20 +49,24 @@ where
         &'a self,
         f: impl for<'life> FnOnce(
             &'a <F as BoundedView<'life, 'ub>>::Target,
-            &'a Slot<'life, 'ub, Owned<P>>,
+            &'a Slot<'life, Owned<P>>,
+            Stamp<'life, 'ub>,
         ) -> R,
     ) -> R {
-        self.borrow().map(|(view, slot), _| f(view, slot))
+        self.borrow()
+            .map(|(view, slot), stamp| f(view, slot, stamp))
     }
 
     pub fn with_mut<'a, R>(
         &'a mut self,
         f: impl for<'life> FnOnce(
             &'a mut <F as BoundedView<'life, 'ub>>::Target,
-            &'a Slot<'life, 'ub, Owned<P>>,
+            &'a Slot<'life, Owned<P>>,
+            Stamp<'life, 'ub>,
         ) -> R,
     ) -> R {
-        self.borrow_mut().map(|(view, slot), _| f(view, slot))
+        self.borrow_mut()
+            .map(|(view, slot), stamp| f(view, slot, stamp))
     }
 
     /// Transforms the current view using `f`, encoding the composition as a generated view type.
@@ -78,7 +82,7 @@ where
     where
         G: for<'x> Derive<<F as BoundedView<'x, 'ub>>::Target>,
     {
-        self.map(|view, slot| slot.fill(f.call(view)))
+        self.map(|view, slot, stamp| slot.fill(f.call(view), stamp))
     }
 
     /// Changes the view marker type `F` to any `G` that produces identical output types.
@@ -87,7 +91,7 @@ where
     pub fn cast_view<G: ?Sized + for<'x> BoundedView<'x, 'ub, Target = <F as View<'x>>::Output>>(
         self,
     ) -> Bowl<'ub, P, G> {
-        self.map(|view, slot| slot.fill(view))
+        self.map(|view, slot, stamp| slot.fill(view, stamp))
     }
 
     /// Drops the owner and returns the view.
@@ -98,12 +102,12 @@ where
     where
         for<'x> F: BoundedView<'x, 'ub, Target = S>,
     {
-        self.map(|view, _| view)
+        self.map(|view, _, _| view)
     }
 
     /// Drops the view and returns the owner.
     pub fn into_owner(self) -> P {
-        self.map(|view, slot| {
+        self.map(|view, slot, _| {
             // `slot` must be dropped even if `view`'s drop panics.
             // Miri reports that this is not guaranteed
             // if `view` is dropped implicitly at the end of the function,
@@ -151,7 +155,7 @@ where
     where
         for<'x> F: BoundedView<'x, 'ub, Target = S>,
     {
-        self.map(|view, slot| (slot.into_owner(), view))
+        self.map(|view, slot, _| (slot.into_owner(), view))
     }
 
     /// Unwraps a [`Result`][::core::result::Result] view, branching into `Ok` or `Err`.
@@ -165,9 +169,9 @@ where
     where
         for<'x> <F as View<'x>>::Output: Result,
     {
-        self.map(|view, slot| match Result::into(view) {
-            Ok(ok) => Ok(slot.fill(ok)),
-            Err(err) => Err(slot.fill(err)),
+        self.map(|view, slot, stamp| match Result::into(view) {
+            Ok(ok) => Ok(slot.fill(ok, stamp)),
+            Err(err) => Err(slot.fill(err, stamp)),
         })
     }
 }
@@ -189,7 +193,7 @@ mod with_new_bounded_view {
         where
             'ub: 'short,
         {
-            self.map(|view, slot| slot.fill(view))
+            self.map(|view, slot, stamp| slot.fill(view, stamp))
         }
 
         /// Combines [`Self::cast_life`] and [`Self::cast_view`].
@@ -228,7 +232,7 @@ where
     for<'x> <F as BoundedView<'x, 'ub>>::Target: Clone,
 {
     fn clone(&self) -> Self {
-        self.with(|view, slot| slot.clone().fill(view.clone()))
+        self.with(|view, slot, stamp| slot.clone().fill(view.clone(), stamp))
     }
 }
 
@@ -239,7 +243,7 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut dbg_struct = f.debug_struct("Bowl");
-        self.with(|view, _| {
+        self.with(|view, _, _| {
             dbg_struct.field("view", view);
         });
         dbg_struct.finish_non_exhaustive()
@@ -286,7 +290,7 @@ where
     }
 }
 
-impl<P: CloneStableDeref> Clone for Slot<'_, '_, Owned<P>> {
+impl<P: CloneStableDeref> Clone for Slot<'_, Owned<P>> {
     fn clone(&self) -> Self {
         self.spawn()
     }

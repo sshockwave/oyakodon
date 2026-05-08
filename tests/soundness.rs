@@ -59,8 +59,9 @@ fn ouroboros_88() {}
 #[test]
 fn yoke_3696() {
     fn example<P>(_: Bowl<P, dyn for<'x> View<'x, Output = &'x mut [u8]>>) {}
-    let bowl = Bowl::new_box(vec![0u8, 1, 2])
-        .map(|view, slot| slot.fill::<dyn for<'x> View<'x, Output = &'x mut [u8]>>(view));
+    let bowl = Bowl::new_box(vec![0u8, 1, 2]).map(|view, slot, stamp| {
+        slot.fill::<dyn for<'x> View<'x, Output = &'x mut [u8]>>(view, stamp)
+    });
     example(bowl);
 }
 
@@ -74,7 +75,7 @@ fn owning_ref_49() {
     use std::cell::Cell;
 
     let owning_ref = Bowl::new_box(Cell::new(25u8));
-    let res = owning_ref.with(|v, _| {
+    let res = owning_ref.with(|v, _, _| {
         v.set(10);
         v.set(20);
         v.get()

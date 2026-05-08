@@ -4,6 +4,7 @@ use crate::primitive::{
 use ::{
     core::{
         clone::Clone,
+        marker::PhantomData,
         mem::{drop, transmute},
         ops::{Deref, DerefMut},
     },
@@ -38,7 +39,7 @@ pub struct Bowl<'ub, P, F: ?Sized + for<'x> BoundedView<'x, 'ub>>(
         dyn for<'x> View<
                 'x,
                 Output = BowlInner<
-                    Slot<'x, 'ub, Owned<P>>,
+                    Slot<'x, Owned<P>>,
                     MaybeDangling<<F as BoundedView<'x, 'ub>>::Target>,
                 >,
             > + 'static,
@@ -77,7 +78,7 @@ where
         Self(Exists::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
-                owner: Slot(stamp, Owned::new(owner)),
+                owner: Slot(PhantomData, Owned::new(owner)),
             })
         }))
     }
@@ -93,7 +94,7 @@ where
         Self(Exists::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
-                owner: Slot(stamp, Owned::new(owner)),
+                owner: Slot(PhantomData, Owned::new(owner)),
             })
         }))
     }
@@ -111,7 +112,7 @@ where
                 'x,
                 Output = (
                     &'a <F as BoundedView<'x, 'ub>>::Target,
-                    &'a Slot<'x, 'ub, Owned<P>>,
+                    &'a Slot<'x, Owned<P>>,
                 ),
             > + 'static,
     > {
@@ -127,7 +128,7 @@ where
                 'x,
                 Output = (
                     &'a mut <F as BoundedView<'x, 'ub>>::Target,
-                    &'a Slot<'x, 'ub, Owned<P>>,
+                    &'a Slot<'x, Owned<P>>,
                 ),
             > + 'static,
     > {
@@ -145,20 +146,25 @@ where
         self,
         f: impl for<'owner, 'life> FnOnce(
             <F as BoundedView<'life, 'ub>>::Target,
-            Slot<'life, 'ub, Taker<'owner, P>>,
+            Slot<'life, Taker<'owner, P>>,
+            Stamp<'life, 'ub>,
         ) -> R,
     ) -> R {
         self.0.map(|BowlInner { view, owner }, stamp| {
             let mut owner = Some(owner.into_owner());
             let taker = unsafe { Taker::new(&mut owner) };
-            let result = f(MaybeDangling::into_inner(view), Slot(stamp, taker));
+            let result = f(
+                MaybeDangling::into_inner(view),
+                Slot(PhantomData, taker),
+                stamp,
+            );
             drop(owner);
             result
         })
     }
 }
 
-pub struct Slot<'life, 'ub, O: ?Sized>(Stamp<'life, 'ub>, O);
+pub struct Slot<'life, O: ?Sized>(PhantomData<&'life ()>, O);
 
 mod with_new_bounded_view {
     use super::*;
@@ -166,17 +172,21 @@ mod with_new_bounded_view {
         pub trait BoundedView {}
     );
 
-    impl<'life, 'ub, O> Slot<'life, 'ub, O>
+    impl<'life, O> Slot<'life, O>
     where
         O: DerefMove,
         O::Target: Sized,
     {
-        pub fn fill<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, O::Target, F>
+        pub fn fill<'long, 'ub, F>(
+            self,
+            view: <F as View<'life>>::Output,
+            stamp: Stamp<'life, 'ub>,
+        ) -> Bowl<'ub, O::Target, F>
         where
             F: ?Sized + for<'x> BoundedView<'x, 'long>,
             'long: 'ub + 'life,
         {
-            Bowl(self.0.stamp(BowlInner {
+            Bowl(stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
                 owner: Slot(self.0, Owned::new(self.1.deref_move())),
             }))
@@ -184,7 +194,7 @@ mod with_new_bounded_view {
     }
 }
 
-impl<O> Slot<'_, '_, O>
+impl<O> Slot<'_, O>
 where
     O: DerefMove,
     O::Target: Sized,
@@ -194,12 +204,12 @@ where
     }
 }
 
-impl<'life, 'ub, O> Slot<'life, 'ub, O>
+impl<'life, O> Slot<'life, O>
 where
     O: Deref + ?Sized,
     O::Target: CloneStableDeref,
 {
-    pub fn spawn(&self) -> Slot<'life, 'ub, Owned<O::Target>> {
+    pub fn spawn(&self) -> Slot<'life, Owned<O::Target>> {
         Slot(self.0, Owned::new(self.1.clone()))
     }
 }

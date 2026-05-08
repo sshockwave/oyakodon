@@ -27,7 +27,7 @@ impl<'ub, T: ?Sized, F: Covariant<'ub>> SelfRef<'ub, T, F> {
     where
         F::Value<'a>: 'a,
     {
-        self.0.with(|view, _| F::as_ref(view))
+        self.0.with(|view, _, _| F::as_ref(view))
     }
 }
 
@@ -49,7 +49,8 @@ impl<'ub> Covariant<'ub> for StrRef {
 
 fn main() {
     let cell = SelfRef::<_, StrRef>(
-        Bowl::new_box(String::from("hello, world")).map(|view, slot| slot.fill(view.as_str())),
+        Bowl::new_box(String::from("hello, world"))
+            .map(|view, slot, stamp| slot.fill(view.as_str(), stamp)),
     );
     let view = cell.get();
     println!("{view}");
