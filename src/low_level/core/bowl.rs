@@ -49,7 +49,7 @@ pub struct Bowl<'ub, P, F: ?Sized + for<'x> BoundedView<'x, 'ub>>(
     bowl!(Exists<'ub, 'x, P, <F as BoundedView<'x, 'ub>>::Target>),
 );
 
-struct BowlInner<O, V> {
+struct BowlInner<O: ?Sized, V> {
     // `owner` will be dropped after `view`.
     // Rust guarantees that fields are dropped in the order of declaration.
     // https://doc.rust-lang.org/reference/destructors.html#r-destructors.operation
