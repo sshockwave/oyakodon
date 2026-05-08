@@ -4,15 +4,13 @@
 //!
 //! # A Journey to Safe Self-Referential Types
 //! TODO
+#![deny(unsafe_code)]
 
-mod bowl;
+mod helper;
 mod low_level;
 
 use self::{bounded_view::BoundedView, deref_move::DerefMove};
-pub use self::{
-    bowl::{Bowl, Slot},
-    low_level::*,
-};
+pub use self::{dangling_deref::DanglingDeref, low_level::*};
 
 pub trait View<'x> {
     type Output;
@@ -35,5 +33,37 @@ where
 mod deref_move {
     pub trait DerefMove: ::core::ops::DerefMut {
         fn deref_move(self) -> Self::Target;
+    }
+}
+
+mod dangling_deref {
+    use ::{
+        core::ops::{Deref, DerefMut},
+        maybe_dangling::MaybeDangling,
+    };
+
+    pub struct DanglingDeref<T>(MaybeDangling<T>);
+
+    impl<T> DanglingDeref<T> {
+        pub fn new(inner: T) -> Self {
+            Self(MaybeDangling::new(inner))
+        }
+
+        pub fn into_inner(self) -> T {
+            MaybeDangling::into_inner(self.0)
+        }
+    }
+
+    impl<T: Deref> Deref for DanglingDeref<T> {
+        type Target = T::Target;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+
+    impl<T: DerefMut> DerefMut for DanglingDeref<T> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
+        }
     }
 }

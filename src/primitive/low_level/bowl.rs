@@ -1,4 +1,4 @@
-use super::{
+use crate::primitive::{
     Aliasable, BoundedView, CloneStableDeref, DerefMove, ForAll, Owned, Stamp, Taker, View,
 };
 use ::{

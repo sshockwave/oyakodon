@@ -218,7 +218,7 @@ impl<T, E> Result for ::core::result::Result<T, E> {
 
 impl<'ub, T, F> Clone for Bowl<'ub, T, F>
 where
-    T: super::primitive::CloneStableDeref,
+    T: crate::primitive::CloneStableDeref,
     F: for<'x> ViewIn<'x, 'ub> + ?Sized,
     for<'x> <F as ViewIn<'x, 'ub>>::Target: Clone,
 {
