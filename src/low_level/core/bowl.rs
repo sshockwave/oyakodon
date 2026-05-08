@@ -196,7 +196,7 @@ where
 
 impl<'life, 'ub, O> Slot<'life, 'ub, O>
 where
-    O: DerefMove + ?Sized,
+    O: Deref + ?Sized,
     O::Target: CloneStableDeref,
 {
     pub fn spawn(&self) -> Slot<'life, 'ub, Owned<O::Target>> {
