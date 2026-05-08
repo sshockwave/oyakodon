@@ -44,6 +44,35 @@ where
 pub struct Stamp<'life, 'ub>(PhantomData<(&'life (), &'ub ())>);
 
 impl<'life, 'ub> Stamp<'life, 'ub> {
+    /// [`stamp`] could have been unsound due to [#84591]:
+    /// ```
+    /// use oyakodon::primitive::View;
+    /// fn requires_all<F: ?Sized + for<'x> View<'x>>() {}
+    /// fn get_lifetime<'lower_bound>() {
+    ///     requires_all::<dyn for<'x> View<'x, Output = &'static &'x ()>>();
+    /// }
+    /// ```
+    /// But curiously, Rust is able to reject this case:
+    /// ```compile_fail
+    /// use oyakodon::primitive::View;
+    /// pub struct Requires<'life>(&'life ());
+    /// impl<'life> Requires<'life> {
+    ///     pub fn all<F: ?Sized + View<'life>>(_: F::Output) {}
+    /// }
+    /// fn get_lifetime<'lower_bound, 'life, 'ub>() {
+    ///     Requires::<'life>::all::<dyn for<'x> View<'x, Output = &'lower_bound &'x ()>>(&&());
+    /// }
+    /// ```
+    /// So [`stamp`] cannot be exploited to raise the lower bound of `'life`:
+    /// ```compile_fail
+    /// use oyakodon::primitive::{Stamp, View};
+    /// fn get_stamp<'short, 'life, 'ub>(stamp: Stamp<'life, 'ub>) {
+    ///     stamp.stamp::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
+    /// }
+    /// ```
+    ///
+    /// [`stamp`]: Self::stamp
+    /// [#84591]: https://github.com/rust-lang/rust/issues/84591
     pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> ForAll<'ub, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,

@@ -132,35 +132,6 @@ where
     }
 }
 
-/// [`fill`] could have been unsound due to [#84591]:
-/// ```
-/// use oyakodon::primitive::View;
-/// fn requires_all<F: ?Sized + for<'x> View<'x>>() {}
-/// fn get_lifetime<'lower_bound>() {
-///     requires_all::<dyn for<'x> View<'x, Output = &'static &'x ()>>();
-/// }
-/// ```
-/// But curiously, Rust is able to reject this case:
-/// ```compile_fail
-/// use oyakodon::primitive::View;
-/// pub struct Requires<'life>(&'life ());
-/// impl<'life> Requires<'life> {
-///     pub fn all<F: ?Sized + View<'life>>(_: F::Output) {}
-/// }
-/// fn get_lifetime<'lower_bound, 'life, 'ub>() {
-///     Requires::<'life>::all::<dyn for<'x> View<'x, Output = &'lower_bound &'x ()>>(&&());
-/// }
-/// ```
-/// So [`fill`] cannot be exploited to raise the lower bound of `'life`:
-/// ```compile_fail
-/// use oyakodon::primitive::{Slot, View};
-/// fn get_slot<'short, 'life, 'ub, P>(slot: Slot<'life, 'ub, P>) {
-///     slot.fill::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
-/// }
-/// ```
-///
-/// [`fill`]: Self::fill
-/// [#84591]: https://github.com/rust-lang/rust/issues/84591
 pub struct Slot<'owner, 'life, 'ub, P>(&'owner mut Option<P>, Stamp<'life, 'ub>);
 
 impl<'life, 'ub, P> Slot<'_, 'life, 'ub, P> {
