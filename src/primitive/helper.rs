@@ -81,16 +81,6 @@ where
         self.map(|view, slot| slot.fill(f.call(view)))
     }
 
-    /// Changes the lifetime placeholder `'ub` without modifying the value.
-    /// This will reduce the requirements of operations on the view,
-    /// at the cost of shortening the maximum possible lifetime of the view.
-    pub fn cast_life<'short>(self) -> Bowl<'short, P, F>
-    where
-        'ub: 'short,
-    {
-        self.map(|view, slot| slot.fill(view))
-    }
-
     /// Changes the view marker type `F` to any `G` that produces identical output types.
     /// It is recommended to use `dyn for<'x> View<'x, Output = Type<'x>>` as the view type indicator (i.e. HKT),
     /// or a unified view type in the same project.
@@ -98,19 +88,6 @@ where
         self,
     ) -> Bowl<'ub, P, G> {
         self.map(|view, slot| slot.fill(view))
-    }
-
-    /// Combines [`Self::cast_life`] and [`Self::cast_view`].
-    pub fn cast<
-        'short,
-        G: ?Sized + for<'x> BoundedView<'x, 'ub, Target = <F as View<'x>>::Output>,
-    >(
-        self,
-    ) -> Bowl<'short, P, G>
-    where
-        'ub: 'short,
-    {
-        self.cast_view().cast_life()
     }
 
     /// Drops the owner and returns the view.
@@ -192,6 +169,41 @@ where
             Ok(ok) => Ok(slot.fill(ok)),
             Err(err) => Err(slot.fill(err)),
         })
+    }
+}
+
+mod with_new_bounded_view {
+    use super::*;
+    crate::bounded_view!(
+        pub trait BoundedView {}
+    );
+
+    impl<'ub, P, F> Bowl<'ub, P, F>
+    where
+        F: ?Sized + for<'x> BoundedView<'x, 'ub>,
+    {
+        /// Changes the lifetime placeholder `'ub` without modifying the value.
+        /// This will reduce the requirements of operations on the view,
+        /// at the cost of shortening the maximum possible lifetime of the view.
+        pub fn cast_life<'short>(self) -> Bowl<'short, P, F>
+        where
+            'ub: 'short,
+        {
+            self.map(|view, slot| slot.fill(view))
+        }
+
+        /// Combines [`Self::cast_life`] and [`Self::cast_view`].
+        pub fn cast<
+            'short,
+            G: ?Sized + for<'x> BoundedView<'x, 'ub, Target = <F as View<'x>>::Output>,
+        >(
+            self,
+        ) -> Bowl<'short, P, G>
+        where
+            'ub: 'short,
+        {
+            self.cast_view().cast_life()
+        }
     }
 }
 

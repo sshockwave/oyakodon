@@ -1,4 +1,6 @@
-use crate::primitive::{Aliasable, CloneStableDeref, DerefMove, ForAll, Owned, Stamp, Taker, View};
+use crate::primitive::{
+    Aliasable, BoundedView, CloneStableDeref, DerefMove, ForAll, Owned, Stamp, Taker, View,
+};
 use ::{
     core::{
         clone::Clone,
@@ -7,10 +9,6 @@ use ::{
     },
     maybe_dangling::MaybeDangling,
 };
-
-crate::bounded_view!(
-    pub trait BoundedView {}
-);
 
 /// Stores an owner and a derived shared reference into it.
 ///
@@ -162,26 +160,35 @@ where
 
 pub struct Slot<'life, 'ub, O: ?Sized>(Stamp<'life, 'ub>, O);
 
-crate::bounded_view!(
-    pub trait StampBoundedView {}
-);
+mod with_new_bounded_view {
+    use super::*;
+    crate::bounded_view!(
+        pub trait BoundedView {}
+    );
 
-impl<'life, 'ub, O> Slot<'life, 'ub, O>
+    impl<'life, 'ub, O> Slot<'life, 'ub, O>
+    where
+        O: DerefMove,
+        O::Target: Sized,
+    {
+        pub fn fill<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, O::Target, F>
+        where
+            F: ?Sized + for<'x> BoundedView<'x, 'long>,
+            'long: 'ub + 'life,
+        {
+            Bowl(self.0.stamp(BowlInner {
+                view: MaybeDangling::new(view),
+                owner: Slot(self.0, Owned::new(self.1.deref_move())),
+            }))
+        }
+    }
+}
+
+impl<O> Slot<'_, '_, O>
 where
     O: DerefMove,
     O::Target: Sized,
 {
-    pub fn fill<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, O::Target, F>
-    where
-        F: ?Sized + for<'x> StampBoundedView<'x, 'long>,
-        'long: 'ub + 'life,
-    {
-        Bowl(self.0.stamp(BowlInner {
-            view: MaybeDangling::new(view),
-            owner: Slot(self.0, Owned::new(self.1.deref_move())),
-        }))
-    }
-
     pub fn into_owner(self) -> O::Target {
         self.1.deref_move()
     }
