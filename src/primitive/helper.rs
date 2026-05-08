@@ -1,15 +1,7 @@
 use crate::primitive::{Bowl, CloneStableDeref, ForAll, Owned, Slot, View};
 use ::core::{clone::Clone, fmt, marker::Copy, mem::drop};
 
-pub trait ViewIn<'x, 'ub, X = &'x &'ub ()>: View<'x, Output = Self::Target> {
-    type Target;
-}
-impl<'x, T: ?Sized> ViewIn<'x, '_> for T
-where
-    T: View<'x>,
-{
-    type Target = Self::Output;
-}
+bounded_view!(ViewIn);
 
 pub trait Derive<T> {
     type Output;

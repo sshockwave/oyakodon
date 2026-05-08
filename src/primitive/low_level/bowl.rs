@@ -1,6 +1,4 @@
-use crate::primitive::{
-    Aliasable, BoundedView, CloneStableDeref, DerefMove, ForAll, Owned, Stamp, Taker, View,
-};
+use crate::primitive::{Aliasable, CloneStableDeref, DerefMove, ForAll, Owned, Stamp, Taker, View};
 use ::{
     core::{
         clone::Clone,
@@ -9,6 +7,8 @@ use ::{
     },
     maybe_dangling::MaybeDangling,
 };
+
+bounded_view!(BoundedView);
 
 /// Stores an owner and a derived shared reference into it.
 ///

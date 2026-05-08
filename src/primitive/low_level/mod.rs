@@ -5,8 +5,12 @@ mod bowl;
 mod for_all;
 mod taker;
 
-pub use self::{aliasable::*, bowl::*, for_all::*, taker::*};
-use super::*;
+pub use self::{
+    aliasable::*,
+    bowl::{Bowl, Slot},
+    for_all::{ForAll, Stamp},
+    taker::*,
+};
 
 #[cfg(any(not(feature = "stable_deref"), doc))]
 mod stable_deref;

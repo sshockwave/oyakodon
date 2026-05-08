@@ -1,4 +1,4 @@
-use super::{BoundedView, View};
+use crate::primitive::View;
 use ::core::{marker::PhantomData, mem::transmute};
 
 /// Maintains an invariant that
@@ -13,6 +13,8 @@ impl ForAll<'static, dyn for<'x> View<'x, Output = ()>> {
         ForAll(())
     }
 }
+
+bounded_view!(BoundedView);
 
 impl<'ub, F> ForAll<'ub, F>
 where
