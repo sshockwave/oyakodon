@@ -10,7 +10,7 @@ mod helper;
 mod low_level;
 mod view;
 
-use self::deref_move::DerefMove;
+pub(crate) use self::deref_move::*;
 pub use self::{dangling_deref::DanglingDeref, low_level::*, view::*};
 
 mod deref_move {
