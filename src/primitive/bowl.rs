@@ -1,10 +1,9 @@
-use super::{Aliasable, BoundedView, CloneStableDeref, ForAll, Stamp, View};
+use super::{Aliasable, BoundedView, CloneStableDeref, DerefMove, ForAll, Stamp, Taker, View};
 use ::{
     core::{
         clone::Clone,
-        mem::{drop, replace, transmute},
+        mem::{drop, transmute},
         ops::{Deref, DerefMut},
-        option::Option,
     },
     maybe_dangling::MaybeDangling,
 };
@@ -132,40 +131,36 @@ where
     }
 }
 
-pub struct Slot<'owner, 'life, 'ub, P>(&'owner mut Option<P>, Stamp<'life, 'ub>);
+pub struct Slot<'life, 'ub, O>(O, Stamp<'life, 'ub>);
 
-impl<'life, 'ub, P> Slot<'_, 'life, 'ub, P> {
-    pub fn fill<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, P, F>
+impl<'life, 'ub, O> Slot<'life, 'ub, O>
+where
+    O: DerefMove,
+    O::Target: Sized,
+{
+    pub fn fill<'long, F>(self, view: <F as View<'life>>::Output) -> Bowl<'ub, O::Target, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
-        let owner = replace(self.0, None);
-        // SAFETY: Same as `Self::into_owner`.
-        let owner = unsafe { owner.unwrap_unchecked() };
         Bowl(self.1.stamp(BowlInner {
             view: MaybeDangling::new(view),
-            owner: Anchor(self.1, owner),
+            owner: Anchor(self.1, self.0.deref_move()),
         }))
     }
 
-    pub fn into_owner(self) -> P {
-        let owner = replace(self.0, None);
-        // SAFETY: `self` is consumed,
-        // so the `owner` must not have been moved out.
-        // All references to `owner` are also dropped.
-        unsafe { owner.unwrap_unchecked() }
+    pub fn into_owner(self) -> O::Target {
+        self.0.deref_move()
     }
 }
 
-impl<'life, 'ub, P: CloneStableDeref> Slot<'_, 'life, 'ub, P> {
-    pub fn spawn(&self) -> Anchor<'life, 'ub, P> {
-        // Verified that this will compile to unchecked dereference with `-O`.
-        let owner = self.0.as_ref();
-        // SAFETY: `slot` is guaranteed to be valid for its entire lifetime,
-        // so the `owner` must not have been moved out.
-        let owner = unsafe { owner.unwrap_unchecked() };
-        Anchor(self.1, owner.clone())
+impl<'life, 'ub, O> Slot<'life, 'ub, O>
+where
+    O: DerefMove,
+    O::Target: CloneStableDeref,
+{
+    pub fn spawn(&self) -> Anchor<'life, 'ub, O::Target> {
+        Anchor(self.1, self.0.clone())
     }
 }
 
@@ -209,12 +204,13 @@ where
         self,
         f: impl for<'owner, 'life> FnOnce(
             <F as BoundedView<'life, 'ub>>::Target,
-            Slot<'owner, 'life, 'ub, P>,
+            Slot<'life, 'ub, Taker<'owner, P>>,
         ) -> R,
     ) -> R {
         self.0.map(|BowlInner { view, owner }, stamp| {
             let mut owner = Some(owner.into_inner());
-            let result = f(MaybeDangling::into_inner(view), Slot(&mut owner, stamp));
+            let taker = unsafe { Taker::new(&mut owner) };
+            let result = f(MaybeDangling::into_inner(view), Slot(taker, stamp));
             drop(owner);
             result
         })

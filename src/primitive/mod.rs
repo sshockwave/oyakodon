@@ -11,13 +11,13 @@ mod cell;
 mod low_level;
 mod stable_deref;
 
-use self::seal::BoundedView;
 pub use self::{
     aliasable::{Aliasable, DanglingDeref},
     bowl::{Anchor, Bowl, Slot},
     cell::Cell,
     low_level::*,
 };
+use self::{bounded_view::BoundedView, deref_move::DerefMove};
 
 #[cfg(any(not(feature = "stable_deref"), doc))]
 pub use self::stable_deref::{CloneStableDeref, StableDeref};
@@ -28,7 +28,7 @@ pub trait View<'x> {
     type Output;
 }
 
-mod seal {
+mod bounded_view {
     pub trait BoundedView<'x, 'ub, X = &'x &'ub ()>:
         super::View<'x, Output = Self::Target>
     {
@@ -40,4 +40,10 @@ where
     T: View<'x>,
 {
     type Target = Self::Output;
+}
+
+mod deref_move {
+    pub trait DerefMove: ::core::ops::DerefMut {
+        fn deref_move(self) -> Self::Target;
+    }
 }
