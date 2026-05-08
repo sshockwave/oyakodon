@@ -131,6 +131,28 @@ where
         self.0
             .borrow_mut(|bowl, stamp| stamp.stamp((&mut *bowl.view, &bowl.owner)))
     }
+
+    /// Internally this function uses [`Option`] to check
+    /// whether the caller has dropped the owner during the call.
+    /// This has some performance overhead,
+    /// but the compiler should be able to optimize it to the same level as [drop flags].
+    ///
+    /// [drop flags]: https://doc.rust-lang.org/reference/destructors.html#drop-flags
+    pub fn map<R>(
+        self,
+        f: impl for<'owner, 'life> FnOnce(
+            <F as BoundedView<'life, 'ub>>::Target,
+            Slot<'life, 'ub, Taker<'owner, P>>,
+        ) -> R,
+    ) -> R {
+        self.0.map(|BowlInner { view, owner }, stamp| {
+            let mut owner = Some(owner.into_owner());
+            let taker = unsafe { Taker::new(&mut owner) };
+            let result = f(MaybeDangling::into_inner(view), Slot(taker, stamp));
+            drop(owner);
+            result
+        })
+    }
 }
 
 pub struct Slot<'life, 'ub, O>(O, Stamp<'life, 'ub>);
@@ -163,32 +185,5 @@ where
 {
     pub fn spawn(&self) -> Slot<'life, 'ub, Owned<O::Target>> {
         Slot(Owned::new(self.0.clone()), self.1)
-    }
-}
-
-impl<'ub, P, F> Bowl<'ub, P, F>
-where
-    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
-{
-    /// Internally this function uses [`Option`] to check
-    /// whether the caller has dropped the owner during the call.
-    /// This has some performance overhead,
-    /// but the compiler should be able to optimize it to the same level as [drop flags].
-    ///
-    /// [drop flags]: https://doc.rust-lang.org/reference/destructors.html#drop-flags
-    pub fn map<R>(
-        self,
-        f: impl for<'owner, 'life> FnOnce(
-            <F as BoundedView<'life, 'ub>>::Target,
-            Slot<'life, 'ub, Taker<'owner, P>>,
-        ) -> R,
-    ) -> R {
-        self.0.map(|BowlInner { view, owner }, stamp| {
-            let mut owner = Some(owner.into_owner());
-            let taker = unsafe { Taker::new(&mut owner) };
-            let result = f(MaybeDangling::into_inner(view), Slot(taker, stamp));
-            drop(owner);
-            result
-        })
     }
 }
