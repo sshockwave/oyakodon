@@ -48,7 +48,7 @@ where
     pub fn with<'a, R>(
         &'a self,
         f: impl for<'life> FnOnce(
-            &'a <F as BoundedView<'life, 'ub>>::Target,
+            &'a <F as View<'life>>::Output,
             &'a Slot<'life, Owned<P>>,
             Stamp<'life, 'ub>,
         ) -> R,
@@ -60,7 +60,7 @@ where
     pub fn with_mut<'a, R>(
         &'a mut self,
         f: impl for<'life> FnOnce(
-            &'a mut <F as BoundedView<'life, 'ub>>::Target,
+            &'a mut <F as View<'life>>::Output,
             &'a Slot<'life, Owned<P>>,
             Stamp<'life, 'ub>,
         ) -> R,

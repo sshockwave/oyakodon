@@ -20,22 +20,19 @@ where
 {
     pub fn borrow<'a, R>(
         &'a self,
-        f: impl for<'x> FnOnce(&'a <F as BoundedView<'x, 'ub>>::Target, Stamp<'x, 'ub>) -> R,
+        f: impl for<'x> FnOnce(&'a <F as View<'x>>::Output, Stamp<'x, 'ub>) -> R,
     ) -> R {
         f(&self.0, Stamp(PhantomData))
     }
 
     pub fn borrow_mut<'a, R>(
         &'a mut self,
-        f: impl for<'x> FnOnce(&'a mut <F as BoundedView<'x, 'ub>>::Target, Stamp<'x, 'ub>) -> R,
+        f: impl for<'x> FnOnce(&'a mut <F as View<'x>>::Output, Stamp<'x, 'ub>) -> R,
     ) -> R {
         f(&mut self.0, Stamp(PhantomData))
     }
 
-    pub fn map<R>(
-        self,
-        f: impl for<'x> FnOnce(<F as BoundedView<'x, 'ub>>::Target, Stamp<'x, 'ub>) -> R,
-    ) -> R {
+    pub fn map<R>(self, f: impl for<'x> FnOnce(<F as View<'x>>::Output, Stamp<'x, 'ub>) -> R) -> R {
         f(self.0, Stamp(PhantomData))
     }
 }

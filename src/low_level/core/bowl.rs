@@ -145,7 +145,7 @@ where
     pub fn map<R>(
         self,
         f: impl for<'owner, 'life> FnOnce(
-            <F as BoundedView<'life, 'ub>>::Target,
+            <F as View<'life>>::Output,
             Slot<'life, Taker<'owner, P>>,
             Stamp<'life, 'ub>,
         ) -> R,
