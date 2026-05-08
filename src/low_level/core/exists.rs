@@ -8,7 +8,7 @@ use ::core::{marker::PhantomData, mem::transmute};
 /// the invariant only needs to hold for `'x` that makes the expression well-formed.
 pub struct Exists<'ub, F: View<'ub> + ?Sized>(F::Output);
 
-impl Exists<'static, dyn for<'x> View<'x, Output = ()>> {
+impl Exists<'_, dyn for<'x> View<'x, Output = ()>> {
     pub fn new() -> Self {
         Exists(())
     }

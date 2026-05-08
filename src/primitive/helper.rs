@@ -252,9 +252,6 @@ where
     for<'x> <F as BoundedView<'x, 'ub>>::Target: Default,
 {
     fn default() -> Self {
-        // There should be a problem when converting `'static` to `'ub`,
-        // because we required `'ub: 'life` in [`Stamp::stamp`],
-        // but it does work currently and I don't understand why.
         Exists::new().map(|(), stamp| stamp.stamp(Default::default()))
     }
 }
