@@ -2,10 +2,10 @@
 
 mod aliasable;
 mod bowl;
-mod for_all;
+mod exists;
 mod taker;
 
-pub use self::{aliasable::*, bowl::*, for_all::*, taker::*};
+pub use self::{aliasable::*, bowl::*, exists::*, taker::*};
 
 #[cfg(any(not(feature = "stable_deref"), doc))]
 mod stable_deref;
