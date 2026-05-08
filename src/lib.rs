@@ -81,6 +81,7 @@ mod bowl_box;
 mod bowl_mut;
 mod bowl_ref;
 mod low_level;
+mod polyfill;
 pub mod primitive;
 
 use ::core::{future::Future, marker::PhantomData, option::Option, result::Result};

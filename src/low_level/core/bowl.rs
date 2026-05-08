@@ -1,5 +1,8 @@
-use crate::primitive::{
-    Aliasable, BoundedView, CloneStableDeref, DerefMove, Exists, Owned, Stamp, Taker, View,
+use crate::{
+    polyfill::transmute_unchecked,
+    primitive::{
+        Aliasable, BoundedView, CloneStableDeref, DerefMove, Exists, Owned, Stamp, Taker, View,
+    },
 };
 use ::{
     core::{
@@ -10,6 +13,18 @@ use ::{
     },
     maybe_dangling::MaybeDangling,
 };
+
+macro_rules! bowl {
+    (Exists<$ub:lifetime, $life:lifetime, $owner:ty, $view:ty>) => {
+        Exists<
+            $ub,
+            dyn for<$life> View<
+                    $life,
+                    Output = BowlInner<Slot<$life, Owned<$owner>>, MaybeDangling<$view>>,
+                > + 'static,
+        >
+    };
+}
 
 /// Stores an owner and a derived shared reference into it.
 ///
@@ -34,16 +49,7 @@ use ::{
 /// if you need to put a shorter lifetime in the view,
 /// which makes it somewhat easier to satisfy the invariants held by [`Bowl`].
 pub struct Bowl<'ub, P, F: ?Sized + for<'x> BoundedView<'x, 'ub>>(
-    Exists<
-        'ub,
-        dyn for<'x> View<
-                'x,
-                Output = BowlInner<
-                    Slot<'x, Owned<P>>,
-                    MaybeDangling<<F as BoundedView<'x, 'ub>>::Target>,
-                >,
-            > + 'static,
-    >,
+    bowl!(Exists<'ub, 'x, P, <F as BoundedView<'x, 'ub>>::Target>),
 );
 
 struct BowlInner<O, V> {
@@ -71,32 +77,44 @@ struct BowlInner<O, V> {
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x P::Target>>
 where
     P: Aliasable + Deref,
-    P::Target: 'ub,
 {
     pub fn new(owner: P) -> Self {
-        let view = unsafe { transmute::<&P::Target, &'ub P::Target>(&*owner) };
-        Self(Exists::new().map(|(), stamp| {
+        let view = unsafe { transmute::<&P::Target, &P::Target>(&*owner) };
+        let bowl = Exists::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
                 owner: Slot(PhantomData, Owned::new(owner)),
             })
-        }))
+        });
+        let bowl = unsafe {
+            transmute_unchecked::<
+                bowl!(Exists<'ub, 'x, P, &'_ P::Target>),
+                bowl!(Exists<'ub, 'x, P, &'x P::Target>),
+            >(bowl)
+        };
+        Self(bowl)
     }
 }
 
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x mut P::Target>>
 where
     P: Aliasable + DerefMut,
-    P::Target: 'ub,
 {
     pub fn new_mut(mut owner: P) -> Self {
-        let view = unsafe { transmute::<&mut P::Target, &'ub mut P::Target>(&mut *owner) };
-        Self(Exists::new().map(|(), stamp| {
+        let view = unsafe { transmute::<&mut P::Target, &mut P::Target>(&mut *owner) };
+        let bowl = Exists::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
                 owner: Slot(PhantomData, Owned::new(owner)),
             })
-        }))
+        });
+        let bowl = unsafe {
+            transmute_unchecked::<
+                bowl!(Exists<'ub, 'x, P, &'_ mut P::Target>),
+                bowl!(Exists<'ub, 'x, P, &'x mut P::Target>),
+            >(bowl)
+        };
+        Self(bowl)
     }
 }
 
