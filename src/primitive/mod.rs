@@ -6,31 +6,12 @@
 //! TODO
 #![deny(unsafe_code)]
 
-macro_rules! bounded_view {
-    ($name:ident) => {
-        pub trait $name<'x, 'ub, X = &'x &'ub ()>:
-            $crate::primitive::View<'x, Output = Self::Target>
-        {
-            type Target;
-        }
-        impl<'x, T: ?Sized> $name<'x, '_> for T
-        where
-            T: View<'x>,
-        {
-            type Target = Self::Output;
-        }
-    };
-}
-
 mod helper;
 mod low_level;
+mod view;
 
 use self::deref_move::DerefMove;
-pub use self::{dangling_deref::DanglingDeref, low_level::*};
-
-pub trait View<'x> {
-    type Output;
-}
+pub use self::{dangling_deref::DanglingDeref, low_level::*, view::*};
 
 mod deref_move {
     pub trait DerefMove: ::core::ops::DerefMut {

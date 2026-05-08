@@ -14,7 +14,9 @@ impl ForAll<'static, dyn for<'x> View<'x, Output = ()>> {
     }
 }
 
-bounded_view!(BoundedView);
+crate::bounded_view!(
+    pub trait BoundedView {}
+);
 
 impl<'ub, F> ForAll<'ub, F>
 where

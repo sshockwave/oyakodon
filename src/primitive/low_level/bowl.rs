@@ -8,7 +8,9 @@ use ::{
     maybe_dangling::MaybeDangling,
 };
 
-bounded_view!(BoundedView);
+crate::bounded_view!(
+    pub trait BoundedView {}
+);
 
 /// Stores an owner and a derived shared reference into it.
 ///
@@ -160,7 +162,9 @@ where
 
 pub struct Slot<'life, 'ub, O: ?Sized>(Stamp<'life, 'ub>, O);
 
-bounded_view!(StampBoundedView);
+crate::bounded_view!(
+    pub trait StampBoundedView {}
+);
 
 impl<'life, 'ub, O> Slot<'life, 'ub, O>
 where

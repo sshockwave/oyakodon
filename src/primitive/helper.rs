@@ -1,7 +1,5 @@
-use crate::primitive::{Bowl, CloneStableDeref, ForAll, Owned, Slot, View};
+use crate::primitive::{BoundedView, Bowl, CloneStableDeref, ForAll, Owned, Slot, View};
 use ::core::{clone::Clone, fmt, marker::Copy, mem::drop};
-
-bounded_view!(ViewIn);
 
 pub trait Derive<T> {
     type Output;
@@ -36,7 +34,7 @@ impl<'ub, T: 'ub>
 #[cfg(feature = "alloc")]
 impl<'ub, T: 'ub, F> Bowl<'ub, ::aliasable::boxed::AliasableBox<T>, F>
 where
-    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
     pub fn into_owner_value(self) -> T {
         *::aliasable::boxed::AliasableBox::into_unique(self.into_owner())
@@ -45,12 +43,12 @@ where
 
 impl<'ub, P, F> Bowl<'ub, P, F>
 where
-    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
     pub fn with<'a, R>(
         &'a self,
         f: impl for<'life> FnOnce(
-            &'a <F as ViewIn<'life, 'ub>>::Target,
+            &'a <F as BoundedView<'life, 'ub>>::Target,
             &'a Slot<'life, 'ub, Owned<P>>,
         ) -> R,
     ) -> R {
@@ -60,7 +58,7 @@ where
     pub fn with_mut<'a, R>(
         &'a mut self,
         f: impl for<'life> FnOnce(
-            &'a mut <F as ViewIn<'life, 'ub>>::Target,
+            &'a mut <F as BoundedView<'life, 'ub>>::Target,
             &'a Slot<'life, 'ub, Owned<P>>,
         ) -> R,
     ) -> R {
@@ -74,11 +72,11 @@ where
     ) -> Bowl<
         'ub,
         P,
-        dyn for<'x> View<'x, Output = <G as Derive<<F as ViewIn<'x, 'ub>>::Target>>::Output>
+        dyn for<'x> View<'x, Output = <G as Derive<<F as BoundedView<'x, 'ub>>::Target>>::Output>
             + 'static,
     >
     where
-        G: for<'x> Derive<<F as ViewIn<'x, 'ub>>::Target>,
+        G: for<'x> Derive<<F as BoundedView<'x, 'ub>>::Target>,
     {
         self.map(|view, slot| slot.fill(f.call(view)))
     }
@@ -96,14 +94,17 @@ where
     /// Changes the view marker type `F` to any `G` that produces identical output types.
     /// It is recommended to use `dyn for<'x> View<'x, Output = Type<'x>>` as the view type indicator (i.e. HKT),
     /// or a unified view type in the same project.
-    pub fn cast_view<G: ?Sized + for<'x> ViewIn<'x, 'ub, Target = <F as View<'x>>::Output>>(
+    pub fn cast_view<G: ?Sized + for<'x> BoundedView<'x, 'ub, Target = <F as View<'x>>::Output>>(
         self,
     ) -> Bowl<'ub, P, G> {
         self.map(|view, slot| slot.fill(view))
     }
 
     /// Combines [`Self::cast_life`] and [`Self::cast_view`].
-    pub fn cast<'short, G: ?Sized + for<'x> ViewIn<'x, 'ub, Target = <F as View<'x>>::Output>>(
+    pub fn cast<
+        'short,
+        G: ?Sized + for<'x> BoundedView<'x, 'ub, Target = <F as View<'x>>::Output>,
+    >(
         self,
     ) -> Bowl<'short, P, G>
     where
@@ -118,7 +119,7 @@ where
     /// When the view does borrow from the owner, use [`Self::with`] instead.
     pub fn into_view<S>(self) -> S
     where
-        for<'x> F: ViewIn<'x, 'ub, Target = S>,
+        for<'x> F: BoundedView<'x, 'ub, Target = S>,
     {
         self.map(|view, _| view)
     }
@@ -171,7 +172,7 @@ where
     /// the view type must be lifetime-independent of the owner.
     pub fn into_parts<S>(self) -> (P, S)
     where
-        for<'x> F: ViewIn<'x, 'ub, Target = S>,
+        for<'x> F: BoundedView<'x, 'ub, Target = S>,
     {
         self.map(|view, slot| (slot.into_owner(), view))
     }
@@ -211,8 +212,8 @@ impl<T, E> Result for ::core::result::Result<T, E> {
 impl<'ub, T, F> Clone for Bowl<'ub, T, F>
 where
     T: crate::primitive::CloneStableDeref,
-    F: for<'x> ViewIn<'x, 'ub> + ?Sized,
-    for<'x> <F as ViewIn<'x, 'ub>>::Target: Clone,
+    F: for<'x> BoundedView<'x, 'ub> + ?Sized,
+    for<'x> <F as BoundedView<'x, 'ub>>::Target: Clone,
 {
     fn clone(&self) -> Self {
         self.with(|view, slot| slot.clone().fill(view.clone()))
@@ -221,8 +222,8 @@ where
 
 impl<'ub, T, F> fmt::Debug for Bowl<'ub, T, F>
 where
-    F: for<'x> ViewIn<'x, 'ub> + ?Sized,
-    for<'x> <F as ViewIn<'x, 'ub>>::Target: fmt::Debug,
+    F: for<'x> BoundedView<'x, 'ub> + ?Sized,
+    for<'x> <F as BoundedView<'x, 'ub>>::Target: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut dbg_struct = f.debug_struct("Bowl");
@@ -235,8 +236,8 @@ where
 
 impl<'ub, F> Default for ForAll<'ub, F>
 where
-    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
-    for<'x> <F as ViewIn<'x, 'ub>>::Target: Default,
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
+    for<'x> <F as BoundedView<'x, 'ub>>::Target: Default,
 {
     fn default() -> Self {
         // There should be a problem when converting `'static` to `'ub`,
@@ -248,15 +249,15 @@ where
 
 impl<'ub, F> Copy for ForAll<'ub, F>
 where
-    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
-    for<'x> <F as ViewIn<'x, 'ub>>::Target: Copy,
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
+    for<'x> <F as BoundedView<'x, 'ub>>::Target: Copy,
 {
 }
 
 impl<'ub, F> Clone for ForAll<'ub, F>
 where
-    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
-    for<'x> <F as ViewIn<'x, 'ub>>::Target: Clone,
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
+    for<'x> <F as BoundedView<'x, 'ub>>::Target: Clone,
 {
     fn clone(&self) -> Self {
         self.borrow(|view, stamp| stamp.stamp(view.clone()))
@@ -265,7 +266,7 @@ where
 
 impl<'ub, F> ForAll<'ub, F>
 where
-    F: ?Sized + for<'x> ViewIn<'x, 'ub>,
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
     // TODO: better name
     pub fn cast<'short>(self) -> ForAll<'short, F>
