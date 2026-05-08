@@ -4,14 +4,12 @@
 //!
 //! # A Journey to Safe Self-Referential Types
 //! TODO
-#![deny(unsafe_code)]
 
 mod helper;
-mod low_level;
 mod view;
 
 pub(crate) use self::deref_move::*;
-pub use self::{dangling_deref::DanglingDeref, low_level::*, view::*};
+pub use self::{super::low_level::core::*, dangling_deref::DanglingDeref, view::*};
 
 mod deref_move {
     pub trait DerefMove: ::core::ops::DerefMut {
