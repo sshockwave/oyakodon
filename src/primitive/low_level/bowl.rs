@@ -74,7 +74,7 @@ where
         Self(ForAll::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
-                owner: Slot(Owned::new(owner), stamp),
+                owner: Slot(stamp, Owned::new(owner)),
             })
         }))
     }
@@ -90,7 +90,7 @@ where
         Self(ForAll::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
                 view: MaybeDangling::new(view),
-                owner: Slot(Owned::new(owner), stamp),
+                owner: Slot(stamp, Owned::new(owner)),
             })
         }))
     }
@@ -148,14 +148,14 @@ where
         self.0.map(|BowlInner { view, owner }, stamp| {
             let mut owner = Some(owner.into_owner());
             let taker = unsafe { Taker::new(&mut owner) };
-            let result = f(MaybeDangling::into_inner(view), Slot(taker, stamp));
+            let result = f(MaybeDangling::into_inner(view), Slot(stamp, taker));
             drop(owner);
             result
         })
     }
 }
 
-pub struct Slot<'life, 'ub, O>(O, Stamp<'life, 'ub>);
+pub struct Slot<'life, 'ub, O: ?Sized>(Stamp<'life, 'ub>, O);
 
 impl<'life, 'ub, O> Slot<'life, 'ub, O>
 where
@@ -167,23 +167,23 @@ where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
-        Bowl(self.1.stamp(BowlInner {
+        Bowl(self.0.stamp(BowlInner {
             view: MaybeDangling::new(view),
-            owner: Slot(Owned::new(self.0.deref_move()), self.1),
+            owner: Slot(self.0, Owned::new(self.1.deref_move())),
         }))
     }
 
     pub fn into_owner(self) -> O::Target {
-        self.0.deref_move()
+        self.1.deref_move()
     }
 }
 
 impl<'life, 'ub, O> Slot<'life, 'ub, O>
 where
-    O: DerefMove,
+    O: DerefMove + ?Sized,
     O::Target: CloneStableDeref,
 {
     pub fn spawn(&self) -> Slot<'life, 'ub, Owned<O::Target>> {
-        Slot(Owned::new(self.0.clone()), self.1)
+        Slot(self.0, Owned::new(self.1.clone()))
     }
 }
