@@ -1,11 +1,13 @@
-use crate::primitive::{BoundedView, View};
+use crate::primitive::{BoundedView, PhantomInvariantLifetime, View};
 use ::core::{marker::PhantomData, mem::transmute};
 
 /// Maintains an invariant that
 /// the view is valid for at least one of the lifetimes `'x` shorter than `'ub`.
-/// If the view contain a lower bound to `'x`,
-/// e.g. `View<'x, Output = &'a &'x ()>`,
-/// the invariant only needs to hold for `'x` that makes the expression well-formed.
+/// When [`F::Output`] contains implicit lifetime bounds like `&'short &'x &'long ()`,
+/// the invariant only requires `'x` to make the expression well-formed,
+/// i.e. `'x` longer than `'short` and shorter than `'long`.
+///
+/// [`F::Output`]: View::Output
 pub struct Exists<'ub, F: View<'ub> + ?Sized>(F::Output);
 
 impl Exists<'_, dyn for<'x> View<'x, Output = ()>> {
@@ -38,14 +40,23 @@ where
 }
 
 #[derive(Clone, Copy)]
-pub struct Stamp<'life, 'ub, X: ?Sized = &'life &'ub ()>(PhantomData<(&'life (), &'ub (), X)>);
+pub struct Stamp<'life, 'ub, X: ?Sized = &'life &'ub ()>(
+    PhantomData<(PhantomInvariantLifetime<'life>, &'ub (), X)>,
+);
 
 impl<'life, 'ub, X: ?Sized> Stamp<'life, 'ub, X> {
     pub fn cast<Y: ?Sized>(&self) -> Stamp<'life, 'ub, Y> {
         Stamp(PhantomData)
     }
 
-    /// [`stamp`] could have been unsound due to [#84591]:
+    /// For [`stamp`] to be sound,
+    /// it shall allow relaxing the lifetime range to a wider one
+    /// but must not allow shrinking the lifetime range in any way.
+    /// In logical terms, for example, `x == 5` implies `0 <= x < 10`,
+    /// `2 <= x < 8` implies `0 <= x < 10`,
+    /// and `0 <= x < 10` does not necessarily imply `2 <= x < 8`.
+    ///
+    /// [`stamp`] could have been used to shrink the lifetime range due to [#84591]:
     /// ```
     /// use oyakodon::primitive::View;
     /// fn requires_all<F: ?Sized + for<'x> View<'x>>() {}
@@ -71,6 +82,16 @@ impl<'life, 'ub, X: ?Sized> Stamp<'life, 'ub, X> {
     ///     stamp.stamp::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
     /// }
     /// ```
+    /// and also cannot decrease the upper bound
+    /// because [`Stamp`] is invariant over `'life`:
+    /// ```compile_fail
+    /// use oyakodon::primitive::{Stamp, View};
+    /// fn get_stamp<'long, 'life, 'ub>(stamp: Stamp<'life, 'ub>) {
+    ///     stamp.stamp::<dyn for<'short> View<'short, Output = &'short &'long ()>>(&&());
+    /// }
+    /// ```
+    /// Thus [`stamp`] does not have soundness issues currently,
+    /// but it might change in future Rust versions.
     ///
     /// [`stamp`]: Self::stamp
     /// [#84591]: https://github.com/rust-lang/rust/issues/84591
