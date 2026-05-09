@@ -1,5 +1,5 @@
 use crate::{
-    polyfill::{transmute_unchecked, MaybeDangling},
+    polyfill::MaybeDangling,
     primitive::{
         Aliasable, BoundedView, CloneStableDeref, DerefMove, Exists, Owned, Stamp, Taker, View,
     },
@@ -71,61 +71,17 @@ struct BowlInner<O: ?Sized, V> {
     owner: O,
 }
 
-impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x P::Target>>
-where
-    P: Deref,
-{
-    pub fn new(owner: P) -> Self
-    where
-        P: Aliasable,
-    {
-        unsafe { Self::new_unchecked(owner) }
-    }
+/// [`OwnerRef`] is purposed for storing a zero-sized reference to the owner.
+pub struct OwnerRef<'life>(PhantomData<&'life ()>);
 
-    pub unsafe fn new_unchecked(owner: P) -> Self {
-        let view = unsafe { transmute::<&P::Target, &P::Target>(&*owner) };
-        let bowl = Exists::new().map(|(), stamp| {
+impl<P> Bowl<'_, P, dyn for<'x> View<'x, Output = OwnerRef<'x>>> {
+    pub fn new(owner: P) -> Self {
+        Self(Exists::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
-                view: MaybeDangling::new(view),
+                view: MaybeDangling::new(OwnerRef(PhantomData)),
                 owner: Slot(PhantomData, Owned::new(owner)),
             })
-        });
-        let bowl = unsafe {
-            transmute_unchecked::<
-                bowl!(Exists<'ub, 'x, P, &'_ P::Target>),
-                bowl!(Exists<'ub, 'x, P, &'x P::Target>),
-            >(bowl)
-        };
-        Self(bowl)
-    }
-}
-
-impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x mut P::Target>>
-where
-    P: DerefMut,
-{
-    pub fn new_mut(owner: P) -> Self
-    where
-        P: Aliasable,
-    {
-        unsafe { Self::new_mut_unchecked(owner) }
-    }
-
-    pub unsafe fn new_mut_unchecked(mut owner: P) -> Self {
-        let view = unsafe { transmute::<&mut P::Target, &mut P::Target>(&mut *owner) };
-        let bowl = Exists::new().map(|(), stamp| {
-            stamp.stamp(BowlInner {
-                view: MaybeDangling::new(view),
-                owner: Slot(PhantomData, Owned::new(owner)),
-            })
-        });
-        let bowl = unsafe {
-            transmute_unchecked::<
-                bowl!(Exists<'ub, 'x, P, &'_ mut P::Target>),
-                bowl!(Exists<'ub, 'x, P, &'x mut P::Target>),
-            >(bowl)
-        };
-        Self(bowl)
+        }))
     }
 }
 
@@ -157,12 +113,12 @@ where
                 'x,
                 Output = (
                     &'a mut <F as BoundedView<'x, 'ub>>::Target,
-                    &'a Slot<'x, Owned<P>>,
+                    &'a mut Slot<'x, Owned<P>>,
                 ),
             > + 'static,
     > {
         self.0
-            .borrow_mut(|bowl, stamp| stamp.stamp((&mut *bowl.view, &bowl.owner)))
+            .borrow_mut(|bowl, stamp| stamp.stamp((&mut *bowl.view, &mut bowl.owner)))
     }
 
     /// Internally this function uses [`Option`] to check
@@ -240,5 +196,53 @@ where
 {
     pub fn spawn(&self) -> Slot<'life, Owned<O::Target>> {
         Slot(self.0, Owned::new(self.1.clone()))
+    }
+}
+
+impl<'life, O> Slot<'life, O> {
+    pub fn deref<'a>(&'a self, _token: &'a OwnerRef<'life>) -> &'a <O::Target as Deref>::Target
+    where
+        O: Deref,
+        O::Target: Deref,
+    {
+        &self.1
+    }
+
+    pub fn deref_mut<'a>(
+        &'a mut self,
+        _token: &'a OwnerRef<'life>,
+    ) -> &'a mut <O::Target as Deref>::Target
+    where
+        O: DerefMut,
+        O::Target: DerefMut,
+    {
+        &mut self.1
+    }
+
+    pub fn spawn_ref<'a>(&'a self, _token: OwnerRef<'life>) -> &'life <O::Target as Deref>::Target
+    where
+        O: Deref,
+        O::Target: Aliasable,
+    {
+        unsafe {
+            transmute::<&'a <O::Target as Deref>::Target, &'life <O::Target as Deref>::Target>(
+                &**self.1,
+            )
+        }
+    }
+
+    pub fn spawn_mut<'a>(
+        &'a mut self,
+        _token: OwnerRef<'life>,
+    ) -> &'life mut <O::Target as Deref>::Target
+    where
+        O: DerefMut,
+        O::Target: Aliasable + DerefMut,
+    {
+        unsafe {
+            transmute::<&'a mut <O::Target as Deref>::Target, &'life mut <O::Target as Deref>::Target>(
+                &mut **self.1,
+            )
+        }
     }
 }

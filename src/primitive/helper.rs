@@ -1,5 +1,7 @@
-use crate::primitive::{BoundedView, Bowl, CloneStableDeref, Exists, Owned, Slot, Stamp, View};
-use ::core::{clone::Clone, fmt, marker::Copy, mem::drop};
+use crate::primitive::{
+    Aliasable, BoundedView, Bowl, CloneStableDeref, Exists, Owned, Slot, Stamp, View,
+};
+use ::core::{clone::Clone, fmt, marker::Copy, mem::drop, ops::DerefMut};
 
 pub trait Derive<T> {
     type Output;
@@ -13,6 +15,32 @@ where
     type Output = R;
     fn call(self, input: T) -> Self::Output {
         self(input)
+    }
+}
+
+impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x P::Target>>
+where
+    P: Aliasable,
+    P::Target: 'ub,
+{
+    pub fn new_ref(owner: P) -> Self {
+        Bowl::new(owner).map(|view, slot, stamp| {
+            let view = slot.spawn_ref(view);
+            slot.fill(view, stamp)
+        })
+    }
+}
+
+impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x mut P::Target>>
+where
+    P: Aliasable + DerefMut,
+    P::Target: 'ub,
+{
+    pub fn new_mut(owner: P) -> Self {
+        Bowl::new(owner).map(|view, mut slot, stamp| {
+            let view = slot.spawn_mut(view);
+            slot.fill(view, stamp)
+        })
     }
 }
 
