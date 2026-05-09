@@ -71,10 +71,16 @@ struct BowlInner<O: ?Sized, V> {
     owner: O,
 }
 
-/// [`OwnerRef`] is purposed for storing a zero-sized reference to the owner.
-pub struct OwnerRef<'life>(PhantomData<&'life ()>);
+/// [`OwnerRef`] is a zero-sized reference to the owner.
+pub struct OwnerRef<'life, const UNIQUE: bool>(PhantomData<&'life ()>);
 
-impl<P> Bowl<'_, P, dyn for<'x> View<'x, Output = OwnerRef<'x>>> {
+impl<'life> OwnerRef<'life, true> {
+    pub fn downgrade(&self) -> OwnerRef<'life, false> {
+        OwnerRef(PhantomData)
+    }
+}
+
+impl<P> Bowl<'_, P, dyn for<'x> View<'x, Output = OwnerRef<'x, true>>> {
     pub fn new(owner: P) -> Self {
         Self(Exists::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
@@ -200,7 +206,10 @@ where
 }
 
 impl<'life, O> Slot<'life, O> {
-    pub fn deref<'a>(&'a self, _token: &'a OwnerRef<'life>) -> &'a <O::Target as Deref>::Target
+    pub fn deref<'a, const U: bool>(
+        &'a self,
+        _token: &'a OwnerRef<'life, U>,
+    ) -> &'a <O::Target as Deref>::Target
     where
         O: Deref,
         O::Target: Deref,
@@ -210,7 +219,7 @@ impl<'life, O> Slot<'life, O> {
 
     pub fn deref_mut<'a>(
         &'a mut self,
-        _token: &'a OwnerRef<'life>,
+        _token: &'a OwnerRef<'life, true>,
     ) -> &'a mut <O::Target as Deref>::Target
     where
         O: DerefMut,
@@ -219,7 +228,10 @@ impl<'life, O> Slot<'life, O> {
         &mut self.1
     }
 
-    pub fn spawn_ref<'a>(&'a self, _token: OwnerRef<'life>) -> &'life <O::Target as Deref>::Target
+    pub fn spawn_ref<'a, const U: bool>(
+        &'a self,
+        _token: OwnerRef<'life, U>,
+    ) -> &'life <O::Target as Deref>::Target
     where
         O: Deref,
         O::Target: Aliasable,
@@ -233,7 +245,7 @@ impl<'life, O> Slot<'life, O> {
 
     pub fn spawn_mut<'a>(
         &'a mut self,
-        _token: OwnerRef<'life>,
+        _token: OwnerRef<'life, true>,
     ) -> &'life mut <O::Target as Deref>::Target
     where
         O: DerefMut,

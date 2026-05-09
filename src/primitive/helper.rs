@@ -1,5 +1,5 @@
 use crate::primitive::{
-    Aliasable, BoundedView, Bowl, CloneStableDeref, Exists, Owned, Slot, Stamp, View,
+    Aliasable, BoundedView, Bowl, CloneStableDeref, Exists, Owned, OwnerRef, Slot, Stamp, View,
 };
 use ::core::{clone::Clone, fmt, marker::Copy, mem::drop, ops::DerefMut};
 
@@ -323,3 +323,10 @@ impl<P: CloneStableDeref> Clone for Slot<'_, Owned<P>> {
         self.spawn()
     }
 }
+
+impl Clone for OwnerRef<'_, false> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl Copy for OwnerRef<'_, false> {}
