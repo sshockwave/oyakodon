@@ -19,7 +19,7 @@ use ::{
         hash::{Hash, Hasher},
         ops::{Deref, DerefMut},
     },
-    oyakodon::primitive::{AliasableDeref, Bowl, Owned, OwnerRef, Slot, Stamp, View},
+    oyakodon::primitive::{AliasableDeref, Bowl, Intro, Owned, OwnerRef, Slot, View},
     std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard},
 };
 
@@ -63,10 +63,10 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
         O: Deref<Target = T>,
         T: 't,
     {
-        Self(Bowl::new(AliasableDeref::new(o)).map(|owner, slot, stamp| {
+        Self(Bowl::new(AliasableDeref::new(o)).map(|owner, slot, intro| {
             let owner = owner.into();
             let view = slot.spawn_ref(owner);
-            slot.fill((owner, view), stamp)
+            slot.fill((owner, view), intro)
         }))
     }
 
@@ -77,7 +77,7 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
     {
         OwningRef(
             self.0
-                .map(|(owner, view), slot, stamp| slot.fill((owner, f(view)), stamp)),
+                .map(|(owner, view), slot, intro| slot.fill((owner, f(view)), intro)),
         )
     }
 
@@ -89,9 +89,9 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
         F: for<'a> FnOnce(&'a O::Target, &'a T) -> &'a U,
         O::Target: 't,
     {
-        OwningRef(self.0.map(|(owner, view), slot, stamp| {
+        OwningRef(self.0.map(|(owner, view), slot, intro| {
             let view = f(slot.spawn_ref(owner), view);
-            slot.fill((owner, view), stamp)
+            slot.fill((owner, view), intro)
         }))
     }
 
@@ -100,8 +100,8 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
         O: StableAddress,
         F: FnOnce(&T) -> Result<&U, E>,
     {
-        self.0.map(|(owner, view), slot, stamp| match f(view) {
-            Ok(view) => Ok(OwningRef(slot.fill((owner, view), stamp))),
+        self.0.map(|(owner, view), slot, intro| match f(view) {
+            Ok(view) => Ok(OwningRef(slot.fill((owner, view), intro))),
             Err(e) => Err(e),
         })
     }
@@ -115,8 +115,8 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
         O::Target: 't,
     {
         self.0.map(
-            |(owner, view), slot, stamp| match f(slot.spawn_ref(owner), view) {
-                Ok(view) => Ok(OwningRef(slot.fill((owner, view), stamp))),
+            |(owner, view), slot, intro| match f(slot.spawn_ref(owner), view) {
+                Ok(view) => Ok(OwningRef(slot.fill((owner, view), intro))),
                 Err(e) => Err(e),
             },
         )
@@ -135,7 +135,7 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
                 &'a (OwnerRef<'x, false>, &'x T),
                 &'a Slot<'x, Owned<AliasableDeref<O>>>,
             ),
-            _: Stamp<'x, 't>,
+            _: Intro<'x, 't>,
         ) -> &'a AliasableDeref<O> {
             slot.borrow(*owner)
         }
@@ -162,7 +162,7 @@ impl<'t, O, T: ?Sized> OwningRefMut<'t, O, T> {
         O: StableAddress,
         F: FnOnce(&mut T) -> &mut U,
     {
-        OwningRefMut(self.0.map(|view, slot, stamp| slot.fill(f(view), stamp)))
+        OwningRefMut(self.0.map(|view, slot, intro| slot.fill(f(view), intro)))
     }
 
     pub fn try_map_mut<F, U: 't + ?Sized, E>(self, f: F) -> Result<OwningRefMut<'t, O, U>, E>
@@ -170,8 +170,8 @@ impl<'t, O, T: ?Sized> OwningRefMut<'t, O, T> {
         O: StableAddress,
         F: FnOnce(&mut T) -> Result<&mut U, E>,
     {
-        self.0.map(|view, slot, stamp| match f(view) {
-            Ok(view) => Ok(OwningRefMut(slot.fill(view, stamp))),
+        self.0.map(|view, slot, intro| match f(view) {
+            Ok(view) => Ok(OwningRefMut(slot.fill(view, intro))),
             Err(e) => Err(e),
         })
     }
@@ -272,7 +272,7 @@ impl<O, T: ?Sized> Deref for OwningRef<'_, O, T> {
                 &'a (OwnerRef<'x, false>, &'x T),
                 &'a Slot<'x, Owned<AliasableDeref<O>>>,
             ),
-            _: Stamp<'x, 't>,
+            _: Intro<'x, 't>,
         ) -> &'a T {
             *view
         }
@@ -286,7 +286,7 @@ impl<O, T: ?Sized> Deref for OwningRefMut<'_, O, T> {
     fn deref(&self) -> &T {
         fn get_view<'x, 'a, 't, O, T: ?Sized>(
             (view, _): (&'a &'x mut T, &'a Slot<'x, Owned<AliasableDeref<O>>>),
-            _: Stamp<'x, 't>,
+            _: Intro<'x, 't>,
         ) -> &'a T {
             *view
         }
@@ -301,7 +301,7 @@ impl<'t, O, T: ?Sized> DerefMut for OwningRefMut<'t, O, T> {
                 &'a mut &'x mut T,
                 &'a mut Slot<'x, Owned<AliasableDeref<O>>>,
             ),
-            _: Stamp<'x, 't>,
+            _: Intro<'x, 't>,
         ) -> &'a mut T {
             &mut **view
         }
@@ -405,7 +405,7 @@ where
         Self(
             self.0
                 .borrow()
-                .map(|(view, slot), stamp| slot.spawn().fill(*view, stamp)),
+                .map(|(view, slot), intro| slot.spawn().fill(*view, intro)),
         )
     }
 }

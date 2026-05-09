@@ -13,21 +13,21 @@ fn owner_nonstatic_lifetime() {
 fn nested_bowl() {
     let a = String::from("hello");
     let b = String::from("world");
-    let bowl = Bowl::new_box(a).map(|a, slot, stamp| {
+    let bowl = Bowl::new_box(a).map(|a, slot, intro| {
         slot.fill::<dyn for<'a> View<
             'a,
             Output = Bowl<_, dyn for<'b> View<'b, Output = (&'a String, &'b String)>>,
         >, _>(
-            Bowl::new_box(b).map(|b, slot, stamp| slot.fill((&*a, &*b), stamp)),
-            stamp,
+            Bowl::new_box(b).map(|b, slot, intro| slot.fill((&*a, &*b), intro)),
+            intro,
         )
     });
-    let swapped_base = bowl.map(|view, slot_a, stamp_a| {
+    let swapped_base = bowl.map(|view, slot_a, intro_a| {
         type BowlA<'b> = dyn for<'a> View<'a, Output = (&'a String, &'b String)>;
-        view.map(|view, slot_b, stamp_b| {
+        view.map(|view, slot_b, intro_b| {
             slot_b.fill::<dyn for<'b> View<'b, Output = Bowl<_, BowlA<'b>>>, _>(
-                slot_a.fill(view, stamp_a),
-                stamp_b,
+                slot_a.fill(view, intro_a),
+                intro_b,
             )
         })
     });

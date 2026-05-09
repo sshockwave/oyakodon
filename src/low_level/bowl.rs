@@ -1,7 +1,7 @@
 use crate::{
     polyfill::MaybeDangling,
     primitive::{
-        Aliasable, BoundedView, CloneStableDeref, DerefMove, Exists, Owned, Stamp, Taker, View,
+        Aliasable, BoundedView, CloneStableDeref, DerefMove, Exists, Intro, Owned, Taker, View,
     },
 };
 use ::core::{
@@ -79,8 +79,8 @@ impl<'life> From<OwnerRef<'life, true>> for OwnerRef<'life, false> {
 
 impl<P> Bowl<'_, P, dyn for<'x> View<'x, Output = OwnerRef<'x, true>>> {
     pub fn new(owner: P) -> Self {
-        Self(Exists::new().map(|(), stamp| {
-            stamp.stamp(BowlInner {
+        Self(Exists::new().map(|(), intro| {
+            intro.pack(BowlInner {
                 view: MaybeDangling::new(OwnerRef(PhantomData)),
                 owner: Slot(PhantomData, Owned::new(owner)),
             })
@@ -105,7 +105,7 @@ where
             > + 'static,
     > {
         self.0
-            .borrow(|bowl, stamp| stamp.stamp((bowl.view.as_ref(), &bowl.owner)))
+            .borrow(|bowl, intro| intro.pack((bowl.view.as_ref(), &bowl.owner)))
     }
 
     pub fn borrow_mut<'a>(
@@ -121,7 +121,7 @@ where
             > + 'static,
     > {
         self.0
-            .borrow_mut(|bowl, stamp| stamp.stamp((bowl.view.as_mut(), &mut bowl.owner)))
+            .borrow_mut(|bowl, intro| intro.pack((bowl.view.as_mut(), &mut bowl.owner)))
     }
 
     /// Internally this function uses [`Option`] to check
@@ -135,16 +135,16 @@ where
         f: impl for<'owner, 'life> FnOnce(
             <F as View<'life>>::Output,
             Slot<'life, Taker<'owner, P>>,
-            Stamp<'life, 'ub>,
+            Intro<'life, 'ub>,
         ) -> R,
     ) -> R {
-        self.0.map(|BowlInner { view, owner }, stamp| {
+        self.0.map(|BowlInner { view, owner }, intro| {
             let mut owner = Some(owner.into_owner());
             let taker = unsafe { Taker::new(&mut owner) };
             let result = f(
                 MaybeDangling::into_inner(view),
                 Slot(PhantomData, taker),
-                stamp,
+                intro,
             );
             drop(owner);
             result
@@ -168,13 +168,13 @@ mod with_new_bounded_view {
         pub fn fill<'long, 'ub, F, X: ?Sized>(
             self,
             view: <F as View<'life>>::Output,
-            stamp: Stamp<'life, 'ub, X>,
+            intro: Intro<'life, 'ub, X>,
         ) -> Bowl<'ub, O::Target, F>
         where
             F: ?Sized + for<'x> BoundedView<'x, 'long>,
             'long: 'ub + 'life,
         {
-            Bowl(stamp.stamp(BowlInner {
+            Bowl(intro.pack(BowlInner {
                 view: MaybeDangling::new(view),
                 owner: Slot(self.0, Owned::new(self.1.deref_move())),
             }))

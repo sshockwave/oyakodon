@@ -25,41 +25,41 @@ where
 {
     pub fn borrow<'a, R>(
         &'a self,
-        f: impl for<'x> FnOnce(&'a <F as View<'x>>::Output, Stamp<'x, 'ub>) -> R,
+        f: impl for<'x> FnOnce(&'a <F as View<'x>>::Output, Intro<'x, 'ub>) -> R,
     ) -> R {
-        f(&self.0, Stamp(PhantomData))
+        f(&self.0, Intro(PhantomData))
     }
 
     pub fn borrow_mut<'a, R>(
         &'a mut self,
-        f: impl for<'x> FnOnce(&'a mut <F as View<'x>>::Output, Stamp<'x, 'ub>) -> R,
+        f: impl for<'x> FnOnce(&'a mut <F as View<'x>>::Output, Intro<'x, 'ub>) -> R,
     ) -> R {
-        f(&mut self.0, Stamp(PhantomData))
+        f(&mut self.0, Intro(PhantomData))
     }
 
-    pub fn map<R>(self, f: impl for<'x> FnOnce(<F as View<'x>>::Output, Stamp<'x, 'ub>) -> R) -> R {
-        f(self.0, Stamp(PhantomData))
+    pub fn map<R>(self, f: impl for<'x> FnOnce(<F as View<'x>>::Output, Intro<'x, 'ub>) -> R) -> R {
+        f(self.0, Intro(PhantomData))
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct Stamp<'life, 'ub, X: ?Sized = &'life &'ub ()>(
+pub struct Intro<'life, 'ub, X: ?Sized = &'life &'ub ()>(
     PhantomData<(PhantomInvariantLifetime<'life>, &'ub (), X)>,
 );
 
-impl<'life, 'ub, X: ?Sized> Stamp<'life, 'ub, X> {
-    pub const fn cast<Y: ?Sized>(&self) -> Stamp<'life, 'ub, Y> {
-        Stamp(PhantomData)
+impl<'life, 'ub, X: ?Sized> Intro<'life, 'ub, X> {
+    pub const fn cast<Y: ?Sized>(&self) -> Intro<'life, 'ub, Y> {
+        Intro(PhantomData)
     }
 
-    /// For [`stamp`] to be sound,
+    /// For [`pack`] to be sound,
     /// it shall allow relaxing the lifetime range to a wider one
     /// but must not allow shrinking the lifetime range in any way.
     /// In logical terms, for example, `x == 5` implies `0 <= x < 10`,
     /// `2 <= x < 8` implies `0 <= x < 10`,
     /// and `0 <= x < 10` does not necessarily imply `2 <= x < 8`.
     ///
-    /// [`stamp`] could have been used to shrink the lifetime range due to [#84591]:
+    /// [`pack`] could have been used to shrink the lifetime range due to [#84591]:
     /// ```
     /// use oyakodon::primitive::View;
     /// fn requires_all<F: ?Sized + for<'x> View<'x>>() {}
@@ -78,27 +78,27 @@ impl<'life, 'ub, X: ?Sized> Stamp<'life, 'ub, X> {
     ///     Requires::<'life>::all::<dyn for<'x> View<'x, Output = &'lower_bound &'x ()>>(&&());
     /// }
     /// ```
-    /// So [`stamp`] cannot be exploited to raise the lower bound of `'life`:
+    /// So [`pack`] cannot be exploited to raise the lower bound of `'life`:
     /// ```compile_fail
-    /// use oyakodon::primitive::{Stamp, View};
-    /// fn get_stamp<'short, 'life, 'ub>(stamp: Stamp<'life, 'ub>) {
-    ///     stamp.stamp::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
+    /// use oyakodon::primitive::{Intro, View};
+    /// fn get_intro<'short, 'life, 'ub>(intro: Intro<'life, 'ub>) {
+    ///     intro.pack::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
     /// }
     /// ```
     /// and also cannot decrease the upper bound
-    /// because [`Stamp`] is invariant over `'life`:
+    /// because [`Intro`] is invariant over `'life`:
     /// ```compile_fail
-    /// use oyakodon::primitive::{Stamp, View};
-    /// fn get_stamp<'long, 'life, 'ub>(stamp: Stamp<'life, 'ub>) {
-    ///     stamp.stamp::<dyn for<'short> View<'short, Output = &'short &'long ()>>(&&());
+    /// use oyakodon::primitive::{Intro, View};
+    /// fn get_intro<'long, 'life, 'ub>(intro: Intro<'life, 'ub>) {
+    ///     intro.pack::<dyn for<'short> View<'short, Output = &'short &'long ()>>(&&());
     /// }
     /// ```
-    /// Thus [`stamp`] does not have soundness issues currently,
+    /// Thus [`pack`] does not have soundness issues currently,
     /// but it might change in future Rust versions.
     ///
-    /// [`stamp`]: Self::stamp
+    /// [`pack`]: Self::pack
     /// [#84591]: https://github.com/rust-lang/rust/issues/84591
-    pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> Exists<'ub, F>
+    pub fn pack<'long, F>(&self, view: <F as View<'life>>::Output) -> Exists<'ub, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,

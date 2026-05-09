@@ -21,10 +21,10 @@ impl<'t, O, T: 't + ?Sized> OwningRef<'t, O, T> {
     where
         O: Deref<Target = T>,
     {
-        Self(Bowl::new(AliasableDeref::new(o)).map(|owner, slot, stamp| {
+        Self(Bowl::new(AliasableDeref::new(o)).map(|owner, slot, intro| {
             let view = slot.deref(&owner);
             let view = unsafe { transmute::<&T, &T>(view) };
-            slot.fill((owner.into(), view), stamp)
+            slot.fill((owner.into(), view), intro)
         }))
     }
 }
@@ -35,10 +35,10 @@ impl<'t, O, T: 't + ?Sized> OwningRefMut<'t, O, T> {
         O: DerefMut<Target = T>,
     {
         Self(
-            Bowl::new(AliasableDeref::new(o)).map(|mut view, mut slot, stamp| {
+            Bowl::new(AliasableDeref::new(o)).map(|mut view, mut slot, intro| {
                 let view = slot.deref_mut(&mut view);
                 let view = unsafe { transmute::<&mut T, &mut T>(view) };
-                slot.fill(view, stamp)
+                slot.fill(view, intro)
             }),
         )
     }
@@ -50,7 +50,7 @@ impl<'t, O, T: 't + ?Sized> OwningRefMut<'t, O, T> {
         O: StableAddress,
         F: FnOnce(&mut T) -> &U,
     {
-        OwningRef(self.0.map(|view, slot, stamp| slot.fill(f(view), stamp)))
+        OwningRef(self.0.map(|view, slot, intro| slot.fill(f(view), intro)))
     }
 
     #[cfg(any())]
@@ -60,8 +60,8 @@ impl<'t, O, T: 't + ?Sized> OwningRefMut<'t, O, T> {
         O: StableAddress,
         F: FnOnce(&mut T) -> Result<&U, E>,
     {
-        self.0.map(|view, slot, stamp| match f(view) {
-            Ok(view) => Ok(OwningRef(slot.fill(view, stamp))),
+        self.0.map(|view, slot, intro| match f(view) {
+            Ok(view) => Ok(OwningRef(slot.fill(view, intro))),
             Err(e) => Err(e),
         })
     }

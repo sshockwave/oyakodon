@@ -1,5 +1,5 @@
 use crate::primitive::{
-    Aliasable, BoundedView, Bowl, CloneStableDeref, Exists, Owned, OwnerRef, Slot, Stamp, View,
+    Aliasable, BoundedView, Bowl, CloneStableDeref, Exists, Intro, Owned, OwnerRef, Slot, View,
 };
 use ::core::{clone::Clone, fmt, marker::Copy, mem::drop, ops::DerefMut};
 
@@ -24,9 +24,9 @@ where
     P::Target: 'ub,
 {
     pub fn new_ref(owner: P) -> Self {
-        Bowl::new(owner).map(|view, slot, stamp| {
+        Bowl::new(owner).map(|view, slot, intro| {
             let view = slot.spawn_ref(view);
-            slot.fill(view, stamp)
+            slot.fill(view, intro)
         })
     }
 }
@@ -37,9 +37,9 @@ where
     P::Target: 'ub,
 {
     pub fn new_mut(owner: P) -> Self {
-        Bowl::new(owner).map(|view, mut slot, stamp| {
+        Bowl::new(owner).map(|view, mut slot, intro| {
             let view = slot.spawn_mut(view);
-            slot.fill(view, stamp)
+            slot.fill(view, intro)
         })
     }
 }
@@ -78,11 +78,11 @@ where
         f: impl for<'life> FnOnce(
             &'a <F as View<'life>>::Output,
             &'a Slot<'life, Owned<P>>,
-            Stamp<'life, 'ub>,
+            Intro<'life, 'ub>,
         ) -> R,
     ) -> R {
         self.borrow()
-            .map(|(view, slot), stamp| f(view, slot, stamp))
+            .map(|(view, slot), intro| f(view, slot, intro))
     }
 
     pub fn with_mut<'a, R>(
@@ -90,11 +90,11 @@ where
         f: impl for<'life> FnOnce(
             &'a mut <F as View<'life>>::Output,
             &'a Slot<'life, Owned<P>>,
-            Stamp<'life, 'ub>,
+            Intro<'life, 'ub>,
         ) -> R,
     ) -> R {
         self.borrow_mut()
-            .map(|(view, slot), stamp| f(view, slot, stamp))
+            .map(|(view, slot), intro| f(view, slot, intro))
     }
 
     /// Transforms the current view using `f`, encoding the composition as a generated view type.
@@ -110,7 +110,7 @@ where
     where
         G: for<'x> Derive<<F as BoundedView<'x, 'ub>>::Target>,
     {
-        self.map(|view, slot, stamp| slot.fill(f.call(view), stamp))
+        self.map(|view, slot, intro| slot.fill(f.call(view), intro))
     }
 
     /// Changes the view marker type `F` to any `G` that produces identical output types.
@@ -119,7 +119,7 @@ where
     pub fn cast_view<G: ?Sized + for<'x> BoundedView<'x, 'ub, Target = <F as View<'x>>::Output>>(
         self,
     ) -> Bowl<'ub, P, G> {
-        self.map(|view, slot, stamp| slot.fill(view, stamp))
+        self.map(|view, slot, intro| slot.fill(view, intro))
     }
 
     /// Drops the owner and returns the view.
@@ -197,9 +197,9 @@ where
     where
         for<'x> <F as View<'x>>::Output: Result,
     {
-        self.map(|view, slot, stamp| match Result::into(view) {
-            Ok(ok) => Ok(slot.fill(ok, stamp)),
-            Err(err) => Err(slot.fill(err, stamp)),
+        self.map(|view, slot, intro| match Result::into(view) {
+            Ok(ok) => Ok(slot.fill(ok, intro)),
+            Err(err) => Err(slot.fill(err, intro)),
         })
     }
 }
@@ -221,7 +221,7 @@ mod with_new_bounded_view {
         where
             'ub: 'short,
         {
-            self.map(|view, slot, stamp| slot.fill(view, stamp.cast::<()>()))
+            self.map(|view, slot, intro| slot.fill(view, intro.cast::<()>()))
         }
 
         /// Combines [`Self::cast_life`] and [`Self::cast_view`].
@@ -260,7 +260,7 @@ where
     for<'x> <F as BoundedView<'x, 'ub>>::Target: Clone,
 {
     fn clone(&self) -> Self {
-        self.with(|view, slot, stamp| slot.clone().fill(view.clone(), stamp))
+        self.with(|view, slot, intro| slot.clone().fill(view.clone(), intro))
     }
 }
 
@@ -284,7 +284,7 @@ where
     for<'x> <F as BoundedView<'x, 'ub>>::Target: Default,
 {
     fn default() -> Self {
-        Exists::new().map(|(), stamp| stamp.stamp(Default::default()))
+        Exists::new().map(|(), intro| intro.pack(Default::default()))
     }
 }
 
@@ -301,7 +301,7 @@ where
     for<'x> <F as BoundedView<'x, 'ub>>::Target: Clone,
 {
     fn clone(&self) -> Self {
-        self.borrow(|view, stamp| stamp.stamp(view.clone()))
+        self.borrow(|view, intro| intro.pack(view.clone()))
     }
 }
 
@@ -314,7 +314,7 @@ where
     where
         'ub: 'short,
     {
-        self.map(|view, stamp| stamp.stamp(view))
+        self.map(|view, intro| intro.pack(view))
     }
 }
 
