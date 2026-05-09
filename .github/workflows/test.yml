@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_TERM_VERBOSE: "true"
 
 jobs:
   test:
@@ -17,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v6
-    - run: cargo test --verbose --locked --workspace
+    - run: cargo test --locked --workspace
 
   minimal-versions:
     runs-on: ubuntu-latest
@@ -26,7 +27,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
     - run: cargo update -Z direct-minimal-versions
     - uses: dtolnay/rust-toolchain@stable
-    - run: cargo test --verbose --locked --workspace
+    - run: cargo test --locked --workspace
 
   miri:
     runs-on: ubuntu-latest
@@ -35,7 +36,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: miri
-    - run: cargo miri test --verbose --locked --workspace
+    - run: cargo miri test --locked --workspace
 
   fmt:
     runs-on: ubuntu-latest
@@ -47,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
-    - run: cargo clippy --verbose --locked --workspace --all-targets
+    - run: cargo clippy --locked --workspace --all-targets
 
   msrv:
     runs-on: ubuntu-latest
@@ -81,22 +82,22 @@ jobs:
         cargo update -p async-io --precise 2.5.0
       env:
         CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-    - run: cargo test --verbose --locked --workspace --lib --tests
+    - run: cargo test --locked --workspace --lib --tests
 
   no-default-features:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
-    - run: cargo build --verbose --locked --workspace --no-default-features
+    - run: cargo build --locked --workspace --no-default-features
 
   stable-deref:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
-    - run: cargo test --verbose --locked --workspace --features stable_deref
+    - run: cargo test --locked --workspace --features stable_deref
 
   doc:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
-    - run: cargo doc --verbose --locked --workspace --features docs
+    - run: cargo doc --locked --workspace --features docs
