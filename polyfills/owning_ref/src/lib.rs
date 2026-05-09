@@ -19,7 +19,7 @@ use ::{
         ops::{Deref, DerefMut},
     },
     maybe_dangling::MaybeDangling,
-    oyakodon::primitive::{AliasableDeref, Bowl, OwnerRef, View},
+    oyakodon::primitive::{AliasableDeref, Bowl, Owned, OwnerRef, Slot, Stamp, View},
     std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard},
 };
 
@@ -130,10 +130,16 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
     where
         O: StableAddress,
     {
-        self.0
-            .borrow()
-            .map(|((owner, _), slot), _| slot.borrow(*owner))
-            .get()
+        fn get_owner<'x, 'a, 't, O: StableAddress, T: ?Sized>(
+            ((owner, _), slot): (
+                &'a (OwnerRef<'x, false>, &'x T),
+                &'a Slot<'x, Owned<AliasableDeref<O>>>,
+            ),
+            _: Stamp<'x, 't>,
+        ) -> &'a AliasableDeref<O> {
+            slot.borrow(*owner)
+        }
+        self.0.borrow().map(get_owner).get()
     }
 
     pub fn into_owner(self) -> O {
@@ -261,7 +267,16 @@ where
 impl<O, T: ?Sized> Deref for OwningRef<'_, O, T> {
     type Target = T;
     fn deref(&self) -> &T {
-        self.0.borrow().map(|(view, _), _| view.1)
+        fn get_view<'x, 'a, 't, O, T: ?Sized>(
+            ((_, view), _): (
+                &'a (OwnerRef<'x, false>, &'x T),
+                &'a Slot<'x, Owned<AliasableDeref<O>>>,
+            ),
+            _: Stamp<'x, 't>,
+        ) -> &'a T {
+            *view
+        }
+        self.0.borrow().map(get_view)
     }
 }
 
@@ -269,15 +284,28 @@ impl<O, T: ?Sized> Deref for OwningRefMut<'_, O, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        *self.0.borrow().map(|(view, _), _| view)
+        fn get_view<'x, 'a, 't, O, T: ?Sized>(
+            (view, _): (&'a &'x mut T, &'a Slot<'x, Owned<AliasableDeref<O>>>),
+            _: Stamp<'x, 't>,
+        ) -> &'a T {
+            *view
+        }
+        self.0.borrow().map(get_view)
     }
 }
 
 impl<'t, O, T: ?Sized> DerefMut for OwningRefMut<'t, O, T> {
     fn deref_mut<'a>(&'a mut self) -> &'a mut T {
-        self.0
-            .borrow_mut()
-            .map(|(view, _): (&'a mut &mut T, _), _| &mut **view)
+        fn get_view<'x, 'a, 't, O, T: ?Sized>(
+            (view, _): (
+                &'a mut &'x mut T,
+                &'a mut Slot<'x, Owned<AliasableDeref<O>>>,
+            ),
+            _: Stamp<'x, 't>,
+        ) -> &'a mut T {
+            &mut **view
+        }
+        self.0.borrow_mut().map(get_view)
     }
 }
 
