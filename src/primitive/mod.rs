@@ -9,7 +9,7 @@ mod helper;
 mod view;
 
 pub(crate) use self::deref_move::*;
-pub use self::{super::low_level::core::*, aliasable_deref::*, owned::*, view::*};
+pub use self::{super::low_level::*, aliasable_deref::*, owned::*, view::*};
 
 mod deref_move {
     pub trait DerefMove: ::core::ops::DerefMut {
