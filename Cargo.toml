@@ -1,6 +1,7 @@
 [package]
 name = "oyakodon"
 version = "0.1.0"
+authors = ["sshockwave"]
 description = "Correctly typed self-referential structs without unsafe code or macros"
 keywords = ["self-referential", "sibling", "no_std", "lifetime", "borrowing"]
 categories = [
@@ -10,7 +11,6 @@ categories = [
   "data-structures",
 ]
 repository = "https://github.com/sshockwave/oyakodon"
-documentation = "https://docs.rs/oyakodon"
 edition = "2021"
 rust-version = "1.63" # `#![feature(nll)]` is required to support implicit lower bounds in HRTBs
 license = "MIT OR Apache-2.0"
