@@ -1,7 +1,4 @@
-use ::core::{
-    mem::{self, MaybeUninit},
-    ptr,
-};
+use ::core::mem::{self, MaybeUninit};
 
 pub struct MaybeDangling<P>(MaybeUninit<P>);
 
@@ -33,18 +30,20 @@ impl<P> MaybeDangling<P> {
     where
         P: Sized,
     {
-        let ptr: *const _ = self.as_ref();
-        // SAFETY: this is equivalent to `self.0.assume_init()`
-        let x = unsafe { ptr.read() };
-        mem::forget(self);
-        x
+        let manual = mem::ManuallyDrop::new(self);
+        // SAFETY: The value is always initialized,
+        // and we are taking ownership of it,
+        // so we should read it and forget the container.
+        unsafe { manual.0.assume_init_read() }
     }
 }
 
 impl<P> Drop for MaybeDangling<P> {
     fn drop(&mut self) {
-        // SAFETY: this is equivalent to `self.0.assume_init_drop()`
-        unsafe { ptr::drop_in_place(self.as_mut()) }
+        // SAFETY: The value is always initialized,
+        // and its destructor will not be called,
+        // so we should drop it in place.
+        unsafe { self.0.as_mut_ptr().drop_in_place() }
     }
 }
 
