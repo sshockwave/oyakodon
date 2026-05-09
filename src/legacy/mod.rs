@@ -11,7 +11,7 @@ pub use bowl_mut::BowlMut;
 pub use bowl_ref::BowlRef;
 
 mod primitive {
-    pub use crate::primitive::CloneStableDeref;
+    pub use crate::CloneStableDeref;
 }
 
 /// Marker trait for representing the type of view.

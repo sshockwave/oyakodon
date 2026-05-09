@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     polyfill::{transmute_since_1_66, MaybeDangling},
-    primitive::StableDeref,
+    StableDeref,
 };
 use ::core::{
     cmp::{Eq, PartialEq},

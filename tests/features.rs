@@ -1,4 +1,4 @@
-use oyakodon::primitive::{Bowl, View};
+use oyakodon::{Bowl, View};
 
 #[test]
 fn owner_nonstatic_lifetime() {

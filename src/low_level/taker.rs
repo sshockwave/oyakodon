@@ -1,4 +1,4 @@
-use crate::primitive::DerefMove;
+use crate::DerefMove;
 use ::core::{
     mem::replace,
     ops::{Deref, DerefMut},

@@ -1,6 +1,6 @@
 use crate::{
     polyfill::{transmute_since_1_66, PhantomInvariantLifetime},
-    primitive::{BoundedView, View},
+    {BoundedView, View},
 };
 use ::core::marker::PhantomData;
 
@@ -61,7 +61,7 @@ impl<'life, 'ub, X: ?Sized> Intro<'life, 'ub, X> {
     ///
     /// [`pack`] could have been used to shrink the lifetime range due to [#84591]:
     /// ```
-    /// use oyakodon::primitive::View;
+    /// use oyakodon::View;
     /// fn requires_all<F: ?Sized + for<'x> View<'x>>() {}
     /// fn get_lifetime<'lower_bound>() {
     ///     requires_all::<dyn for<'x> View<'x, Output = &'static &'x ()>>();
@@ -69,7 +69,7 @@ impl<'life, 'ub, X: ?Sized> Intro<'life, 'ub, X> {
     /// ```
     /// But curiously, Rust is able to reject this case:
     /// ```compile_fail
-    /// use oyakodon::primitive::View;
+    /// use oyakodon::View;
     /// pub struct Requires<'life>(&'life ());
     /// impl<'life> Requires<'life> {
     ///     pub fn all<F: ?Sized + View<'life>>(_: F::Output) {}
@@ -80,7 +80,7 @@ impl<'life, 'ub, X: ?Sized> Intro<'life, 'ub, X> {
     /// ```
     /// So [`pack`] cannot be exploited to raise the lower bound of `'life`:
     /// ```compile_fail
-    /// use oyakodon::primitive::{Intro, View};
+    /// use oyakodon::{Intro, View};
     /// fn get_intro<'short, 'life, 'ub>(intro: Intro<'life, 'ub>) {
     ///     intro.pack::<dyn for<'long> View<'long, Output = &'short &'long ()>>(&&());
     /// }
@@ -88,7 +88,7 @@ impl<'life, 'ub, X: ?Sized> Intro<'life, 'ub, X> {
     /// and also cannot decrease the upper bound
     /// because [`Intro`] is invariant over `'life`:
     /// ```compile_fail
-    /// use oyakodon::primitive::{Intro, View};
+    /// use oyakodon::{Intro, View};
     /// fn get_intro<'long, 'life, 'ub>(intro: Intro<'life, 'ub>) {
     ///     intro.pack::<dyn for<'short> View<'short, Output = &'short &'long ()>>(&&());
     /// }

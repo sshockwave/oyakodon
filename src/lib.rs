@@ -82,4 +82,6 @@ extern crate alloc;
 pub mod legacy;
 mod low_level;
 mod polyfill;
-pub mod primitive;
+mod primitive;
+
+pub use primitive::*;

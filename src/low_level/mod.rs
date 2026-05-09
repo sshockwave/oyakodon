@@ -3,7 +3,7 @@
 mod aliasable;
 mod bowl;
 mod exists;
-pub mod polyfill;
+pub(crate) mod polyfill;
 mod taker;
 
 pub use self::{aliasable::*, bowl::*, exists::*, taker::*};
@@ -15,5 +15,5 @@ pub use self::stable_deref::*;
 #[cfg(feature = "stable_deref")]
 pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
 
-unsafe impl<T: StableDeref> StableDeref for crate::primitive::AliasableDeref<T> {}
-unsafe impl<T: CloneStableDeref> CloneStableDeref for crate::primitive::AliasableDeref<T> {}
+unsafe impl<T: StableDeref> StableDeref for crate::AliasableDeref<T> {}
+unsafe impl<T: CloneStableDeref> CloneStableDeref for crate::AliasableDeref<T> {}

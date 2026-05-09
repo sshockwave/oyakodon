@@ -1,8 +1,6 @@
 use crate::{
-    polyfill::MaybeDangling,
-    primitive::{
-        Aliasable, BoundedView, CloneStableDeref, DerefMove, Exists, Intro, Owned, Taker, View,
-    },
+    polyfill::MaybeDangling, Aliasable, BoundedView, CloneStableDeref, DerefMove, Exists, Intro,
+    Owned, Taker, View,
 };
 use ::core::{
     clone::Clone,

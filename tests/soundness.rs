@@ -1,4 +1,4 @@
-use oyakodon::primitive::{Bowl, View};
+use oyakodon::{Bowl, View};
 
 /// Regression: [`into_owner()`] must drop `owner` even when `view`'s drop panics.
 /// Previously, `view: _` in the destructure produced an unnamed temporary

@@ -57,7 +57,7 @@ mod aliasable_deref {
 }
 
 mod owned {
-    use crate::primitive::DerefMove;
+    use crate::DerefMove;
     use ::core::ops::{Deref, DerefMut};
 
     pub struct Owned<T: ?Sized>(T);

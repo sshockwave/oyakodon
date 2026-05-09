@@ -10,13 +10,13 @@ macro_rules! bounded_view {
     ) => {
         $(#[$meta])*
         $pub trait $name<'x, 'ub, X = &'x &'ub ()>:
-            $crate::primitive::View<'x, Output = Self::Target>
+            $crate::View<'x, Output = Self::Target>
         {
             type Target;
         }
         impl<'x, T: ?Sized> $name<'x, '_> for T
         where
-            T: $crate::primitive::View<'x>,
+            T: $crate::View<'x>,
         {
             /// A different name is used to avoid conflicts with [`View::Output`].
             type Target = Self::Output;
@@ -62,7 +62,7 @@ bounded_view!(
     /// We recommend using the `dyn` syntax for uniformity,
     /// but you can create your own `BoundedView` trait by copy-pasting
     /// ```
-    /// use oyakodon::primitive::View;
+    /// use oyakodon::View;
     /// pub trait BoundedView<'x, 'ub, X: ?Sized = &'x &'ub ()>: View<'x, Output = Self::Target> {
     ///     type Target;
     /// }

@@ -1,4 +1,4 @@
-use crate::primitive::{
+use crate::{
     Access, Aliasable, BoundedView, Bowl, CloneStableDeref, Exists, Intro, Owned, Slot, View,
 };
 use ::core::{clone::Clone, fmt, marker::Copy, mem::drop, ops::DerefMut};
@@ -255,7 +255,7 @@ impl<T, E> Result for ::core::result::Result<T, E> {
 
 impl<'ub, T, F> Clone for Bowl<'ub, T, F>
 where
-    T: crate::primitive::CloneStableDeref,
+    T: crate::CloneStableDeref,
     F: for<'x> BoundedView<'x, 'ub> + ?Sized,
     for<'x> <F as BoundedView<'x, 'ub>>::Target: Clone,
 {

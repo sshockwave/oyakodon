@@ -6,9 +6,7 @@ extern crate alloc;
 mod low_level;
 
 pub use self::low_level::*;
-pub use ::oyakodon::primitive::{
-    CloneStableDeref as CloneStableAddress, StableDeref as StableAddress,
-};
+pub use ::oyakodon::{CloneStableDeref as CloneStableAddress, StableDeref as StableAddress};
 use ::{
     alloc::{rc::Rc, sync::Arc},
     core::{
@@ -19,7 +17,7 @@ use ::{
         hash::{Hash, Hasher},
         ops::{Deref, DerefMut},
     },
-    oyakodon::primitive::{Access, AliasableDeref, Bowl, Intro, Owned, Slot, View},
+    oyakodon::{Access, AliasableDeref, Bowl, Intro, Owned, Slot, View},
     std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard},
 };
 

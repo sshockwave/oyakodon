@@ -8,7 +8,7 @@ use ::{
         mem::transmute,
         ops::{Deref, DerefMut},
     },
-    oyakodon::primitive::{AliasableDeref, Bowl},
+    oyakodon::{AliasableDeref, Bowl},
 };
 
 pub unsafe trait IntoErased<'a> {

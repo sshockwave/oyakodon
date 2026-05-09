@@ -3,7 +3,7 @@
 
 use ::{
     aliasable::boxed::AliasableBox,
-    oyakodon::primitive::{Bowl, View},
+    oyakodon::{Bowl, View},
 };
 
 trait Covariant<'ub> {
