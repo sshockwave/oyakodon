@@ -79,9 +79,19 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+mod aliasable_deref;
+mod helper;
 pub mod legacy;
 mod low_level;
+mod owned;
 mod polyfill;
-mod primitive;
+mod view;
 
-pub use primitive::*;
+use self::deref_move::*;
+pub use self::{aliasable_deref::*, low_level::*, owned::*, view::*};
+
+mod deref_move {
+    pub trait DerefMove: ::core::ops::DerefMut {
+        fn deref_move(self) -> Self::Target;
+    }
+}

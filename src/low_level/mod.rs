@@ -1,3 +1,5 @@
+//! This is where all `unsafe` code lives,
+//! and the rest of the codebase is built on top of it.
 #![allow(unsafe_code)]
 
 mod aliasable;
