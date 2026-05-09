@@ -71,7 +71,7 @@ where
         // and the safety of reading `view` is handed off to getters.
         // We ensure that the owner is never accessed until `view` is dropped
         // to satisfy the possible LLVM `noalias` attribute on `owner`.
-        let view = derive.call(unsafe { transmute::<&T::Target, &'a T::Target>(&**owner) });
+        let view = derive.call(unsafe { transmute::<&T::Target, &'a T::Target>(owner.as_ref()) });
         BowlRef {
             owner,
             view: MaybeDangling::new(view),
@@ -280,7 +280,7 @@ where
         &'b self,
         spawn: impl for<'c> Derive<&'b <F as View<&'c T::Target>>::Output, &'b &'c (), Output = S>,
     ) -> S {
-        spawn.call(&*self.view)
+        spawn.call(self.view.as_ref())
     }
 
     pub fn spawn_mut<'b, S>(
@@ -288,7 +288,7 @@ where
         spawn: impl for<'c> Derive<&'b mut <F as View<&'c T::Target>>::Output, &'b &'c (), Output = S>,
     ) -> S {
         // SAFETY: Same as `self.spawn()`.
-        spawn.call(&mut *self.view)
+        spawn.call(self.view.as_mut())
     }
 }
 
@@ -346,7 +346,7 @@ where
 {
     fn eq(&self, other: &BowlRef<'b, T, G>) -> bool {
         // SAFETY: Accessing `owner` is safe because `view` does not have exlusive access to `owner`.
-        *self.owner == *other.owner
+        *self.owner.as_ref() == *other.owner.as_ref()
             && self.spawn(|a: &<F as View<&T::Target>>::Output| {
                 other.spawn(|b: &<G as View<&T::Target>>::Output| CompareViews::eq(a, b))
             })
@@ -371,7 +371,7 @@ where
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // SAFETY: Same as `PartialEq::eq()`.
-        self.owner.hash(state);
+        self.owner.as_ref().hash(state);
         self.spawn(|view: &<F as View<&T::Target>>::Output| view.hash(state));
     }
 }
@@ -385,7 +385,7 @@ where
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut dbg_struct = f.debug_struct("BowlRef");
         // SAFETY: Same as `PartialEq::eq()`.
-        dbg_struct.field("owner", &*self.owner);
+        dbg_struct.field("owner", self.owner.as_ref());
         self.spawn(|view: &<F as View<&T::Target>>::Output| {
             dbg_struct.field("view", view);
         });

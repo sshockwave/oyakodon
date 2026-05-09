@@ -105,7 +105,7 @@ where
             > + 'static,
     > {
         self.0
-            .borrow(|bowl, stamp| stamp.stamp((&*bowl.view, &bowl.owner)))
+            .borrow(|bowl, stamp| stamp.stamp((bowl.view.as_ref(), &bowl.owner)))
     }
 
     pub fn borrow_mut<'a>(
@@ -121,7 +121,7 @@ where
             > + 'static,
     > {
         self.0
-            .borrow_mut(|bowl, stamp| stamp.stamp((&mut *bowl.view, &mut bowl.owner)))
+            .borrow_mut(|bowl, stamp| stamp.stamp((bowl.view.as_mut(), &mut bowl.owner)))
     }
 
     /// Internally this function uses [`Option`] to check

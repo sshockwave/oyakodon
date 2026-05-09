@@ -80,7 +80,7 @@ where
         // That restricts access to the owner after the view is alive,
         // but it does not change anything here.
         let view =
-            derive.call(unsafe { transmute::<&mut T::Target, &'a mut T::Target>(&mut **owner) });
+            derive.call(unsafe { transmute::<&mut T::Target, &'a mut T::Target>(owner.as_mut()) });
         // SAFETY: Same as `BowlRef::from_derive()`.
         Self(unsafe { BowlRef::new_unchecked(owner, MaybeDangling::new(view)) })
     }

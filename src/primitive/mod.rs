@@ -30,11 +30,11 @@ mod aliasable_deref {
         }
 
         pub fn get(&self) -> &T {
-            &*self.0
+            self.0.as_ref()
         }
 
         pub fn get_mut(&mut self) -> &mut T {
-            &mut *self.0
+            self.0.as_mut()
         }
 
         pub fn into_inner(self) -> T {
@@ -45,13 +45,13 @@ mod aliasable_deref {
     impl<T: Deref> Deref for AliasableDeref<T> {
         type Target = T::Target;
         fn deref(&self) -> &Self::Target {
-            &self.0
+            self.get()
         }
     }
 
     impl<T: DerefMut> DerefMut for AliasableDeref<T> {
         fn deref_mut(&mut self) -> &mut Self::Target {
-            &mut self.0
+            self.get_mut()
         }
     }
 }

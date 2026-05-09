@@ -3,6 +3,7 @@
 mod aliasable;
 mod bowl;
 mod exists;
+pub mod polyfill;
 mod taker;
 
 pub use self::{aliasable::*, bowl::*, exists::*, taker::*};
