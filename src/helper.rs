@@ -1,7 +1,11 @@
-use crate::{
-    Access, Aliasable, BoundedView, Bowl, CloneStableDeref, Exists, Intro, Owned, Slot, View,
+use crate::*;
+use ::core::{
+    clone::Clone,
+    fmt::{self, Debug},
+    marker::Copy,
+    mem::drop,
+    ops::DerefMut,
 };
-use ::core::{clone::Clone, fmt, marker::Copy, mem::drop, ops::DerefMut};
 
 pub trait Derive<T> {
     type Output;
@@ -271,10 +275,15 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut dbg_struct = f.debug_struct("Bowl");
-        self.with(|view, _, _| {
-            dbg_struct.field("view", view);
-        });
-        dbg_struct.finish_non_exhaustive()
+        struct Elided;
+        impl Debug for Elided {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("_")
+            }
+        }
+        self.with(|view, _, _| dbg_struct.field("view", view))
+            .field("owner", &Elided)
+            .finish()
     }
 }
 
@@ -305,6 +314,22 @@ where
     }
 }
 
+impl<'ub, F> Debug for Exists<'ub, F>
+where
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
+    for<'x> <F as BoundedView<'x, 'ub>>::Target: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.borrow(|view, _| f.debug_tuple("Exists").field(view).finish())
+    }
+}
+
+impl<X> Debug for Intro<'_, '_, X> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Intro").finish()
+    }
+}
+
 impl<'ub, F> Exists<'ub, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
@@ -330,3 +355,33 @@ impl Clone for Access<'_, false> {
     }
 }
 impl Copy for Access<'_, false> {}
+
+impl<O: ?Sized> Debug for Slot<'_, O> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Slot(..)")
+    }
+}
+
+impl<T: Debug> Debug for Taker<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Taker").field(&**self).finish()
+    }
+}
+
+impl<T: Debug + ?Sized> Debug for Owned<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Owned").field(&&**self).finish()
+    }
+}
+
+impl<T: Debug> Debug for AliasableDeref<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("AliasableDeref").field(self.get()).finish()
+    }
+}
+
+impl<T: Default> Default for AliasableDeref<T> {
+    fn default() -> Self {
+        AliasableDeref::new(Default::default())
+    }
+}
