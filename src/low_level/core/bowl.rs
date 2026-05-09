@@ -11,18 +11,6 @@ use ::core::{
     ops::{Deref, DerefMut},
 };
 
-macro_rules! bowl {
-    (Exists<$ub:lifetime, $life:lifetime, $owner:ty, $view:ty>) => {
-        Exists<
-            $ub,
-            dyn for<$life> View<
-                    $life,
-                    Output = BowlInner<Slot<$life, Owned<$owner>>, MaybeDangling<$view>>,
-                > + 'static,
-        >
-    };
-}
-
 /// Stores an owner and a derived shared reference into it.
 ///
 /// `P` is the owner container (e.g. [`Rc<String>`][std::rc::Rc]).
@@ -46,7 +34,16 @@ macro_rules! bowl {
 /// if you need to put a shorter lifetime in the view,
 /// which makes it somewhat easier to satisfy the invariants held by [`Bowl`].
 pub struct Bowl<'ub, P, F: ?Sized + for<'x> BoundedView<'x, 'ub>>(
-    bowl!(Exists<'ub, 'x, P, <F as BoundedView<'x, 'ub>>::Target>),
+    Exists<
+        'ub,
+        dyn for<'life> View<
+                'life,
+                Output = BowlInner<
+                    Slot<'life, Owned<P>>,
+                    MaybeDangling<<F as BoundedView<'life, 'ub>>::Target>,
+                >,
+            > + 'static,
+    >,
 );
 
 struct BowlInner<O: ?Sized, V> {
