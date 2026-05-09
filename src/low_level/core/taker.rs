@@ -46,7 +46,7 @@ impl<'a, T> DerefMove for Taker<'a, T> {
 pub struct Owned<T: ?Sized>(T);
 
 impl<T> Owned<T> {
-    pub fn new(value: T) -> Self {
+    pub const fn new(value: T) -> Self {
         Self(value)
     }
 }

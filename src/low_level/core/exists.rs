@@ -14,7 +14,7 @@ use ::core::{marker::PhantomData, mem::transmute};
 pub struct Exists<'ub, F: View<'ub> + ?Sized>(F::Output);
 
 impl Exists<'_, dyn for<'x> View<'x, Output = ()>> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Exists(())
     }
 }
@@ -48,7 +48,7 @@ pub struct Stamp<'life, 'ub, X: ?Sized = &'life &'ub ()>(
 );
 
 impl<'life, 'ub, X: ?Sized> Stamp<'life, 'ub, X> {
-    pub fn cast<Y: ?Sized>(&self) -> Stamp<'life, 'ub, Y> {
+    pub const fn cast<Y: ?Sized>(&self) -> Stamp<'life, 'ub, Y> {
         Stamp(PhantomData)
     }
 
@@ -98,7 +98,7 @@ impl<'life, 'ub, X: ?Sized> Stamp<'life, 'ub, X> {
     ///
     /// [`stamp`]: Self::stamp
     /// [#84591]: https://github.com/rust-lang/rust/issues/84591
-    pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> Exists<'ub, F>
+    pub const fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> Exists<'ub, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
