@@ -71,6 +71,7 @@
 //! The tests are vibed while not the rest.
 //! AI-generated code are explicitly marked with `Co-Authored-By` in commit messages.
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(clippy::type_complexity)]
 
 #[cfg(feature = "alloc")]
