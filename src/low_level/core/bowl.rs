@@ -71,9 +71,9 @@ struct BowlInner<O: ?Sized, V> {
 /// [`OwnerRef`] is a zero-sized reference to the owner.
 pub struct OwnerRef<'life, const UNIQUE: bool>(PhantomData<&'life ()>);
 
-impl<'life> OwnerRef<'life, true> {
-    pub fn downgrade(&self) -> OwnerRef<'life, false> {
-        OwnerRef(PhantomData)
+impl<'life> From<OwnerRef<'life, true>> for OwnerRef<'life, false> {
+    fn from(_token: OwnerRef<'life, true>) -> Self {
+        Self(PhantomData)
     }
 }
 
