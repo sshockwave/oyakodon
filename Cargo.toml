@@ -16,11 +16,18 @@ edition = "2021"
 rust-version = "1.68"
 license = "MIT OR Apache-2.0"
 
+[package.metadata.docs.rs]
+features = ["docs"]
+
 [features]
 default = ["std"]
 std = ["alloc", "stable_deref_trait?/std"]
 alloc = ["stable_deref_trait?/alloc", "dep:aliasable"]
 stable_deref = ["dep:stable_deref_trait"]
+
+# We need to keep this workaround until `[target.'cfg(doc)'.dependencies]` is supported.
+# https://github.com/rust-lang/cargo/issues/8170
+docs = ["dep:stable_deref_trait"]
 
 [dev-dependencies]
 smol = "2"

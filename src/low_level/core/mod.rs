@@ -7,9 +7,9 @@ mod taker;
 
 pub use self::{aliasable::*, bowl::*, exists::*, taker::*};
 
-#[cfg(any(not(feature = "stable_deref"), doc))]
+#[cfg(not(feature = "stable_deref"))]
 mod stable_deref;
-#[cfg(any(not(feature = "stable_deref"), doc))]
+#[cfg(not(feature = "stable_deref"))]
 pub use self::stable_deref::*;
-#[cfg(all(feature = "stable_deref", not(doc)))]
+#[cfg(feature = "stable_deref")]
 pub use ::stable_deref_trait::{CloneStableDeref, StableDeref};
