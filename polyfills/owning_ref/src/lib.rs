@@ -19,7 +19,7 @@ use ::{
         ops::{Deref, DerefMut},
     },
     maybe_dangling::MaybeDangling,
-    oyakodon::primitive::{AliasableDeref, Bowl, View},
+    oyakodon::primitive::{AliasableDeref, Bowl, OwnerRef, View},
     std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard},
 };
 
@@ -42,7 +42,7 @@ use ::{
 /// ```
 /// See [this issue](https://github.com/Kimundi/owning-ref-rs/pull/71) for more details.
 pub struct OwningRef<'t, O, T: ?Sized>(
-    Bowl<'t, AliasableDeref<O>, dyn for<'x> View<'x, Output = &'x T>>,
+    Bowl<'t, AliasableDeref<O>, dyn for<'x> View<'x, Output = (OwnerRef<'x, false>, &'x T)>>,
 );
 
 pub struct OwningRefMut<'t, O, T: ?Sized>(
@@ -63,7 +63,11 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
         O: Deref<Target = T>,
         T: 't,
     {
-        Self(Bowl::new_ref(AliasableDeref::new(o)))
+        Self(Bowl::new(AliasableDeref::new(o)).map(|owner, slot, stamp| {
+            let owner = owner.into();
+            let view = slot.spawn_ref(owner);
+            slot.fill((owner, view), stamp)
+        }))
     }
 
     pub fn map<F, U: 't + ?Sized>(self, f: F) -> OwningRef<'t, O, U>
@@ -71,29 +75,66 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
         O: StableAddress,
         F: FnOnce(&T) -> &U,
     {
-        OwningRef(self.0.map(|view, slot, stamp| slot.fill(f(view), stamp)))
+        OwningRef(
+            self.0
+                .map(|(owner, view), slot, stamp| slot.fill((owner, f(view)), stamp)),
+        )
     }
 
     // TODO: unsafe fn map_with_owner_direct
-    // TODO: fn map_with_owner
+
+    pub fn map_with_owner<F, U: 't + ?Sized>(self, f: F) -> OwningRef<'t, O, U>
+    where
+        O: StableAddress + Deref,
+        F: for<'a> FnOnce(&'a O::Target, &'a T) -> &'a U,
+        O::Target: 't,
+    {
+        OwningRef(self.0.map(|(owner, view), slot, stamp| {
+            let view = f(slot.spawn_ref(owner), view);
+            slot.fill((owner, view), stamp)
+        }))
+    }
 
     pub fn try_map<F, U: 't + ?Sized, E>(self, f: F) -> Result<OwningRef<'t, O, U>, E>
     where
         O: StableAddress,
         F: FnOnce(&T) -> Result<&U, E>,
     {
-        self.0.map(|view, slot, stamp| match f(view) {
-            Ok(view) => Ok(OwningRef(slot.fill(view, stamp))),
+        self.0.map(|(owner, view), slot, stamp| match f(view) {
+            Ok(view) => Ok(OwningRef(slot.fill((owner, view), stamp))),
             Err(e) => Err(e),
         })
     }
 
     // TODO: unsafe fn try_map_with_owner_direct
-    // TODO: fn try_map_with_owner
+
+    pub fn try_map_with_owner<F, U: 't + ?Sized, E>(self, f: F) -> Result<OwningRef<'t, O, U>, E>
+    where
+        O: StableAddress + Deref,
+        F: for<'a> FnOnce(&'a O::Target, &'a T) -> Result<&'a U, E>,
+        O::Target: 't,
+    {
+        self.0.map(
+            |(owner, view), slot, stamp| match f(slot.spawn_ref(owner), view) {
+                Ok(view) => Ok(OwningRef(slot.fill((owner, view), stamp))),
+                Err(e) => Err(e),
+            },
+        )
+    }
+
     // TODO: unsafe fn map_owner
     // TODO: fn map_owner_box
     // TODO: fn erase_owner
-    // TODO: fn as_owner
+
+    fn as_owner(&self) -> &O
+    where
+        O: StableAddress,
+    {
+        self.0
+            .borrow()
+            .map(|((owner, _), slot), _| slot.borrow(*owner))
+            .get()
+    }
 
     pub fn into_owner(self) -> O {
         self.0.into_owner().into_inner()
@@ -220,7 +261,7 @@ where
 impl<O, T: ?Sized> Deref for OwningRef<'_, O, T> {
     type Target = T;
     fn deref(&self) -> &T {
-        *self.0.borrow().map(|(view, _), _| view)
+        self.0.borrow().map(|(view, _), _| view.1)
     }
 }
 

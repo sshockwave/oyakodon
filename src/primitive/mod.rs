@@ -29,6 +29,14 @@ mod aliasable_deref {
             Self(MaybeDangling::new(inner))
         }
 
+        pub fn get(&self) -> &T {
+            &*self.0
+        }
+
+        pub fn get_mut(&mut self) -> &mut T {
+            &mut *self.0
+        }
+
         pub fn into_inner(self) -> T {
             MaybeDangling::into_inner(self.0)
         }

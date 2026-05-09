@@ -203,6 +203,16 @@ where
 }
 
 impl<'life, O> Slot<'life, O> {
+    pub fn borrow(&self, _token: OwnerRef<'life, false>) -> &O::Target
+    where
+        O: Deref,
+        O::Target: Aliasable,
+    {
+        // SAFETY: The owner cannot be mutated
+        // and thus maintains the invariant of `StableDeref`.
+        &self.1
+    }
+
     pub fn deref<'a, const U: bool>(
         &'a self,
         _token: &'a OwnerRef<'life, U>,

@@ -21,10 +21,10 @@ impl<'t, O, T: 't + ?Sized> OwningRef<'t, O, T> {
     where
         O: Deref<Target = T>,
     {
-        Self(Bowl::new(AliasableDeref::new(o)).map(|view, slot, stamp| {
-            let view = slot.deref(&view);
+        Self(Bowl::new(AliasableDeref::new(o)).map(|owner, slot, stamp| {
+            let view = slot.deref(&owner);
             let view = unsafe { transmute::<&T, &T>(view) };
-            slot.fill(view, stamp)
+            slot.fill((owner.into(), view), stamp)
         }))
     }
 }
@@ -43,6 +43,7 @@ impl<'t, O, T: 't + ?Sized> OwningRefMut<'t, O, T> {
         )
     }
 
+    #[cfg(any())]
     #[deprecated(note = "unsafe function. can create aliased references")]
     pub unsafe fn map<F, U: 't + ?Sized>(self, f: F) -> OwningRef<'t, O, U>
     where
@@ -52,6 +53,7 @@ impl<'t, O, T: 't + ?Sized> OwningRefMut<'t, O, T> {
         OwningRef(self.0.map(|view, slot, stamp| slot.fill(f(view), stamp)))
     }
 
+    #[cfg(any())]
     #[deprecated(note = "unsafe function. can create aliased references")]
     pub unsafe fn try_map<F, U: 't + ?Sized, E>(self, f: F) -> Result<OwningRef<'t, O, U>, E>
     where
