@@ -79,13 +79,15 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
+#[macro_use]
+mod view;
+
 mod aliasable_deref;
 mod helper;
 pub mod legacy;
 mod low_level;
 mod owned;
 mod polyfill;
-mod view;
 
 use self::deref_move::*;
 pub use self::{aliasable_deref::*, low_level::*, owned::*, view::*};

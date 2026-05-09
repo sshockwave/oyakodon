@@ -2,7 +2,6 @@ pub trait View<'x> {
     type Output;
 }
 
-#[macro_export]
 macro_rules! bounded_view {
     (
         $(#[$meta:meta])*
@@ -72,13 +71,6 @@ bounded_view!(
     /// {
     ///     type Target = Self::Output;
     /// }
-    /// ```
-    /// Or even better, use the provided `bounded_view!` macro to generate it for you:
-    /// ```
-    /// use oyakodon::bounded_view;
-    /// bounded_view!(
-    ///     pub trait MyBoundedView {}
-    /// );
     /// ```
     /// Note that requiring both `T: for<'x> BoundedView<'x, 'short> + for<'x> BoundedView<'x, 'long>`
     /// does not work in current Rust since it cannot disambiguate the associated type `Target`.

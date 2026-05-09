@@ -210,7 +210,7 @@ where
 
 mod with_new_bounded_view {
     use super::*;
-    crate::bounded_view!(
+    bounded_view!(
         pub trait BoundedView {}
     );
 
