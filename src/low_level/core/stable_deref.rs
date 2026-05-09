@@ -18,6 +18,9 @@ unsafe impl<T: ?Sized> StableDeref for &mut T {}
 unsafe impl<'a, T: ?Sized> StableDeref for ::core::cell::Ref<'a, T> {}
 unsafe impl<'a, T: ?Sized> StableDeref for ::core::cell::RefMut<'a, T> {}
 
+unsafe impl<T: StableDeref> StableDeref for crate::primitive::AliasableDeref<T> {}
+unsafe impl<T: CloneStableDeref> CloneStableDeref for crate::primitive::AliasableDeref<T> {}
+
 #[cfg(feature = "alloc")]
 mod has_alloc {
     use super::*;

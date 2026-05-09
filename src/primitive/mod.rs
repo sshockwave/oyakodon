@@ -21,6 +21,7 @@ mod aliasable_deref {
     use crate::polyfill::MaybeDangling;
     use ::core::ops::{Deref, DerefMut};
 
+    #[derive(Clone)]
     pub struct AliasableDeref<T>(MaybeDangling<T>);
 
     impl<T> AliasableDeref<T> {
