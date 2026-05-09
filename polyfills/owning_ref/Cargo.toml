@@ -1,0 +1,11 @@
+[package]
+name = "oyakodon_owning_ref"
+version = "0.5.1"
+edition = "2021"
+
+[dependencies]
+maybe-dangling = "0.1"
+oyakodon = { version = "0.1.0", path = "../.." }
+
+[dev-dependencies]
+owning_ref = "0.4.1"
