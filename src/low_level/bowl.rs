@@ -68,20 +68,21 @@ struct BowlInner<O: ?Sized, V> {
     owner: O,
 }
 
-/// [`OwnerRef`] is a zero-sized reference to the owner.
-pub struct OwnerRef<'life, const UNIQUE: bool>(PhantomData<&'life ()>);
+/// [`Access`] is a zero-sized token to access the owner
+/// so you don't have to store the owner reference in the view type.
+pub struct Access<'life, const UNIQUE: bool>(PhantomData<&'life ()>);
 
-impl<'life> From<OwnerRef<'life, true>> for OwnerRef<'life, false> {
-    fn from(_token: OwnerRef<'life, true>) -> Self {
+impl<'life> From<Access<'life, true>> for Access<'life, false> {
+    fn from(_token: Access<'life, true>) -> Self {
         Self(PhantomData)
     }
 }
 
-impl<P> Bowl<'_, P, dyn for<'x> View<'x, Output = OwnerRef<'x, true>>> {
+impl<P> Bowl<'_, P, dyn for<'x> View<'x, Output = Access<'x, true>>> {
     pub fn new(owner: P) -> Self {
         Self(Exists::new().map(|(), intro| {
             intro.pack(BowlInner {
-                view: MaybeDangling::new(OwnerRef(PhantomData)),
+                view: MaybeDangling::new(Access(PhantomData)),
                 owner: Slot(PhantomData, Owned::new(owner)),
             })
         }))
@@ -203,7 +204,7 @@ where
 }
 
 impl<'life, O> Slot<'life, O> {
-    pub fn borrow(&self, _token: OwnerRef<'life, false>) -> &O::Target
+    pub fn borrow(&self, _token: Access<'life, false>) -> &O::Target
     where
         O: Deref,
         O::Target: Aliasable,
@@ -215,7 +216,7 @@ impl<'life, O> Slot<'life, O> {
 
     pub fn deref<'a, const U: bool>(
         &'a self,
-        _token: &'a OwnerRef<'life, U>,
+        _token: &'a Access<'life, U>,
     ) -> &'a <O::Target as Deref>::Target
     where
         O: Deref,
@@ -226,15 +227,12 @@ impl<'life, O> Slot<'life, O> {
 
     pub fn deref_mut<'a>(
         &'a mut self,
-        // The `mut` is actually not needed,
+        // `mut` is not needed
         // because shared tokens must be used on owners
         // that dereference to the same target,
         // so it must implement `CloneStableDeref`
         // and never `DerefMut`.
-        // Here we add it for better semantics
-        // making `OwnerRef` more like a reference
-        // rather than an access token.
-        _token: &'a mut OwnerRef<'life, true>,
+        _token: &'a Access<'life, true>,
     ) -> &'a mut <O::Target as Deref>::Target
     where
         O: DerefMut,
@@ -245,7 +243,7 @@ impl<'life, O> Slot<'life, O> {
 
     pub fn spawn_ref<'a, const U: bool>(
         &'a self,
-        _token: OwnerRef<'life, U>,
+        _token: Access<'life, U>,
     ) -> &'life <O::Target as Deref>::Target
     where
         O: Deref,
@@ -260,7 +258,7 @@ impl<'life, O> Slot<'life, O> {
 
     pub fn spawn_mut<'a>(
         &'a mut self,
-        _token: OwnerRef<'life, true>,
+        _token: Access<'life, true>,
     ) -> &'life mut <O::Target as Deref>::Target
     where
         O: DerefMut,

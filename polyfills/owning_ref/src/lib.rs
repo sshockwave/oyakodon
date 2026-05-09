@@ -19,7 +19,7 @@ use ::{
         hash::{Hash, Hasher},
         ops::{Deref, DerefMut},
     },
-    oyakodon::primitive::{AliasableDeref, Bowl, Intro, Owned, OwnerRef, Slot, View},
+    oyakodon::primitive::{Access, AliasableDeref, Bowl, Intro, Owned, Slot, View},
     std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard},
 };
 
@@ -42,7 +42,7 @@ use ::{
 /// ```
 /// See [this issue](https://github.com/Kimundi/owning-ref-rs/pull/71) for more details.
 pub struct OwningRef<'t, O, T: ?Sized>(
-    Bowl<'t, AliasableDeref<O>, dyn for<'x> View<'x, Output = (OwnerRef<'x, false>, &'x T)>>,
+    Bowl<'t, AliasableDeref<O>, dyn for<'x> View<'x, Output = (Access<'x, false>, &'x T)>>,
 );
 
 pub struct OwningRefMut<'t, O, T: ?Sized>(
@@ -132,7 +132,7 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
     {
         fn get_owner<'x, 'a, 't, O: StableAddress, T: ?Sized>(
             ((owner, _), slot): (
-                &'a (OwnerRef<'x, false>, &'x T),
+                &'a (Access<'x, false>, &'x T),
                 &'a Slot<'x, Owned<AliasableDeref<O>>>,
             ),
             _: Intro<'x, 't>,
@@ -269,7 +269,7 @@ impl<O, T: ?Sized> Deref for OwningRef<'_, O, T> {
     fn deref(&self) -> &T {
         fn get_view<'x, 'a, 't, O, T: ?Sized>(
             ((_, view), _): (
-                &'a (OwnerRef<'x, false>, &'x T),
+                &'a (Access<'x, false>, &'x T),
                 &'a Slot<'x, Owned<AliasableDeref<O>>>,
             ),
             _: Intro<'x, 't>,
