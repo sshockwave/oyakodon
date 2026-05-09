@@ -21,3 +21,8 @@ impl<P: Debug> Debug for MaybeDangling<P> {
         f.debug_tuple("MaybeDangling").field(self.as_ref()).finish()
     }
 }
+
+#[rustversion::since(1.66)]
+pub use ::core::mem::transmute as transmute_since_1_66;
+#[rustversion::before(1.66)]
+pub use transmute_unchecked as transmute_since_1_66;

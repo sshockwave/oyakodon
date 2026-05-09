@@ -26,6 +26,7 @@ mod has_alloc {
     unsafe impl<T: ?Sized> StableDeref for boxed::Box<T> {}
     unsafe impl<T> StableDeref for vec::Vec<T> {}
     unsafe impl StableDeref for string::String {}
+    #[rustversion::since(1.64)]
     unsafe impl StableDeref for ffi::CString {}
 
     unsafe impl<'a, B: 'a + borrow::ToOwned + ?Sized> StableDeref for borrow::Cow<'a, B> where
@@ -47,6 +48,8 @@ mod has_std {
     use super::*;
     use ::std::*;
 
+    #[rustversion::before(1.64)]
+    unsafe impl StableDeref for ffi::CString {}
     unsafe impl StableDeref for ffi::OsString {}
     unsafe impl StableDeref for path::PathBuf {}
 

@@ -47,3 +47,12 @@ impl<P> Drop for MaybeDangling<P> {
         unsafe { ptr::drop_in_place(self.as_mut()) }
     }
 }
+
+#[rustversion::before(1.66)]
+pub unsafe fn transmute_unchecked<Src, Dst>(src: Src) -> Dst {
+    let dst: *const Src = &src;
+    let dst = dst.cast();
+    let dst = unsafe { ::core::ptr::read(dst) };
+    ::core::mem::forget(src);
+    dst
+}

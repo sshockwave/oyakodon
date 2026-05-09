@@ -1,8 +1,8 @@
 use crate::{
-    polyfill::PhantomInvariantLifetime,
+    polyfill::{transmute_since_1_66, PhantomInvariantLifetime},
     primitive::{BoundedView, View},
 };
-use ::core::{marker::PhantomData, mem::transmute};
+use ::core::marker::PhantomData;
 
 /// Maintains an invariant that
 /// the view is valid for at least one of the lifetimes `'x` shorter than `'ub`.
@@ -98,13 +98,14 @@ impl<'life, 'ub, X: ?Sized> Stamp<'life, 'ub, X> {
     ///
     /// [`stamp`]: Self::stamp
     /// [#84591]: https://github.com/rust-lang/rust/issues/84591
-    pub const fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> Exists<'ub, F>
+    pub fn stamp<'long, F>(&self, view: <F as View<'life>>::Output) -> Exists<'ub, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'long>,
         'long: 'ub + 'life,
     {
-        let view =
-            unsafe { transmute::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view) };
+        let view = unsafe {
+            transmute_since_1_66::<<F as View<'life>>::Output, <F as View<'ub>>::Output>(view)
+        };
         Exists(view)
     }
 }

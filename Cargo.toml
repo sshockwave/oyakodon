@@ -12,8 +12,7 @@ categories = [
 repository = "https://github.com/sshockwave/oyakodon"
 documentation = "https://docs.rs/oyakodon"
 edition = "2021"
-# Rust version required by sparse registry support
-rust-version = "1.68"
+rust-version = "1.63" # `#![feature(nll)]` is required to support implicit lower bounds in HRTBs
 license = "MIT OR Apache-2.0"
 
 [package.metadata.docs.rs]

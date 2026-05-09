@@ -51,6 +51,7 @@ jobs:
     - run: cargo clippy --locked --workspace --all-targets
 
   msrv:
+    needs: [test, minimal-versions, miri, fmt, clippy, no-default-features, stable-deref, doc]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -72,6 +73,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ steps.extract_msrv.outputs.msrv }}
+    - uses: Swatinem/rust-cache@v2
     - run: |
         rm Cargo.lock
     - run: cargo build --workspace --lib

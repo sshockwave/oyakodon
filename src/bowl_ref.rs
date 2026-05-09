@@ -1,5 +1,8 @@
 use super::*;
-use crate::{polyfill::MaybeDangling, primitive::StableDeref};
+use crate::{
+    polyfill::{transmute_since_1_66, MaybeDangling},
+    primitive::StableDeref,
+};
 use ::core::{
     cmp::{Eq, PartialEq},
     convert::{AsMut, AsRef},
@@ -168,7 +171,7 @@ where
 {
     pub fn cast_life<'b>(self) -> BowlRef<'b, T, F> {
         // SAFETY: Same as `as_ref()`.
-        unsafe { transmute(self) }
+        unsafe { transmute_since_1_66(self) }
     }
 
     pub fn cast_view<
