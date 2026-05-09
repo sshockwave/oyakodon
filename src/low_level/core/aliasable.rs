@@ -1,7 +1,7 @@
 pub unsafe trait Aliasable: ::core::ops::Deref {}
 
 unsafe impl<T: ?Sized> Aliasable for &T {}
-unsafe impl<T: super::StableDeref> Aliasable for crate::primitive::DanglingDeref<T> {}
+unsafe impl<T: super::StableDeref> Aliasable for crate::primitive::AliasableDeref<T> {}
 
 #[cfg(feature = "alloc")]
 mod has_alloc {

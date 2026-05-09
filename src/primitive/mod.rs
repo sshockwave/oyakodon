@@ -9,7 +9,7 @@ mod helper;
 mod view;
 
 pub(crate) use self::deref_move::*;
-pub use self::{super::low_level::core::*, dangling_deref::DanglingDeref, view::*};
+pub use self::{super::low_level::core::*, aliasable_deref::*, view::*};
 
 mod deref_move {
     pub trait DerefMove: ::core::ops::DerefMut {
@@ -17,13 +17,13 @@ mod deref_move {
     }
 }
 
-mod dangling_deref {
+mod aliasable_deref {
     use crate::polyfill::MaybeDangling;
     use ::core::ops::{Deref, DerefMut};
 
-    pub struct DanglingDeref<T>(MaybeDangling<T>);
+    pub struct AliasableDeref<T>(MaybeDangling<T>);
 
-    impl<T> DanglingDeref<T> {
+    impl<T> AliasableDeref<T> {
         pub fn new(inner: T) -> Self {
             Self(MaybeDangling::new(inner))
         }
@@ -33,14 +33,14 @@ mod dangling_deref {
         }
     }
 
-    impl<T: Deref> Deref for DanglingDeref<T> {
+    impl<T: Deref> Deref for AliasableDeref<T> {
         type Target = T::Target;
         fn deref(&self) -> &Self::Target {
             &self.0
         }
     }
 
-    impl<T: DerefMut> DerefMut for DanglingDeref<T> {
+    impl<T: DerefMut> DerefMut for AliasableDeref<T> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.0
         }
