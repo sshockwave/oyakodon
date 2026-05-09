@@ -239,32 +239,32 @@ impl<'life, O> Slot<'life, O> {
         &mut self.1
     }
 
-    pub fn spawn_ref<'a, const U: bool>(
-        &'a self,
-        _token: Access<'life, U>,
+    pub fn spawn_ref<const U: bool>(
+        &self,
+        token: Access<'life, U>,
     ) -> &'life <O::Target as Deref>::Target
     where
         O: Deref,
         O::Target: Aliasable,
     {
+        let view = self.deref(&token);
         unsafe {
-            transmute::<&'a <O::Target as Deref>::Target, &'life <O::Target as Deref>::Target>(
-                &**self.1,
-            )
+            transmute::<&<O::Target as Deref>::Target, &'life <O::Target as Deref>::Target>(view)
         }
     }
 
-    pub fn spawn_mut<'a>(
-        &'a mut self,
-        _token: Access<'life, true>,
+    pub fn spawn_mut(
+        &mut self,
+        token: Access<'life, true>,
     ) -> &'life mut <O::Target as Deref>::Target
     where
         O: DerefMut,
         O::Target: Aliasable + DerefMut,
     {
+        let view = self.deref_mut(&token);
         unsafe {
-            transmute::<&'a mut <O::Target as Deref>::Target, &'life mut <O::Target as Deref>::Target>(
-                &mut **self.1,
+            transmute::<&mut <O::Target as Deref>::Target, &'life mut <O::Target as Deref>::Target>(
+                view,
             )
         }
     }
