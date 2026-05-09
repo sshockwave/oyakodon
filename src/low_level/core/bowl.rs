@@ -73,9 +73,16 @@ struct BowlInner<O: ?Sized, V> {
 
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x P::Target>>
 where
-    P: Aliasable + Deref,
+    P: Deref,
 {
-    pub fn new(owner: P) -> Self {
+    pub fn new(owner: P) -> Self
+    where
+        P: Aliasable,
+    {
+        unsafe { Self::new_unchecked(owner) }
+    }
+
+    pub unsafe fn new_unchecked(owner: P) -> Self {
         let view = unsafe { transmute::<&P::Target, &P::Target>(&*owner) };
         let bowl = Exists::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
@@ -95,9 +102,16 @@ where
 
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x mut P::Target>>
 where
-    P: Aliasable + DerefMut,
+    P: DerefMut,
 {
-    pub fn new_mut(mut owner: P) -> Self {
+    pub fn new_mut(owner: P) -> Self
+    where
+        P: Aliasable,
+    {
+        unsafe { Self::new_mut_unchecked(owner) }
+    }
+
+    pub unsafe fn new_mut_unchecked(mut owner: P) -> Self {
         let view = unsafe { transmute::<&mut P::Target, &mut P::Target>(&mut *owner) };
         let bowl = Exists::new().map(|(), stamp| {
             stamp.stamp(BowlInner {
