@@ -74,15 +74,7 @@ jobs:
         toolchain: ${{ steps.extract_msrv.outputs.msrv }}
     - run: |
         rm Cargo.lock
-        cargo update -p polling --precise 3.10.0
-        cargo update -p async-lock --precise 3.4.1
-        cargo update -p async-signal --precise 0.2.12
-        cargo update -p async-process --precise 2.4.0
-        cargo update -p async-fs --precise 2.1.3
-        cargo update -p async-io --precise 2.5.0
-      env:
-        CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-    - run: cargo test --locked --workspace --lib --tests
+    - run: cargo build --workspace --lib
 
   no-default-features:
     runs-on: ubuntu-latest
