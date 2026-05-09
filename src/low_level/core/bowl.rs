@@ -219,7 +219,15 @@ impl<'life, O> Slot<'life, O> {
 
     pub fn deref_mut<'a>(
         &'a mut self,
-        _token: &'a OwnerRef<'life, true>,
+        // The `mut` is actually not needed,
+        // because shared tokens must be used on owners
+        // that dereference to the same target,
+        // so it must implement `CloneStableDeref`
+        // and never `DerefMut`.
+        // Here we add it for better semantics
+        // making `OwnerRef` more like a reference
+        // rather than an access token.
+        _token: &'a mut OwnerRef<'life, true>,
     ) -> &'a mut <O::Target as Deref>::Target
     where
         O: DerefMut,
