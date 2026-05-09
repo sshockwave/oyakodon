@@ -18,7 +18,6 @@ use ::{
         hash::{Hash, Hasher},
         ops::{Deref, DerefMut},
     },
-    maybe_dangling::MaybeDangling,
     oyakodon::primitive::{AliasableDeref, Bowl, Owned, OwnerRef, Slot, Stamp, View},
     std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard},
 };
@@ -197,7 +196,7 @@ where
     H: Deref,
 {
     handle: H,
-    _owner: MaybeDangling<O>,
+    _owner: AliasableDeref<O>,
 }
 
 impl<O, H> Deref for OwningHandle<O, H>
@@ -230,8 +229,8 @@ where
     where
         F: FnOnce(*const O::Target) -> H,
     {
-        let o = MaybeDangling::new(o);
-        let h: H = f(&**o as *const O::Target);
+        let o = AliasableDeref::new(o);
+        let h: H = f(&*o as *const O::Target);
 
         OwningHandle {
             handle: h,
@@ -242,8 +241,8 @@ where
     where
         F: FnOnce(*const O::Target) -> Result<H, E>,
     {
-        let o = MaybeDangling::new(o);
-        let h: H = f(&**o as *const O::Target)?;
+        let o = AliasableDeref::new(o);
+        let h: H = f(&*o as *const O::Target)?;
 
         Ok(OwningHandle {
             handle: h,
@@ -252,11 +251,11 @@ where
     }
 
     pub fn as_owner(&self) -> &O {
-        &*self._owner
+        self._owner.get()
     }
 
     pub fn into_owner(self) -> O {
-        MaybeDangling::into_inner(self._owner)
+        self._owner.into_inner()
     }
 }
 

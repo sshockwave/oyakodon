@@ -289,7 +289,6 @@ dependencies = [
 name = "oyakodon_owning_ref"
 version = "0.5.1"
 dependencies = [
- "maybe-dangling",
  "owning_ref",
  "oyakodon",
 ]
