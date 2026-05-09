@@ -17,7 +17,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v6
-    - run: cargo test --verbose --locked
+    - run: cargo test --verbose --locked --workspace
 
   minimal-versions:
     runs-on: ubuntu-latest
@@ -26,7 +26,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
     - run: cargo update -Z direct-minimal-versions
     - uses: dtolnay/rust-toolchain@stable
-    - run: cargo test --verbose --locked
+    - run: cargo test --verbose --locked --workspace
 
   miri:
     runs-on: ubuntu-latest
@@ -35,7 +35,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
       with:
         components: miri
-    - run: cargo miri test --verbose --locked
+    - run: cargo miri test --verbose --locked --workspace
 
   fmt:
     runs-on: ubuntu-latest
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
-    - run: cargo clippy --verbose --locked --all-targets
+    - run: cargo clippy --verbose --locked --workspace --all-targets
 
   msrv:
     runs-on: ubuntu-latest
@@ -56,8 +56,14 @@ jobs:
     - id: extract_msrv
       shell: python
       run: |
+        from pathlib import Path
+        manifest_path = Path("Cargo.toml")
+        manifest = manifest_path.read_text()
+        data = manifest.replace("resolver = \"3\"", "resolver = \"2\"")
+        manifest_path.write_text(data)
+
         import tomllib
-        data = tomllib.load(open("Cargo.toml", "rb"))
+        data = tomllib.loads(manifest)
         msrv = data["package"]["rust-version"]
 
         import os
@@ -75,22 +81,22 @@ jobs:
         cargo update -p async-io --precise 2.5.0
       env:
         CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-    - run: cargo test --verbose --locked --lib --tests
+    - run: cargo test --verbose --locked --workspace --lib --tests
 
   no-default-features:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
-    - run: cargo build --verbose --locked --no-default-features
+    - run: cargo build --verbose --locked --workspace --no-default-features
 
   stable-deref:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
-    - run: cargo test --verbose --locked --features stable_deref
+    - run: cargo test --verbose --locked --workspace --features stable_deref
 
   doc:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
-    - run: cargo doc --verbose --locked --features docs
+    - run: cargo doc --verbose --locked --workspace --features docs
