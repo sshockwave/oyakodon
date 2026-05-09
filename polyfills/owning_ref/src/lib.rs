@@ -337,7 +337,18 @@ where
     }
 }
 
-// TODO: impl<'t, O, T: ?Sized> Debug for OwningRef<'t, O, T>
+impl<'t, O, T: ?Sized> Debug for OwningRef<'t, O, T>
+where
+    O: Debug + StableAddress,
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.debug_struct("OwningRef")
+            .field("owner", self.as_owner())
+            .field("reference", &&**self)
+            .finish()
+    }
+}
 
 impl<'t, O, T: ?Sized> Debug for OwningRefMut<'t, O, T>
 where
@@ -345,9 +356,15 @@ where
     T: Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        struct Elided;
+        impl Debug for Elided {
+            fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+                write!(f, "_")
+            }
+        }
         f.debug_struct("OwningRefMut")
-            .field("owner", &"_")
-            .field("reference", &*self)
+            .field("owner", &Elided)
+            .field("reference", &&**self)
             .finish()
     }
 }
@@ -481,3 +498,6 @@ pub type ErasedRcRef<'u, U> = OwningRef<'u, Rc<dyn Erased>, U>;
 pub type ErasedArcRef<'u, U> = OwningRef<'u, Arc<dyn Erased>, U>;
 
 pub type ErasedBoxRefMut<'u, U> = OwningRefMut<'u, Box<dyn Erased>, U>;
+
+#[cfg(test)]
+mod tests;
