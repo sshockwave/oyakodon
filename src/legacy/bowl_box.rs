@@ -12,7 +12,7 @@ use ::{
 /// # Examples
 ///
 /// ```
-/// use oyakodon::BowlBox;
+/// use oyakodon::legacy::BowlBox;
 ///
 /// fn parse_words(s: &mut String) -> Vec<&str> {
 ///     s.split_whitespace().collect()

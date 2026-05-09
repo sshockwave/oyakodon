@@ -11,7 +11,7 @@
 // The memory-safety properties exercised by these tests are already covered by the
 // synchronous tests above.
 
-use oyakodon::BowlBox;
+use oyakodon::legacy::BowlBox;
 
 const OWNER_STR: &str = "some longer string xxx with even more chars";
 const CAPTURE_IDX: usize = 33;

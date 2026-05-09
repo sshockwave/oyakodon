@@ -13,7 +13,7 @@
 // oyakodon has std/alloc/stable_deref features; no_std+alloc support is possible
 // but not covered by this file.
 
-use oyakodon::{BowlRef, Derive, View};
+use oyakodon::legacy::{BowlRef, Derive, View};
 
 const SCRATCH_REGION: [u8; 4096] = [0u8; 4096];
 

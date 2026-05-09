@@ -13,7 +13,7 @@ mod no_std_lib;
 mod rust_1_85_or_newer;
 mod tests_extra;
 
-use oyakodon::{BowlMut, BowlRef, Derive, View};
+use oyakodon::legacy::{BowlMut, BowlRef, Derive, View};
 use std::cell::{Cell, RefCell};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::rc::Rc;

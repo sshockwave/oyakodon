@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use oyakodon::BowlRef;
+use oyakodon::legacy::BowlRef;
 
 // --- not_send -------------------------------------------------------------------
 // NOT MIGRATABLE: uses the `impls!` macro to assert negative trait bounds at runtime.

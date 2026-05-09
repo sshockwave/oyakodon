@@ -11,7 +11,7 @@
 //   TryBuilder { ... }.try_build()   → BowlRef::new(...).into_result()
 //   .try_build_or_recover()          → .into_result() then .unwrap_err().into_parts()
 
-use oyakodon::{BowlBox, BowlMut, BowlRef};
+use oyakodon::legacy::{BowlBox, BowlMut, BowlRef};
 
 // Shared helpers.
 fn get_ref(data: &i32) -> &i32 {

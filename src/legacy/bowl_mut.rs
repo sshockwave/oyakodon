@@ -40,7 +40,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use oyakodon::BowlMut;
+/// use oyakodon::legacy::BowlMut;
 ///
 /// fn parse_words(s: &mut String) -> Vec<&str> {
 ///     s.split_whitespace().collect()

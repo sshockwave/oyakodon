@@ -17,7 +17,7 @@ use ::core::{
 /// # Examples
 ///
 /// ```
-/// use oyakodon::BowlRef;
+/// use oyakodon::legacy::BowlRef;
 /// use std::rc::Rc;
 ///
 /// fn first_word(s: &String) -> &str {
@@ -241,7 +241,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use oyakodon::BowlRef;
+    /// use oyakodon::legacy::BowlRef;
     /// use std::rc::Rc;
     ///
     /// fn try_parse(s: &String) -> Result<i32, std::num::ParseIntError> {

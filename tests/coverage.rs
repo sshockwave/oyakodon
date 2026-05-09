@@ -1,7 +1,7 @@
 // Exercises parts of the public API not covered by other test files.
 // Organized by type, then by method or trait impl.
 
-use oyakodon::{BowlBox, BowlMut, BowlRef};
+use oyakodon::legacy::{BowlBox, BowlMut, BowlRef};
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},

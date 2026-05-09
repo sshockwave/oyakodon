@@ -1,6 +1,6 @@
 #[test]
 fn readme_basic() {
-    use oyakodon::BowlBox;
+    use oyakodon::legacy::BowlBox;
 
     fn parse_words(s: &mut String) -> Vec<&str> {
         s.split_whitespace().collect()
@@ -26,7 +26,7 @@ fn readme_basic() {
 #[test]
 #[cfg_attr(miri, ignore)]
 fn readme_monadic() {
-    use oyakodon::BowlBox;
+    use oyakodon::legacy::BowlBox;
 
     fn parse_and_double(
         s: &mut String,
@@ -47,7 +47,7 @@ fn readme_monadic() {
 
 #[test]
 fn readme_closure() {
-    use oyakodon::{BowlBox, View};
+    use oyakodon::legacy::{BowlBox, View};
 
     struct Word;
     impl<'a> View<&'a mut String> for Word {
@@ -63,7 +63,7 @@ fn readme_closure() {
 
 #[test]
 fn readme_derive() {
-    use oyakodon::{BowlBox, Derive, View};
+    use oyakodon::legacy::{BowlBox, Derive, View};
 
     struct NthWord(usize);
     impl<'a> View<&'a mut String> for NthWord {
@@ -81,7 +81,7 @@ fn readme_derive() {
 
 #[test]
 fn readme_shared() {
-    use oyakodon::BowlRef;
+    use oyakodon::legacy::BowlRef;
     use std::rc::Rc;
 
     fn parse_words(s: &String) -> Vec<&str> {
@@ -96,7 +96,7 @@ fn readme_shared() {
 
 #[test]
 fn readme_cast() {
-    use oyakodon::{BowlBox, View};
+    use oyakodon::legacy::{BowlBox, View};
 
     // Two different view marker types that both produce `usize`
     fn str_len(s: &mut String) -> usize {

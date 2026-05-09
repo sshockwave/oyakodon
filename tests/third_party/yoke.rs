@@ -15,7 +15,7 @@
 // miri.rs::run_test is also covered by tests/soundness.rs::yoke_3696 (using BowlMut).
 // It is included here for completeness using BowlRef to match the original Yoke semantics.
 
-use oyakodon::{BowlMut, BowlRef, Derive, View};
+use oyakodon::legacy::{BowlMut, BowlRef, Derive, View};
 use std::rc::Rc;
 
 // ================================================================================
