@@ -50,26 +50,22 @@ where
 
 #[cfg(feature = "alloc")]
 impl<'ub, T: 'ub>
-    Bowl<
-        'ub,
-        ::aliasable::boxed::AliasableBox<T>,
-        dyn for<'x> View<'x, Output = &'x mut T> + 'static,
-    >
+    Bowl<'ub, crate::AliasableBox<T>, dyn for<'x> View<'x, Output = &'x mut T> + 'static>
 {
     pub fn new_box(owner: T) -> Self {
-        Bowl::new_mut(::aliasable::boxed::AliasableBox::from_unique(
-            ::alloc::boxed::Box::new(owner),
-        ))
+        Bowl::new_mut(crate::AliasableBox::from_unique(::alloc::boxed::Box::new(
+            owner,
+        )))
     }
 }
 
 #[cfg(feature = "alloc")]
-impl<'ub, T: 'ub, F> Bowl<'ub, ::aliasable::boxed::AliasableBox<T>, F>
+impl<'ub, T: 'ub, F> Bowl<'ub, crate::AliasableBox<T>, F>
 where
     F: ?Sized + for<'x> BoundedView<'x, 'ub>,
 {
     pub fn into_owner_value(self) -> T {
-        *::aliasable::boxed::AliasableBox::into_unique(self.into_owner())
+        *crate::AliasableBox::into_unique(self.into_owner())
     }
 }
 

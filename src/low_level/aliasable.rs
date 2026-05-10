@@ -9,7 +9,7 @@ mod has_alloc {
     unsafe impl<T: ?Sized> Aliasable for ::alloc::rc::Rc<T> {}
     #[cfg(target_has_atomic = "ptr")]
     unsafe impl<T: ?Sized> Aliasable for ::alloc::sync::Arc<T> {}
-    unsafe impl<T: ?Sized> Aliasable for ::aliasable::boxed::AliasableBox<T> {}
-    unsafe impl<T> Aliasable for ::aliasable::vec::AliasableVec<T> {}
-    unsafe impl Aliasable for ::aliasable::string::AliasableString {}
+    unsafe impl<T: ?Sized> Aliasable for crate::AliasableBox<T> {}
+    unsafe impl<T> Aliasable for crate::AliasableVec<T> {}
+    unsafe impl Aliasable for crate::AliasableString {}
 }

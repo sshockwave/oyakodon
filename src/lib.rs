@@ -91,6 +91,8 @@ mod polyfill;
 
 use self::deref_move::*;
 pub use self::{aliasable_deref::*, low_level::*, owned::*, view::*};
+#[cfg(feature = "alloc")]
+pub use ::aliasable::{boxed::AliasableBox, string::AliasableString, vec::AliasableVec};
 
 mod deref_move {
     pub trait DerefMove: ::core::ops::DerefMut {

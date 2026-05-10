@@ -1,10 +1,7 @@
 //! An example of using covariant views to get a direct reference to the view
 //! without wrapping everything in a function inside [`Bowl::spawn`].
 
-use ::{
-    aliasable::boxed::AliasableBox,
-    oyakodon::{Bowl, View},
-};
+use ::oyakodon::{AliasableBox, Bowl, View};
 
 trait Covariant<'ub> {
     type Value<'a>
