@@ -21,9 +21,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["std"]
-std = ["alloc", "stable_deref_trait?/std"]
-alloc = ["stable_deref_trait?/alloc", "dep:aliasable"]
-stable_deref = ["dep:stable_deref_trait"]
+std = ["alloc"]
+alloc = ["dep:aliasable"]
 
 # We need to keep this workaround until `[target.'cfg(doc)'.dependencies]` is supported.
 # https://github.com/rust-lang/cargo/issues/8170
