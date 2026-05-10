@@ -2,9 +2,10 @@ use crate::*;
 use ::core::{
     clone::Clone,
     fmt::{self, Debug},
+    hash::Hash,
     marker::Copy,
     mem::drop,
-    ops::DerefMut,
+    ops::{Deref, DerefMut},
 };
 
 pub trait Derive<T> {
@@ -366,15 +367,61 @@ impl<O: ?Sized> Debug for Slot<'_, O> {
     }
 }
 
-impl<T: Debug> Debug for Taker<'_, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Taker").field(&**self).finish()
+impl<T, U, V> PartialEq<U> for Owned<T>
+where
+    T: PartialEq<V> + ?Sized,
+    U: Deref<Target = V> + ?Sized,
+    V: ?Sized,
+{
+    fn eq(&self, other: &U) -> bool {
+        **self == **other
+    }
+}
+impl<T, U, V> PartialOrd<U> for Owned<T>
+where
+    T: PartialOrd<V> + ?Sized,
+    U: Deref<Target = V> + ?Sized,
+    V: ?Sized,
+{
+    fn partial_cmp(&self, other: &U) -> Option<::core::cmp::Ordering> {
+        (**self).partial_cmp(&**other)
     }
 }
 
-impl<T: Debug + ?Sized> Debug for Owned<T> {
+impl<T, U, V> PartialEq<U> for Taker<'_, T>
+where
+    T: PartialEq<V>,
+    U: Deref<Target = V> + ?Sized,
+    V: ?Sized,
+{
+    fn eq(&self, other: &U) -> bool {
+        **self == **other
+    }
+}
+
+impl<T, U, V> PartialOrd<U> for Taker<'_, T>
+where
+    T: PartialOrd<V>,
+    U: Deref<Target = V> + ?Sized,
+    V: ?Sized,
+{
+    fn partial_cmp(&self, other: &U) -> Option<::core::cmp::Ordering> {
+        (**self).partial_cmp(&**other)
+    }
+}
+
+impl<T> Hash for Taker<'_, T>
+where
+    T: Hash,
+{
+    fn hash<H: ::core::hash::Hasher>(&self, state: &mut H) {
+        (**self).hash(state)
+    }
+}
+
+impl<T: Debug> Debug for Taker<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Owned").field(&&**self).finish()
+        f.debug_tuple("Taker").field(&**self).finish()
     }
 }
 

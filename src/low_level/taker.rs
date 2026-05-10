@@ -5,6 +5,7 @@ use ::core::{
     option::Option,
 };
 
+#[derive(Eq, Ord)]
 pub struct Taker<'a, T>(&'a mut Option<T>);
 
 impl<'a, T> Taker<'a, T> {

@@ -1,6 +1,7 @@
 use crate::DerefMove;
 use ::core::ops::{Deref, DerefMut};
 
+#[derive(Copy, Clone, Eq, Ord, Hash, Debug, Default)]
 pub struct Owned<T: ?Sized>(T);
 
 impl<T> Owned<T> {
