@@ -42,7 +42,6 @@ where
     }
 }
 
-#[derive(Clone, Copy)]
 pub struct Intro<'life, 'ub, X: ?Sized = &'life &'ub ()>(
     PhantomData<(PhantomInvariantLifetime<'life>, &'ub (), X)>,
 );

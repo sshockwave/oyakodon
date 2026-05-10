@@ -324,7 +324,14 @@ where
     }
 }
 
-impl<X> Debug for Intro<'_, '_, X> {
+impl<X: ?Sized> Clone for Intro<'_, '_, X> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<X: ?Sized> Copy for Intro<'_, '_, X> {}
+
+impl<X: ?Sized> Debug for Intro<'_, '_, X> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Intro").finish()
     }
@@ -348,6 +355,7 @@ impl<P: CloneStableDeref> Clone for Slot<'_, Owned<P>> {
         self.spawn()
     }
 }
+impl<P: CloneStableDeref + Copy> Copy for Slot<'_, Owned<P>> {}
 
 impl Clone for Access<'_, false> {
     fn clone(&self) -> Self {
