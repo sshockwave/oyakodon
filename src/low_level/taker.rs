@@ -38,6 +38,7 @@ impl<'a, T> DerefMut for Taker<'a, T> {
 
 impl<'a, T> DerefMove for Taker<'a, T> {
     fn deref_move(self) -> Self::Target {
+        #[allow(clippy::mem_replace_option_with_none)] // Needs unchecked unwrap.
         let value = replace(self.0, None);
         // SAFETY: Guaranteed by the invariant.
         unsafe { value.unwrap_unchecked() }

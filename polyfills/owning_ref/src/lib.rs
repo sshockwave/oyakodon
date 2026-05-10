@@ -1,5 +1,6 @@
 #![deny(unsafe_code)]
 #![warn(unsafe_op_in_unsafe_fn)]
+#![allow(clippy::type_complexity, clippy::missing_safety_doc)]
 
 extern crate alloc;
 
@@ -272,7 +273,7 @@ impl<O, T: ?Sized> Deref for OwningRef<'_, O, T> {
             ),
             _: Intro<'x, 't>,
         ) -> &'a T {
-            *view
+            view
         }
         self.0.borrow().map(get_view)
     }
@@ -286,14 +287,14 @@ impl<O, T: ?Sized> Deref for OwningRefMut<'_, O, T> {
             (view, _): (&'a &'x mut T, &'a Slot<'x, Owned<AliasableDeref<O>>>),
             _: Intro<'x, 't>,
         ) -> &'a T {
-            *view
+            view
         }
         self.0.borrow().map(get_view)
     }
 }
 
 impl<'t, O, T: ?Sized> DerefMut for OwningRefMut<'t, O, T> {
-    fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+    fn deref_mut(&mut self) -> &mut T {
         fn get_view<'x, 'a, 't, O, T: ?Sized>(
             (view, _): (
                 &'a mut &'x mut T,
@@ -301,7 +302,7 @@ impl<'t, O, T: ?Sized> DerefMut for OwningRefMut<'t, O, T> {
             ),
             _: Intro<'x, 't>,
         ) -> &'a mut T {
-            &mut **view
+            view
         }
         self.0.borrow_mut().map(get_view)
     }
@@ -309,13 +310,13 @@ impl<'t, O, T: ?Sized> DerefMut for OwningRefMut<'t, O, T> {
 
 impl<'t, O, T: ?Sized> AsRef<T> for OwningRef<'t, O, T> {
     fn as_ref(&self) -> &T {
-        &*self
+        self
     }
 }
 
 impl<'t, O, T: ?Sized> AsRef<T> for OwningRefMut<'t, O, T> {
     fn as_ref(&self) -> &T {
-        &*self
+        self
     }
 }
 
@@ -327,13 +328,13 @@ impl<'t, O, T: ?Sized> AsMut<T> for OwningRefMut<'t, O, T> {
 
 impl<'t, O, T: ?Sized> Borrow<T> for OwningRef<'t, O, T> {
     fn borrow(&self) -> &T {
-        &*self
+        self
     }
 }
 
 impl<'t, O, T: ?Sized> Borrow<T> for OwningRefMut<'t, O, T> {
     fn borrow(&self) -> &T {
-        &*self
+        self
     }
 }
 
@@ -419,7 +420,7 @@ where
     T: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
-        (&*self as &T).eq(&*other as &T)
+        (self as &T).eq(other as &T)
     }
 }
 
@@ -430,7 +431,7 @@ where
     T: PartialOrd,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        (&*self as &T).partial_cmp(&*other as &T)
+        (self as &T).partial_cmp(other as &T)
     }
 }
 
@@ -439,7 +440,7 @@ where
     T: Ord,
 {
     fn cmp(&self, other: &Self) -> Ordering {
-        (&*self as &T).cmp(&*other as &T)
+        (self as &T).cmp(other as &T)
     }
 }
 
@@ -448,7 +449,7 @@ where
     T: Hash,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        (&*self as &T).hash(state);
+        (self as &T).hash(state);
     }
 }
 
@@ -457,7 +458,7 @@ where
     T: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
-        (&*self as &T).eq(&*other as &T)
+        (self as &T).eq(other as &T)
     }
 }
 
@@ -468,7 +469,7 @@ where
     T: PartialOrd,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        (&*self as &T).partial_cmp(&*other as &T)
+        (self as &T).partial_cmp(other as &T)
     }
 }
 
@@ -477,7 +478,7 @@ where
     T: Ord,
 {
     fn cmp(&self, other: &Self) -> Ordering {
-        (&*self as &T).cmp(&*other as &T)
+        (self as &T).cmp(other as &T)
     }
 }
 
@@ -486,7 +487,7 @@ where
     T: Hash,
 {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        (&*self as &T).hash(state);
+        (self as &T).hash(state);
     }
 }
 

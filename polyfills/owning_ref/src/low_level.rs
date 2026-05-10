@@ -35,8 +35,8 @@ impl<'t, O, T: 't + ?Sized> OwningRefMut<'t, O, T> {
         O: DerefMut<Target = T>,
     {
         Self(
-            Bowl::new(AliasableDeref::new(o)).map(|mut view, mut slot, intro| {
-                let view = slot.as_owner_mut(&mut view);
+            Bowl::new(AliasableDeref::new(o)).map(|view, mut slot, intro| {
+                let view = slot.as_owner_mut(&view);
                 let view = unsafe { transmute::<&mut T, &mut T>(view) };
                 slot.fill(view, intro)
             }),

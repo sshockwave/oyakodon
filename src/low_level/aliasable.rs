@@ -1,3 +1,7 @@
+/// # Safety
+/// In addition to [`StableDeref`][crate::StableDeref],
+/// the implementor must guarantee that the pointer to be `Deref`ed
+/// is not attributed with `Unique` in Miri or `noalias` in LLVM IR.
 pub unsafe trait Aliasable: ::core::ops::Deref {}
 
 unsafe impl<T: ?Sized> Aliasable for &T {}
