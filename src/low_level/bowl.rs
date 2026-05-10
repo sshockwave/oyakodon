@@ -212,7 +212,7 @@ impl<'life, O> Slot<'life, O> {
         &self.1
     }
 
-    pub fn deref<'a, const U: bool>(
+    pub fn as_owner<'a, const U: bool>(
         &'a self,
         _token: &'a Access<'life, U>,
     ) -> &'a <O::Target as Deref>::Target
@@ -223,7 +223,7 @@ impl<'life, O> Slot<'life, O> {
         &self.1
     }
 
-    pub fn deref_mut<'a>(
+    pub fn as_owner_mut<'a>(
         &'a mut self,
         // `mut` is not needed
         // because shared tokens must be used on owners
@@ -247,7 +247,7 @@ impl<'life, O> Slot<'life, O> {
         O: Deref,
         O::Target: Aliasable,
     {
-        let view = self.deref(&token);
+        let view = self.as_owner(&token);
         unsafe {
             transmute::<&<O::Target as Deref>::Target, &'life <O::Target as Deref>::Target>(view)
         }
@@ -261,7 +261,7 @@ impl<'life, O> Slot<'life, O> {
         O: DerefMut,
         O::Target: Aliasable + DerefMut,
     {
-        let view = self.deref_mut(&token);
+        let view = self.as_owner_mut(&token);
         unsafe {
             transmute::<&mut <O::Target as Deref>::Target, &'life mut <O::Target as Deref>::Target>(
                 view,

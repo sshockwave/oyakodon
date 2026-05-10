@@ -22,7 +22,7 @@ impl<'t, O, T: 't + ?Sized> OwningRef<'t, O, T> {
         O: Deref<Target = T>,
     {
         Self(Bowl::new(AliasableDeref::new(o)).map(|owner, slot, intro| {
-            let view = slot.deref(&owner);
+            let view = slot.as_owner(&owner);
             let view = unsafe { transmute::<&T, &T>(view) };
             slot.fill((owner.into(), view), intro)
         }))
@@ -36,7 +36,7 @@ impl<'t, O, T: 't + ?Sized> OwningRefMut<'t, O, T> {
     {
         Self(
             Bowl::new(AliasableDeref::new(o)).map(|mut view, mut slot, intro| {
-                let view = slot.deref_mut(&mut view);
+                let view = slot.as_owner_mut(&mut view);
                 let view = unsafe { transmute::<&mut T, &mut T>(view) };
                 slot.fill(view, intro)
             }),
