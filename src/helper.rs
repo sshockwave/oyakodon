@@ -25,7 +25,7 @@ where
 
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x P::Target>>
 where
-    P: Aliasable,
+    P: StableDeref + Aliasable,
     P::Target: 'ub,
 {
     pub fn new_ref(owner: P) -> Self {
@@ -38,7 +38,7 @@ where
 
 impl<'ub, P> Bowl<'ub, P, dyn for<'x> View<'x, Output = &'x mut P::Target>>
 where
-    P: Aliasable + DerefMut,
+    P: StableDeref + Aliasable + DerefMut,
     P::Target: 'ub,
 {
     pub fn new_mut(owner: P) -> Self {
@@ -97,7 +97,13 @@ where
         self.borrow_mut()
             .map(|(view, slot), intro| f(view, slot, intro))
     }
+}
 
+impl<'ub, P, F> Bowl<'ub, P, F>
+where
+    F: ?Sized + for<'x> BoundedView<'x, 'ub>,
+    P: Aliasable,
+{
     /// Transforms the current view using `f`, encoding the composition as a generated view type.
     pub fn map_view<G>(
         self,
@@ -214,6 +220,7 @@ mod with_new_bounded_view {
     impl<'ub, P, F> Bowl<'ub, P, F>
     where
         F: ?Sized + for<'x> BoundedView<'x, 'ub>,
+        P: Aliasable,
     {
         /// Changes the lifetime placeholder `'ub` without modifying the value.
         /// This will reduce the requirements of operations on the view,

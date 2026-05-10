@@ -19,7 +19,7 @@ pub unsafe trait IntoErased<'a> {
 impl<'t, O, T: 't + ?Sized> OwningRef<'t, O, T> {
     pub unsafe fn new_assert_stable_address(o: O) -> Self
     where
-        O: Deref<Target = T>,
+        O: Deref<Target = T> + StableAddress,
     {
         Self(Bowl::new(AliasableDeref::new(o)).map(|owner, slot, intro| {
             let view = slot.as_owner(&owner);
@@ -32,7 +32,7 @@ impl<'t, O, T: 't + ?Sized> OwningRef<'t, O, T> {
 impl<'t, O, T: 't + ?Sized> OwningRefMut<'t, O, T> {
     pub unsafe fn new_assert_stable_address(o: O) -> Self
     where
-        O: DerefMut<Target = T>,
+        O: DerefMut<Target = T> + StableAddress,
     {
         Self(
             Bowl::new(AliasableDeref::new(o)).map(|view, mut slot, intro| {

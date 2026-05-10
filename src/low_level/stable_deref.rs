@@ -1,10 +1,5 @@
 /// # SAFETY
-/// In addition to the requirements in [`stable_deref_trait::StableDeref`],
-/// implementors must also guarantee that
-/// the `noalias` attribute can be erased by [`MaybeDangling`]
-/// if it's used by the pointer.
-///
-/// [`MaybeDangling`]: std::mem::MaybeDangling
+/// See [`stable_deref_trait::StableDeref`].
 pub unsafe trait StableDeref: ::core::ops::Deref {}
 /// # SAFETY
 /// See [`stable_deref_trait::CloneStableDeref`].
@@ -41,6 +36,10 @@ mod has_alloc {
     unsafe impl<T: ?Sized> StableDeref for sync::Arc<T> {}
     #[cfg(target_has_atomic = "ptr")]
     unsafe impl<T: ?Sized> CloneStableDeref for sync::Arc<T> {}
+
+    unsafe impl<T: ?Sized> StableDeref for crate::AliasableBox<T> {}
+    unsafe impl<T> StableDeref for crate::AliasableVec<T> {}
+    unsafe impl StableDeref for crate::AliasableString {}
 }
 
 #[cfg(feature = "std")]

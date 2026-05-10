@@ -141,7 +141,10 @@ impl<'t, O, T: ?Sized> OwningRef<'t, O, T> {
         self.0.borrow().map(get_owner).get()
     }
 
-    pub fn into_owner(self) -> O {
+    pub fn into_owner(self) -> O
+    where
+        O: StableAddress,
+    {
         self.0.into_owner().into_inner()
     }
 }
@@ -181,7 +184,10 @@ impl<'t, O, T: ?Sized> OwningRefMut<'t, O, T> {
     // TODO: unsafe fn as_owner
     // TODO: unsafe fn as_owner_mut
 
-    pub fn into_owner(self) -> O {
+    pub fn into_owner(self) -> O
+    where
+        O: StableAddress,
+    {
         self.0.into_owner().into_inner()
     }
 }

@@ -90,13 +90,31 @@ mod low_level;
 mod owned;
 mod polyfill;
 
-use self::deref_move::*;
 pub use self::{aliasable_deref::*, low_level::*, owned::*, view::*};
+use self::{deref_move::*, maybe_unique::*};
 #[cfg(feature = "alloc")]
 pub use ::aliasable::{boxed::AliasableBox, string::AliasableString, vec::AliasableVec};
 
 mod deref_move {
     pub trait DerefMove: ::core::ops::DerefMut {
         fn deref_move(self) -> Self::Target;
+    }
+}
+
+mod maybe_unique {
+    use ::core::ops::Deref;
+
+    /// This type is for overriding the unique property of a pointer.
+    ///
+    /// When an alias is stored elsewhere,
+    /// this pointer must not be considered unique anymore,
+    /// and we can borrow from it again only if
+    /// the pointer itself is [`Aliasable`][crate::Aliasable].
+    pub struct MaybeUnique<T: ?Sized, const UNIQUE: bool>(T);
+    impl<T: Deref + ?Sized, const U: bool> Deref for MaybeUnique<T, U> {
+        type Target = T::Target;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
     }
 }

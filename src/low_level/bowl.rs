@@ -1,6 +1,6 @@
 use crate::{
     polyfill::MaybeDangling, Aliasable, BoundedView, CloneStableDeref, DerefMove, Exists, Intro,
-    Owned, Taker, View,
+    MaybeUnique, Owned, StableDeref, Taker, View,
 };
 use ::core::{
     clone::Clone,
@@ -136,7 +136,12 @@ where
             Slot<'life, Taker<'owner, P>>,
             Intro<'life, 'ub>,
         ) -> R,
-    ) -> R {
+    ) -> R
+    where
+        // Without this, a function cannot both read the view and drop the owner,
+        // but we can't force the user to follow this discipline.
+        P: Aliasable,
+    {
         self.0.map(|BowlInner { view, owner }, intro| {
             let mut owner = Some(owner.into_owner());
             let taker = unsafe { Taker::new(&mut owner) };
@@ -219,6 +224,7 @@ impl<'life, O> Slot<'life, O> {
     where
         O: Deref,
         O::Target: Deref,
+        MaybeUnique<O::Target, U>: Aliasable,
     {
         &self.1
     }
@@ -245,7 +251,8 @@ impl<'life, O> Slot<'life, O> {
     ) -> &'life <O::Target as Deref>::Target
     where
         O: Deref,
-        O::Target: Aliasable,
+        O::Target: StableDeref,
+        MaybeUnique<O::Target, U>: Aliasable,
     {
         let view = self.as_owner(&token);
         unsafe {
@@ -259,7 +266,7 @@ impl<'life, O> Slot<'life, O> {
     ) -> &'life mut <O::Target as Deref>::Target
     where
         O: DerefMut,
-        O::Target: Aliasable + DerefMut,
+        O::Target: StableDeref + DerefMut,
     {
         let view = self.as_owner_mut(&token);
         unsafe {
