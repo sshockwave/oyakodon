@@ -1,3 +1,5 @@
+#![allow(unsafe_code)]
+
 use ::core::{future::Future, marker::PhantomData, option::Option, result::Result};
 
 #[cfg(feature = "alloc")]

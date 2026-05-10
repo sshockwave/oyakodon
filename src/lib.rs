@@ -75,6 +75,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(clippy::type_complexity)]
 #![warn(unsafe_op_in_unsafe_fn)]
+#![deny(unsafe_code)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
